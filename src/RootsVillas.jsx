@@ -219,7 +219,7 @@ export const DEFAULT_CONTENT = {
       heroSubtitle: "Vilă privată pentru weekenduri cu prietenii sau familia, la câteva minute de Brașov, cu ciubăr, saună și curte.",
       heroImage: "",
       phoneLabel: "Bogdan Jingoi",
-      smoobuId: "",
+      smoobuId: "506559",
       galleryExterior: [
         { img: "", caption: "Ciubăr privat pentru 8 persoane" },
         { img: "", caption: "Videoproiector vizibil din ciubăr" },
@@ -240,7 +240,7 @@ export const DEFAULT_CONTENT = {
       heroSubtitle: "Vilă privată pentru grupuri de 8–10 persoane, cu ciubăr, saună, biliard și cramă, la câteva minute de Brașov.",
       heroImage: "",
       phoneLabel: "Bogdan Jingoi",
-      smoobuId: "",
+      smoobuId: "867949",
       galleryExterior: [
         { img: "", caption: "Ciubăr privat încălzit pe gaz" },
         { img: "", caption: "Saună privată la interior" },
