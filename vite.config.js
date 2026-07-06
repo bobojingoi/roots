@@ -14,6 +14,7 @@ function smoobuApiDev(env) {
       server.middlewares.use("/api/availability", async (req, res) => {
         try {
           if (env.SMOOBU_API_KEY) process.env.SMOOBU_API_KEY = env.SMOOBU_API_KEY;
+          if (env.SMOOBU_API_SECRET) process.env.SMOOBU_API_SECRET = env.SMOOBU_API_SECRET;
           const mod = await server.ssrLoadModule("/api/availability.js");
           const handler = mod.default;
           const parsed = new URL(req.url, "http://localhost");
