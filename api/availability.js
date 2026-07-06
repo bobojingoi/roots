@@ -46,6 +46,7 @@ export default async function handler(req, res) {
       availability: mockAvailability(startDate, endDate),
       mock: true,
       note: String((e && e.message) || e),
+      diag: { keyPresent: !!apiKey, keyLen: (apiKey || "").length, apartmentId },
     });
   }
 }
