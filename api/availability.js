@@ -8,6 +8,14 @@
    Smoobu:    GET https://login.smoobu.com/api/rates?apartments[]=123&start_date=...&end_date=...
    ============================================================ */
 
+/* amprentă non-reversibilă a unui string (djb2) — detectează schimbarea cheii fără a o expune */
+function fingerprint(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+const DIAG_VERSION = "diag-v2";
+
 export default async function handler(req, res) {
   const { apartmentId, startDate, endDate } = req.query || {};
   // Curăță valoarea din env: spații/enter la capete + ghilimele lipite din greșeală.
@@ -47,7 +55,7 @@ export default async function handler(req, res) {
       availability: mockAvailability(startDate, endDate),
       mock: true,
       note: String((e && e.message) || e),
-      diag: { keyPresent: !!apiKey, keyLen: (apiKey || "").length, apartmentId },
+      diag: { keyPresent: !!apiKey, keyLen: apiKey.length, keyFp: apiKey ? fingerprint(apiKey) : 0, apartmentId, version: DIAG_VERSION },
     });
   }
 }
