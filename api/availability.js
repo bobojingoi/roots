@@ -10,7 +10,8 @@
 
 export default async function handler(req, res) {
   const { apartmentId, startDate, endDate } = req.query || {};
-  const apiKey = process.env.SMOOBU_API_KEY;
+  // Curăță valoarea din env: spații/enter la capete + ghilimele lipite din greșeală.
+  const apiKey = (process.env.SMOOBU_API_KEY || "").trim().replace(/^["']|["']$/g, "");
 
   if (!startDate || !endDate) {
     return res.status(400).json({ error: "startDate și endDate sunt obligatorii (YYYY-MM-DD)." });
