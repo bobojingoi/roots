@@ -18,14 +18,15 @@ function fingerprint(s) {
   return h;
 }
 
-/* Cerere GET semnată HMAC către Smoobu. Întoarce { status, text }. */
-async function signedGet(path, canonicalQuery, apiKey, apiSecret) {
+/* Cerere GET semnată HMAC către Smoobu. Întoarce { status, text }.
+   canonicalQuery = query folosit la semnare; sentQuery = query trimis efectiv (implicit egal). */
+async function signedGet(path, canonicalQuery, apiKey, apiSecret, sentQuery = canonicalQuery) {
   const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const nonce = crypto.randomUUID();
   const bodyHash = crypto.createHash("sha256").update("").digest("hex");
   const canonical = ["GET", path, canonicalQuery, timestamp, nonce, bodyHash, apiKey].join("\n");
   const signature = crypto.createHmac("sha256", apiSecret).update(canonical).digest("base64");
-  const url = `${BASE}${path}${canonicalQuery ? "?" + canonicalQuery : ""}`;
+  const url = `${BASE}${path}${sentQuery ? "?" + sentQuery : ""}`;
   const r = await fetch(url, {
     method: "GET",
     headers: {
@@ -55,7 +56,30 @@ export default async function handler(req, res) {
     `start_date=${startDate}`,
   ].sort().join("&");
 
-  /* --- mod de probă: descoperă calea corectă a endpoint-ului --- */
+  /* --- mod de probă 2: găsește codarea corectă a query-ului pe /api/rates --- */
+  if (debug === "2" && apiKey && apiSecret && apartmentId) {
+    const E = endDate, S = startDate, ID = apartmentId;
+    const variants = [
+      { name: "literal both", canon: `apartments[]=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments[]=${ID}&end_date=${E}&start_date=${S}` },
+      { name: "encoded both", canon: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}` },
+      { name: "canon literal / sent encoded", canon: `apartments[]=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}` },
+      { name: "canon encoded / sent literal", canon: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments[]=${ID}&end_date=${E}&start_date=${S}` },
+      { name: "no brackets", canon: `apartments=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments=${ID}&end_date=${E}&start_date=${S}` },
+      { name: "unsorted (apartments last)", canon: `end_date=${E}&start_date=${S}&apartments[]=${ID}`, sent: `end_date=${E}&start_date=${S}&apartments[]=${ID}` },
+    ];
+    const results = [];
+    for (const v of variants) {
+      try {
+        const { status, text } = await signedGet("/api/rates", v.canon, apiKey, apiSecret, v.sent);
+        results.push({ name: v.name, status, body: text.slice(0, 140) });
+      } catch (e) {
+        results.push({ name: v.name, error: String((e && e.message) || e) });
+      }
+    }
+    return res.status(200).json({ debug: "rates-variants", results });
+  }
+
+  /* --- mod de probă 1: descoperă calea corectă a endpoint-ului --- */
   if (debug === "1" && apiKey && apiSecret && apartmentId) {
     const candidates = [
       ["/api/v1/rates", ratesQuery],
