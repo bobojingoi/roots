@@ -8,8 +8,8 @@ import crypto from "node:crypto";
    ============================================================ */
 
 const BASE = "https://login.smoobu.com";
-const RATES_PATH = "/api/v1/rates";
-const DIAG_VERSION = "hmac-v2";
+const RATES_PATH = "/api/rates";
+const DIAG_VERSION = "hmac-v3";
 
 const clean = (v) => (v || "").trim().replace(/^["']|["']$/g, "");
 function fingerprint(s) {
@@ -50,8 +50,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "startDate și endDate sunt obligatorii (YYYY-MM-DD)." });
   }
 
+  // paranteze codate (%5B%5D) — obligatoriu pentru ca semnătura HMAC să se potrivească
   const ratesQuery = [
-    `apartments[]=${apartmentId}`,
+    `apartments%5B%5D=${apartmentId}`,
     `end_date=${endDate}`,
     `start_date=${startDate}`,
   ].sort().join("&");
