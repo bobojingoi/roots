@@ -2,32 +2,79 @@ import crypto from "node:crypto";
 
 /* ============================================================
    Proxy serverless (Vercel) pentru disponibilitatea Smoobu.
-   Autentificare HMAC-SHA256: X-API-Key, X-Timestamp, X-Nonce, X-Signature.
-   Cheia + secretul din env (SMOOBU_API_KEY, SMOOBU_API_SECRET), niciodată în frontend.
-   Răspuns: { "YYYY-MM-DD": 0|1 }  (1 = liber, 0 = ocupat)
+
+   Autentificare HMAC-SHA256 (metoda curentă Smoobu):
+   headere X-API-Key, X-Timestamp, X-Nonce, X-Signature.
+   Cheia + secretul din env (SMOOBU_API_KEY = „Label", SMOOBU_API_SECRET = „Secret"),
+   niciodată expuse în frontend.
+
+   Frontend:  GET /api/availability?apartmentId=123&startDate=2026-07-01&endDate=2026-08-31
+   Smoobu:    GET https://login.smoobu.com/api/rates?apartments%5B%5D=123&end_date=...&start_date=...
+   Răspuns:   { availability: { "YYYY-MM-DD": 0|1 }, mock: false }   (1 = liber, 0 = ocupat)
+
+   Note importante (obținute empiric contra API-ului real):
+   - endpoint-ul e /api/rates (fără /api/v1);
+   - în string-ul canonic, parametrii se sortează alfabetic ȘI parantezele
+     trebuie codate ca %5B%5D (apartments%5B%5D) — altfel semnătura nu se validează;
+   - secretul se folosește ca text brut în HMAC (nu se decodează din base64);
+   - X-Timestamp în ISO 8601 UTC fără milisecunde.
    ============================================================ */
 
 const BASE = "https://login.smoobu.com";
 const RATES_PATH = "/api/rates";
-const DIAG_VERSION = "hmac-v3";
 
 const clean = (v) => (v || "").trim().replace(/^["']|["']$/g, "");
-function fingerprint(s) {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
+
+export default async function handler(req, res) {
+  const { apartmentId, startDate, endDate } = req.query || {};
+  const apiKey = clean(process.env.SMOOBU_API_KEY);
+  const apiSecret = clean(process.env.SMOOBU_API_SECRET);
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "startDate și endDate sunt obligatorii (YYYY-MM-DD)." });
+  }
+
+  // Lipsește o credențială / ID -> date demonstrative, ca UI-ul să funcționeze oricum.
+  if (!apiKey || !apiSecret || !apartmentId) {
+    return res.status(200).json({ availability: mockAvailability(startDate, endDate), mock: true });
+  }
+
+  // query canonic: perechi sortate alfabetic, paranteze codate (%5B%5D)
+  const query = [
+    `apartments%5B%5D=${apartmentId}`,
+    `end_date=${endDate}`,
+    `start_date=${startDate}`,
+  ].sort().join("&");
+
+  try {
+    const { status, text } = await signedGet(RATES_PATH, query, apiKey, apiSecret);
+    if (status < 200 || status >= 300) throw new Error(`Smoobu HTTP ${status}`);
+    const json = JSON.parse(text);
+    const perApt = (json && json.data && json.data[apartmentId]) || {};
+    const availability = {};
+    for (const [date, info] of Object.entries(perApt)) {
+      availability[date] = info && typeof info.available === "number" ? info.available : 1;
+    }
+    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+    return res.status(200).json({ availability, mock: false });
+  } catch (e) {
+    // Nu stricăm pagina dacă Smoobu e indisponibil — cădem pe date demonstrative.
+    return res.status(200).json({
+      availability: mockAvailability(startDate, endDate),
+      mock: true,
+      note: String((e && e.message) || e),
+    });
+  }
 }
 
-/* Cerere GET semnată HMAC către Smoobu. Întoarce { status, text }.
-   canonicalQuery = query folosit la semnare; sentQuery = query trimis efectiv (implicit egal). */
-async function signedGet(path, canonicalQuery, apiKey, apiSecret, sentQuery = canonicalQuery) {
+/* Cerere GET semnată HMAC-SHA256 către Smoobu. Întoarce { status, text }. */
+async function signedGet(path, query, apiKey, apiSecret) {
   const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const nonce = crypto.randomUUID();
-  const bodyHash = crypto.createHash("sha256").update("").digest("hex");
-  const canonical = ["GET", path, canonicalQuery, timestamp, nonce, bodyHash, apiKey].join("\n");
+  const bodyHash = crypto.createHash("sha256").update("").digest("hex"); // GET -> corp gol
+  const canonical = ["GET", path, query, timestamp, nonce, bodyHash, apiKey].join("\n");
   const signature = crypto.createHmac("sha256", apiSecret).update(canonical).digest("base64");
-  const url = `${BASE}${path}${sentQuery ? "?" + sentQuery : ""}`;
-  const r = await fetch(url, {
+  const r = await fetch(`${BASE}${path}?${query}`, {
     method: "GET",
     headers: {
       "X-API-Key": apiKey,
@@ -41,104 +88,7 @@ async function signedGet(path, canonicalQuery, apiKey, apiSecret, sentQuery = ca
   return { status: r.status, text };
 }
 
-export default async function handler(req, res) {
-  const { apartmentId, startDate, endDate, debug } = req.query || {};
-  const apiKey = clean(process.env.SMOOBU_API_KEY);
-  const apiSecret = clean(process.env.SMOOBU_API_SECRET);
-
-  if (!startDate || !endDate) {
-    return res.status(400).json({ error: "startDate și endDate sunt obligatorii (YYYY-MM-DD)." });
-  }
-
-  // paranteze codate (%5B%5D) — obligatoriu pentru ca semnătura HMAC să se potrivească
-  const ratesQuery = [
-    `apartments%5B%5D=${apartmentId}`,
-    `end_date=${endDate}`,
-    `start_date=${startDate}`,
-  ].sort().join("&");
-
-  /* --- mod de probă 2: găsește codarea corectă a query-ului pe /api/rates --- */
-  if (debug === "2" && apiKey && apiSecret && apartmentId) {
-    const E = endDate, S = startDate, ID = apartmentId;
-    const variants = [
-      { name: "literal both", canon: `apartments[]=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments[]=${ID}&end_date=${E}&start_date=${S}` },
-      { name: "encoded both", canon: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}` },
-      { name: "canon literal / sent encoded", canon: `apartments[]=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}` },
-      { name: "canon encoded / sent literal", canon: `apartments%5B%5D=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments[]=${ID}&end_date=${E}&start_date=${S}` },
-      { name: "no brackets", canon: `apartments=${ID}&end_date=${E}&start_date=${S}`, sent: `apartments=${ID}&end_date=${E}&start_date=${S}` },
-      { name: "unsorted (apartments last)", canon: `end_date=${E}&start_date=${S}&apartments[]=${ID}`, sent: `end_date=${E}&start_date=${S}&apartments[]=${ID}` },
-    ];
-    const results = [];
-    for (const v of variants) {
-      try {
-        const { status, text } = await signedGet("/api/rates", v.canon, apiKey, apiSecret, v.sent);
-        results.push({ name: v.name, status, body: text.slice(0, 140) });
-      } catch (e) {
-        results.push({ name: v.name, error: String((e && e.message) || e) });
-      }
-    }
-    return res.status(200).json({ debug: "rates-variants", results });
-  }
-
-  /* --- mod de probă 1: descoperă calea corectă a endpoint-ului --- */
-  if (debug === "1" && apiKey && apiSecret && apartmentId) {
-    const candidates = [
-      ["/api/v1/rates", ratesQuery],
-      ["/api/rates", ratesQuery],
-      ["/api/v1/availability", ratesQuery],
-      ["/api/v1/apartments", ""],
-      ["/api/apartments", ""],
-    ];
-    const results = [];
-    for (const [p, q] of candidates) {
-      try {
-        const { status, text } = await signedGet(p, q, apiKey, apiSecret);
-        results.push({ path: p, status, body: text.slice(0, 160) });
-      } catch (e) {
-        results.push({ path: p, error: String((e && e.message) || e) });
-      }
-    }
-    return res.status(200).json({ debug: true, keyLen: apiKey.length, secretLen: apiSecret.length, results });
-  }
-
-  const diag = {
-    version: DIAG_VERSION,
-    keyPresent: !!apiKey, keyLen: apiKey.length, keyFp: apiKey ? fingerprint(apiKey) : 0,
-    secretPresent: !!apiSecret, secretLen: apiSecret.length,
-    apartmentId: apartmentId || null,
-  };
-
-  if (!apiKey || !apiSecret || !apartmentId) {
-    return res.status(200).json({
-      availability: mockAvailability(startDate, endDate),
-      mock: true,
-      note: "lipsă SMOOBU_API_KEY / SMOOBU_API_SECRET / apartmentId",
-      diag,
-    });
-  }
-
-  try {
-    const { status, text } = await signedGet(RATES_PATH, ratesQuery, apiKey, apiSecret);
-    if (status < 200 || status >= 300) throw new Error(`Smoobu HTTP ${status} ${text.slice(0, 200)}`);
-    const json = JSON.parse(text);
-    const perApt = (json && json.data && json.data[apartmentId]) || {};
-    const availability = {};
-    for (const [date, info] of Object.entries(perApt)) {
-      availability[date] = info && typeof info.available === "number" ? info.available : 1;
-    }
-    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
-    return res.status(200).json({ availability, mock: false });
-  } catch (e) {
-    return res.status(200).json({
-      availability: mockAvailability(startDate, endDate),
-      mock: true,
-      note: String((e && e.message) || e),
-      diag,
-    });
-  }
-}
-
-/* Date demonstrative deterministe (fără random). */
+/* Date demonstrative deterministe (fără random) — câteva zile marcate ocupate. */
 function mockAvailability(startDate, endDate) {
   const out = {};
   const start = new Date(startDate + "T00:00:00");

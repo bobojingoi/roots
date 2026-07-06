@@ -17,10 +17,17 @@ o pagină principală one-page, pagini dedicate per vilă și un panou de Admin 
 - **`src/AvailabilityCalendar.jsx`** — calendar propriu pe 2 luni, zile ocupate hașurate,
   alimentat din `/api/availability`. Fallback pe date mock dacă API-ul nu răspunde.
 - **`api/availability.js`** — funcție serverless Vercel: proxy peste Smoobu Rates API
-  (`GET login.smoobu.com/api/rates`, header `Api-Key`), returnează `{ "YYYY-MM-DD": 0|1 }`.
-  Cheia stă în `SMOOBU_API_KEY` (env), NU în frontend. ID-ul de apartament per vilă se
-  setează din Admin (`pages.<id>.smoobuId`). `vite.config.js` are un middleware care
-  servește același handler și în `npm run dev` (fără `vercel dev`).
+  (`GET login.smoobu.com/api/rates`), returnează `{ availability: { "YYYY-MM-DD": 0|1 } }`.
+  **Autentificare HMAC-SHA256** (X-API-Key, X-Timestamp, X-Nonce, X-Signature) — metoda
+  legacy `Api-Key` NU funcționează pe acest cont. Credențiale în env: `SMOOBU_API_KEY`
+  (câmpul „Label" al tokenului) + `SMOOBU_API_SECRET` (câmpul „Secret"), NU în frontend.
+  Detalii critice ale semnăturii (empiric): endpoint `/api/rates` (fără `/api/v1`); în
+  string-ul canonic parantezele TREBUIE codate `apartments%5B%5D`, params sortați alfabetic;
+  secretul e text brut (nu base64-decodat); timestamp ISO 8601 UTC fără milisecunde.
+  ID-urile de apartament sunt în cod: `DEFAULT_CONTENT.pages.redwood.smoobuId` = `506559`,
+  `sequoia.smoobuId` = `867949` (editabile și din Admin, dar valoarea din cod e cea live
+  pentru toți vizitatorii — CMS-ul salvează doar în localStorage). `vite.config.js` are un
+  middleware care servește același handler și în `npm run dev` (fără `vercel dev`).
 - Conținutul real (texte, facilități, reguli, FAQ, contact) e în `DEFAULT_CONTENT`.
 - Panoul de Admin (butonul „Admin", stânga-jos, doar pe `/`) editează secțiunile, inclusiv
   SEO și, la „Vilele", ID-ul Smoobu + hero-ul paginii de vilă.
@@ -28,7 +35,10 @@ o pagină principală one-page, pagini dedicate per vilă și un panou de Admin 
 
 ## Deploy (Vercel)
 - `vercel.json` = rewrites SPA (tot ce nu e `/api/*` → `index.html`).
-- Setează `SMOOBU_API_KEY` în Project → Settings → Environment Variables.
+- Setează `SMOOBU_API_KEY` + `SMOOBU_API_SECRET` în Project → Settings → Environment
+  Variables (Production + Preview). ⚠️ Modificările la env-uri se aplică doar la un
+  deployment NOU — după schimbare, redeployează.
+- Live: https://roots-opal.vercel.app · repo: https://github.com/bobojingoi/roots
 - `.env` local (din `.env.example`) pentru dezvoltare; e în `.gitignore`.
 
 ## Design
