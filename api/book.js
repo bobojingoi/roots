@@ -23,6 +23,8 @@ const addDay = (s) => {
 };
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
+
   const apiKey = clean(process.env.SMOOBU_API_KEY);
   const apiSecret = clean(process.env.SMOOBU_API_SECRET);
   const live = clean(process.env.BOOKING_LIVE) === "true";
@@ -31,16 +33,6 @@ export default async function handler(req, res) {
   if (!apiKey || !apiSecret) {
     return res.status(200).json({ ok: false, error: "Server neconfigurat (credențiale Smoobu)." });
   }
-
-  // --- probă de semnătură POST (nu creează rezervare; corp minim invalid -> 422 dacă auth OK) ---
-  // accesibilă și prin GET ?probe=1 (pentru test rapid), și prin POST { probe: true }
-  const isProbe = b.probe === true || (req.method === "GET" && (req.query || {}).probe === "1");
-  if (isProbe) {
-    const { status, text } = await signedPost(RESERVATIONS_PATH, { channelId: CHANNEL_DIRECT }, apiKey, apiSecret);
-    return res.status(200).json({ probe: true, status, live, body: text.slice(0, 240) });
-  }
-
-  if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
 
   const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice } = b;
   if (!apartmentId || !arrivalDate || !departureDate) {
