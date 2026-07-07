@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { Link } from "react-router-dom";
+import HubEditor, { EDIT_MODE } from "./HubEditor.jsx";
 import {
   CSS,
   ICONS,
@@ -9,7 +10,7 @@ import {
   Fabs,
   useScrolled,
   useReveal,
-  useSiteContent,
+  useHubContent,
 } from "./RootsVillas.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
@@ -192,7 +193,7 @@ function VHeader({ contact }) {
   );
 }
 
-function Gallery({ title, items }) {
+function Gallery({ title, items, basePath }) {
   const ref = useRef(null);
   const scroll = (dir) => {
     const el = ref.current;
@@ -208,14 +209,14 @@ function Gallery({ title, items }) {
             {items.map((it, i) => (
               <figure className="vg-card" key={i}>
                 {it.img ? (
-                  <img src={it.img} alt={it.caption} loading="lazy" />
+                  <img src={it.img} alt={it.caption} loading="lazy" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined} />
                 ) : (
-                  <div className="vg-ph">
+                  <div className="vg-ph" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined}>
                     <div className="vg-glow" />
                     <Ridge fill="rgba(233,184,114,.18)" height={100} />
                   </div>
                 )}
-                <figcaption>{it.caption}</figcaption>
+                <figcaption data-edit={basePath ? `${basePath}.${i}.caption` : undefined}>{it.caption}</figcaption>
               </figure>
             ))}
           </div>
@@ -227,7 +228,8 @@ function Gallery({ title, items }) {
 }
 
 export default function VillaPage({ villaId }) {
-  const { content, loaded } = useSiteContent();
+  const { content, loaded, hubRaw, setHubRaw } = useHubContent();
+  const sk = `villa_${villaId}`; // cheia secțiunii în Hub
   useReveal();
 
   if (!loaded) {
@@ -270,9 +272,12 @@ export default function VillaPage({ villaId }) {
         <div className="ridge ridge-near" style={{ position: "absolute", inset: "auto 0 0 0" }}>
           <Ridge fill="#0C1F19" height={150} />
         </div>
+        {EDIT_MODE && (
+          <button type="button" className="hub-imgbtn" data-edit-img={`${sk}.heroImage`}>📷 Imagine de fundal</button>
+        )}
         <div className="wrap vhero-inner">
           <h1>{villa.name}</h1>
-          <p className="vhero-sub">{page.heroSubtitle}</p>
+          <p className="vhero-sub" data-edit={`${sk}.heroSubtitle`}>{page.heroSubtitle}</p>
           <a className="vhero-phone" href={`tel:${contact.phone.replace(/\s/g, "")}`}>
             {ICONS.phone} {contact.phone}{page.phoneLabel ? ` · ${page.phoneLabel}` : ""}
           </a>
@@ -291,8 +296,8 @@ export default function VillaPage({ villaId }) {
       </div>
 
       {/* GALERII */}
-      <Gallery title={`Cum arată exteriorul ${genitiv(villa.name)}`} items={page.galleryExterior} />
-      <Gallery title={`Cum arată interiorul ${genitiv(villa.name)}`} items={page.galleryInterior} />
+      <Gallery title={`Cum arată exteriorul ${genitiv(villa.name)}`} items={page.galleryExterior} basePath={`${sk}.galleryExterior`} />
+      <Gallery title={`Cum arată interiorul ${genitiv(villa.name)}`} items={page.galleryInterior} basePath={`${sk}.galleryInterior`} />
 
       {/* FACILITĂȚI */}
       <section className="sec" id="facilitati" style={{ paddingTop: 60 }}>
@@ -301,16 +306,16 @@ export default function VillaPage({ villaId }) {
             <div className="eyebrow" style={{ justifyContent: "center" }}>Detalii vilă</div>
             <h2>Compartimentarea și echiparea vilei</h2>
           </div>
-          {page.facilities.map((group) => (
+          {page.facilities.map((group, gi) => (
             <div className="fac-group rv" key={group.cat}>
-              <h4 className="fac-cat">{group.cat}</h4>
+              <h4 className="fac-cat" data-edit={`${sk}.facilities.${gi}.cat`}>{group.cat}</h4>
               <div className="fac-grid">
                 {group.items.map((it, i) => (
                   <div className="fac-item" key={i}>
                     <span className="fac-ico">{ICONS[FAC_ICON[group.cat]] || ICONS.people}</span>
                     <div>
-                      <b>{it.t}</b>
-                      {it.s && <small>{it.s}</small>}
+                      <b data-edit={`${sk}.facilities.${gi}.items.${i}.t`}>{it.t}</b>
+                      {it.s && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}
                     </div>
                   </div>
                 ))}
@@ -341,10 +346,10 @@ export default function VillaPage({ villaId }) {
         <div className="wrap">
           <h3 className="vpol-h rv">Alte informații utile</h3>
           <div className="vpol-grid rv rv-d1">
-            {page.policies.map((p) => (
+            {page.policies.map((p, pi) => (
               <div className="vpol-col" key={p.title}>
-                <h4>{p.title}</h4>
-                <ul>{p.items.map((it, i) => <li key={i}>{it}</li>)}</ul>
+                <h4 data-edit={`${sk}.policies.${pi}.title`}>{p.title}</h4>
+                <ul>{p.items.map((it, i) => <li key={i} data-edit={`${sk}.policies.${pi}.items.${i}`}>{it}</li>)}</ul>
               </div>
             ))}
           </div>
@@ -356,6 +361,7 @@ export default function VillaPage({ villaId }) {
 
       <Footer contact={contact} />
       <Fabs contact={contact} />
+      {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>
   );
 }

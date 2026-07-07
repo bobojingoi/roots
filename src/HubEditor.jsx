@@ -78,7 +78,7 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         return;
       }
       const ed = e.target.closest && e.target.closest("[data-edit]");
-      if (ed && ed.closest("a")) e.preventDefault();
+      if (ed && ed.closest("a, button")) { e.preventDefault(); e.stopPropagation(); }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);

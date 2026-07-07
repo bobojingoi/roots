@@ -793,6 +793,20 @@ export function useScrolled(threshold = 40) {
   return scrolled;
 }
 
+/* Hook partajat: conținut + draft brut editabil (pentru editorul vizual) */
+export function useHubContent() {
+  const [hubRaw, setHubRaw] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try { setHubRaw(await loadHubRaw()); } catch (e) { /* fallback implicit */ }
+      setLoaded(true);
+    })();
+  }, []);
+  const content = useMemo(() => ({ ...DEFAULT_CONTENT, ...hubToSite(hubRaw || {}) }), [hubRaw]);
+  return { content, loaded, hubRaw, setHubRaw };
+}
+
 /* Încarcă conținutul CMS (read-only) — folosit de paginile de vilă */
 export function useSiteContent() {
   const [content, setContent] = useState(DEFAULT_CONTENT);
@@ -966,7 +980,7 @@ function VillaCard({ villa, delay, contact, idx }) {
           {villa.features.map((f, i) => (
             <div className="feat" key={i}>
               {ICONS[FEATURE_ICON_ORDER[i % FEATURE_ICON_ORDER.length]]}
-              <span>{f}</span>
+              <span data-edit={`villas.items.${idx}.features.${i}`}>{f}</span>
             </div>
           ))}
         </div>
@@ -1026,7 +1040,7 @@ function Common({ common }) {
             <p className="lede" data-edit="common.text">{common.text}</p>
             <div className="pill-list">
               {common.features.map((f, i) => (
-                <div className="pill" key={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span>{f}</span></div>
+                <div className="pill" key={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span data-edit={`common.features.${i}`}>{f}</span></div>
               ))}
             </div>
           </div>
@@ -1058,7 +1072,7 @@ function Rules({ rules }) {
           {rules.items.map((r, i) => (
             <div className={`rule rv ${i % 3 === 1 ? "rv-d1" : i % 3 === 2 ? "rv-d2" : ""}`} key={i}>
               <div className="icon">{ICONS[r.icon] || ICONS.people}</div>
-              <p>{r.text}</p>
+              <p data-edit={`rules.items.${i}.text`}>{r.text}</p>
             </div>
           ))}
         </div>
@@ -1090,8 +1104,8 @@ function Testimonials({ t }) {
             {t.items.map((item, i) => (
               <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i}>
                 <div className="q">"</div>
-                <p>{item.text}</p>
-                <div className="who"><b>{item.name}</b><span>{item.stay}</span></div>
+                <p data-edit={`testimonials.items.${i}.text`}>{item.text}</p>
+                <div className="who"><b data-edit={`testimonials.items.${i}.name`}>{item.name}</b><span data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span></div>
               </div>
             ))}
           </div>
@@ -1140,11 +1154,11 @@ function FAQ({ faq }) {
                 f.cat !== cat ? null : (
                   <div className={`faq-item ${open === i ? "open" : ""}`} key={i}>
                     <button className="faq-q" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
-                      {f.q}
+                      <span data-edit={`faq.items.${i}.q`}>{f.q}</span>
                       {ICONS.chev}
                     </button>
                     <div className="faq-a" style={{ maxHeight: open === i ? 220 : 0 }}>
-                      <p>{f.a}</p>
+                      <p data-edit={`faq.items.${i}.a`}>{f.a}</p>
                     </div>
                   </div>
                 )
@@ -1167,7 +1181,7 @@ function LocationSec({ location }) {
           <p className="lede" data-edit="location.text">{location.text}</p>
           <div className="loc-points">
             {location.points.map((p, i) => (
-              <div className="loc-point" key={i}><span>{p.label}</span><b>{p.value}</b></div>
+              <div className="loc-point" key={i}><span data-edit={`location.points.${i}.label`}>{p.label}</span><b data-edit={`location.points.${i}.value`}>{p.value}</b></div>
             ))}
           </div>
         </div>

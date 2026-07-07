@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CSS, ICONS, useSiteContent } from "./RootsVillas.jsx";
+import HubEditor, { EDIT_MODE } from "./HubEditor.jsx";
+import { CSS, ICONS, useHubContent } from "./RootsVillas.jsx";
 
 /* Pagină de instrucțiuni pentru oaspeți (/welcome-redwood, /welcome-sequoia).
    Conținut din DEFAULT_CONTENT.welcome[villaId]. Mobile-first. */
@@ -50,7 +51,8 @@ const WELCOME_CSS = `
 `;
 
 export default function WelcomePage({ villaId }) {
-  const { content, loaded } = useSiteContent();
+  const { content, loaded, hubRaw, setHubRaw } = useHubContent();
+  const sk = `welcome_${villaId}`; // cheia secțiunii în Hub
   useEffect(() => { window.scrollTo(0, 0); }, [villaId]);
 
   if (!loaded) return <div className="wel-load">Se încarcă…</div>;
@@ -84,25 +86,25 @@ export default function WelcomePage({ villaId }) {
       </header>
 
       <main className="wel">
-        {w.heroImage && <div className="wel-heroimg" style={{ backgroundImage: `url(${w.heroImage})` }} role="img" aria-label={villa.name} />}
+        {(w.heroImage || EDIT_MODE) && <div className="wel-heroimg" data-edit-img={`${sk}.heroImage`} style={{ backgroundImage: w.heroImage ? `url(${w.heroImage})` : "none", ...(w.heroImage ? {} : { background: "#e3e8e5" }) }} role="img" aria-label={villa.name} />}
         <section className="wel-hero">
           <div className="wel-eyebrow">Bine ai venit</div>
           <h1>{villa.name}</h1>
           {w.address && (
-            <a className="wel-addr" href={w.mapsUrl || "#"} target="_blank" rel="noreferrer">{ICONS.pin} {w.address}</a>
+            <a className="wel-addr" href={w.mapsUrl || "#"} target="_blank" rel="noreferrer">{ICONS.pin} <span data-edit={`${sk}.address`}>{w.address}</span></a>
           )}
         </section>
 
         <div className="wel-chips">
-          {w.keybox && <div className="wel-chip"><span>Cod cutie chei</span><b>{w.keybox}</b></div>}
-          {w.wifi && w.wifi.name && <div className="wel-chip"><span>Rețea WiFi</span><b>{w.wifi.name}</b></div>}
-          {w.wifi && w.wifi.password && <div className="wel-chip"><span>Parolă WiFi</span><b>{w.wifi.password}</b></div>}
+          {(w.keybox || EDIT_MODE) && <div className="wel-chip"><span>Cod cutie chei</span><b data-edit={`${sk}.keybox`}>{w.keybox}</b></div>}
+          {((w.wifi && w.wifi.name) || EDIT_MODE) && <div className="wel-chip"><span>Rețea WiFi</span><b data-edit={`${sk}.wifiName`}>{w.wifi && w.wifi.name}</b></div>}
+          {((w.wifi && w.wifi.password) || EDIT_MODE) && <div className="wel-chip"><span>Parolă WiFi</span><b data-edit={`${sk}.wifiPassword`}>{w.wifi && w.wifi.password}</b></div>}
         </div>
 
         {w.directions && w.directions.length > 0 && (
           <div className="wel-dirs">
             {w.directions.map((d, i) => (
-              <a className="wel-dir" key={i} href={d.waze} target="_blank" rel="noreferrer">{ICONS.pin} {d.label}</a>
+              <a className="wel-dir" key={i} href={d.waze} target="_blank" rel="noreferrer">{ICONS.pin} <span data-edit={`${sk}.directions.${i}.label`}>{d.label}</span></a>
             ))}
           </div>
         )}
@@ -111,9 +113,9 @@ export default function WelcomePage({ villaId }) {
           <section className="wel-card" key={i}>
             <div className="wel-card-h">
               <span className="wel-ico">{ICONS[s.icon] || ICONS.key}</span>
-              <h3>{s.title}</h3>
+              <h3 data-edit={`${sk}.sections.${i}.title`}>{s.title}</h3>
             </div>
-            <ul>{s.lines.map((l, j) => <li key={j}>{l}</li>)}</ul>
+            <ul>{s.lines.map((l, j) => <li key={j} data-edit={`${sk}.sections.${i}.lines.${j}`}>{l}</li>)}</ul>
           </section>
         ))}
 
@@ -135,7 +137,7 @@ export default function WelcomePage({ villaId }) {
             <p>Locurile noastre preferate din Brașov și împrejurimi — apasă pentru navigare.</p>
             {w.recommendations.map((g, i) => (
               <div className="wel-recgrp" key={i}>
-                <h4>{g.cat}</h4>
+                <h4 data-edit={`${sk}.recommendations.${i}.cat`}>{g.cat}</h4>
                 <div className="wel-reclist">
                   {g.items.map((it, j) => (
                     <a
@@ -145,7 +147,7 @@ export default function WelcomePage({ villaId }) {
                       target={it.tel ? undefined : "_blank"}
                       rel="noreferrer"
                     >
-                      {it.tel ? ICONS.phone : ICONS.pin} {it.name}
+                      {it.tel ? ICONS.phone : ICONS.pin} <span data-edit={`${sk}.recommendations.${i}.items.${j}.name`}>{it.name}</span>
                     </a>
                   ))}
                 </div>
@@ -156,6 +158,7 @@ export default function WelcomePage({ villaId }) {
 
         <p className="wel-foot">Sejur plăcut la ROOTS! · Stupini, Brașov</p>
       </main>
+      {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>
   );
 }
