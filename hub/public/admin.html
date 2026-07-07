@@ -73,6 +73,17 @@
   .vrow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
   dialog{border:none;border-radius:16px;padding:24px;max-width:420px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
   dialog::backdrop{background:rgba(14,31,25,.45)}
+  .donut{width:132px;height:132px;border-radius:50%;position:relative;margin:6px auto 14px}
+  .donut::after{content:'';position:absolute;inset:24px;background:#fff;border-radius:50%}
+  .dlegend{font-size:12.5px;display:grid;gap:5px}
+  .dlegend div{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .dlegend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0}
+  .dlegend .lft{display:flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:14px}
+  .bars .bar{flex:1;background:var(--brand-soft);border-radius:6px 6px 0 0;position:relative;min-height:3px}
+  .bars .bar i{position:absolute;inset:auto 0 0 0;background:var(--brand);border-radius:6px 6px 0 0;display:block}
+  .bars-l{display:flex;gap:6px;font-size:10.5px;color:#9aa8a1;margin-top:5px}
+  .bars-l span{flex:1;text-align:center}
   @media(max-width:640px){
     .top{flex-wrap:wrap;gap:8px;padding:10px 14px}
     .top .acts{flex-wrap:wrap}
@@ -273,24 +284,7 @@ function arrAdd(path) {
 /* ============ views ============ */
 async function renderMain() {
   const m = $('main');
-  if (TAB === 'panou') {
-    const pub = SECTIONS.filter((s) => s.published).length;
-    const mod = SECTIONS.filter((s) => s.published && JSON.stringify(s.draft) !== JSON.stringify(s.published)).length;
-    m.innerHTML = `
-      <h1>Panou de control</h1>
-      <div class="lead">Starea conținutului site-ului Roots Villas.</div>
-      <div class="grid3">
-        <div class="kpi"><span>secțiuni publicate</span><b>${pub} / ${SECTIONS.length}</b></div>
-        <div class="kpi"><span>modificări nepublicate</span><b>${mod}</b></div>
-        <div class="kpi"><span>imagini în bibliotecă</span><b id="kpiMedia">…</b></div>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <b>API public site</b>
-        <div class="hint">Site-ul consumă <code>GET /api/v1/site-content</code> — doar conținutul publicat. Cache-ul se invalidează automat la „Publică".</div>
-      </div>`;
-    api('/api/v1/media').then((j) => { MEDIA = j.media; const el = $('kpiMedia'); if (el) el.textContent = MEDIA.length; }).catch(() => {});
-    return;
-  }
+  if (TAB === 'panou') { renderDash(); return; }
   if (TAB === 'media') { renderMedia(); return; }
   if (TAB === 'blog') { renderBlog(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
@@ -348,6 +342,73 @@ async function restoreV(id) {
   SECTIONS = j.sections;
   toast('Versiune adusă în draft — publică pentru a fi live');
   renderMain();
+}
+
+/* ============ dashboard statistici ============ */
+const DPAL = ['#157a55', '#e8722c', '#378add', '#e9b872', '#d4537e', '#7f77dd', '#5f5e5a'];
+let DASH_Y = String(new Date().getFullYear());
+function dashYear(v) { DASH_Y = v; renderDash(); }
+function donut(title, rows, valueKey, fmt) {
+  const data = {};
+  rows.forEach((r) => { data[r.channel] = (data[r.channel] || 0) + Number(r[valueKey] || 0); });
+  const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (!total) return `<div class="card" style="text-align:center"><b>${title}</b><div class="hint" style="padding:30px 0">Fără date</div></div>`;
+  let acc = 0;
+  const segs = entries.map(([, v], i) => {
+    const from = (acc / total) * 360; acc += v;
+    return `${DPAL[i % DPAL.length]} ${from}deg ${(acc / total) * 360}deg`;
+  });
+  return `<div class="card">
+    <b>${esc(title)}</b>
+    <div class="donut" style="background:conic-gradient(${segs.join(',')})"></div>
+    <div class="dlegend">${entries.map(([k, v], i) =>
+      `<div><span class="lft"><i style="background:${DPAL[i % DPAL.length]}"></i>${esc(k)}</span><b>${((v / total) * 100).toFixed(1)}%${fmt ? ' · ' + fmt(v) : ''}</b></div>`
+    ).join('')}</div>
+  </div>`;
+}
+async function renderDash() {
+  const m = $('main');
+  m.innerHTML = '<h1>Panou de control</h1><div class="lead">Se încarcă statisticile…</div>';
+  let st = { byChannel: [], monthly: [], years: [] };
+  try { st = await api('/api/v1/admin/stats?year=' + (DASH_Y || '')); } catch (e) {}
+  const conf = st.byChannel.filter((r) => r.status === 'confirmed');
+  const canc = st.byChannel.filter((r) => r.status === 'cancelled');
+  const sum = (rows, k) => rows.reduce((s, r) => s + Number(r[k] || 0), 0);
+  const revenue = sum(conf, 'revenue'), nB = sum(conf, 'n'), nights = sum(conf, 'nights'), nC = sum(canc, 'n');
+  const daysInYear = DASH_Y ? 365 : Math.max(1, st.years.length) * 365;
+  const occupancy = Math.min(100, (nights / (daysInYear * 2)) * 100);
+  const lei = (v) => Number(v).toLocaleString('ro-RO', { maximumFractionDigits: 0 }) + ' lei';
+  const M = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+  const byM = Array.from({ length: 12 }, (_, i) => st.monthly.find((x) => x.month === i + 1) || { revenue: 0, n: 0 });
+  const maxR = Math.max(1, ...byM.map((x) => x.revenue));
+  const pub = SECTIONS.filter((sc) => sc.published).length;
+  m.innerHTML = `
+    <div class="sec-head"><div><h1>Panou de control</h1><div class="lead">Statistici din rezervările Smoobu (sincronizate).</div></div>
+      <select class="f" style="max-width:140px" onchange="dashYear(this.value)">
+        <option value="" ${!DASH_Y ? 'selected' : ''}>Toți anii</option>
+        ${st.years.map((y) => `<option ${String(y) === DASH_Y ? 'selected' : ''}>${y}</option>`).join('')}
+      </select></div>
+    <div class="grid3">
+      <div class="kpi"><span>venituri (confirmate)</span><b>${lei(revenue)}</b></div>
+      <div class="kpi"><span>rezervări</span><b>${nB}</b></div>
+      <div class="kpi"><span>nopți</span><b>${nights}</b></div>
+      <div class="kpi"><span>anulări</span><b>${nC}</b></div>
+      <div class="kpi"><span>grad de ocupare (2 vile)</span><b>${occupancy.toFixed(1)}%</b></div>
+      <div class="kpi"><span>secțiuni publicate</span><b>${pub} / ${SECTIONS.length}</b></div>
+    </div>
+    ${st.byChannel.length === 0 ? `<div class="card" style="margin-top:16px"><b>Fără date încă</b><div class="hint">Apasă „Sincronizează din Smoobu" în CRM → Rezervări. Sync-ul aduce acum întregul istoric (din 2019) și anulările.</div></div>` : `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:16px">
+      ${donut('Venituri / canal', conf, 'revenue', lei)}
+      ${donut('Rezervări / canal', conf, 'n', null)}
+      ${donut('Nopți / canal', conf, 'nights', null)}
+      ${donut('Anulări / canal', canc, 'n', null)}
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>Venituri pe luni${DASH_Y ? ' · ' + DASH_Y : ''}</b>
+      <div class="bars">${byM.map((x) => `<div class="bar" title="${lei(x.revenue)} · ${x.n} rezervări"><i style="height:${Math.round((x.revenue / maxR) * 100)}%"></i></div>`).join('')}</div>
+      <div class="bars-l">${M.map((n) => `<span>${n}</span>`).join('')}</div>
+    </div>`}`;
 }
 
 /* ============ CRM ============ */

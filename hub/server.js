@@ -437,8 +437,11 @@ async function upsertGuestAndBooking(b) {
 async function runSmoobuSync() {
   if (!smoobu.smoobuReady()) throw new Error('SMOOBU_API_KEY / SMOOBU_API_SECRET lipsesc din env.');
   let page = 1, pages = 1, created = 0, seen = 0;
-  while (page <= pages && page <= 30) {
-    const j = await smoobu.signedGet('/api/reservations', 'page=' + page);
+  const to = new Date(Date.now() + 2 * 365 * 86400e3).toISOString().slice(0, 10);
+  while (page <= pages && page <= 60) {
+    // query canonic: parametri sortați alfabetic (cerință semnătură HMAC)
+    const q = ['from=2019-01-01', 'page=' + page, 'showCancellation=true', 'to=' + to].join('&');
+    const j = await smoobu.signedGet('/api/reservations', q);
     pages = j.page_count || j.pageCount || 1;
     const list = j.bookings || [];
     for (const b of list) {
@@ -464,6 +467,32 @@ app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
   if (!req.headers['x-vercel-cron'] && !req.user) return res.status(401).json({ error: 'Doar cron sau autentificat' });
   try { res.json({ ok: true, ...(await runSmoobuSync()) }); }
   catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/v1/admin/stats', requireAuth, async (req, res) => {
+  const year = parseInt(req.query.year, 10) || null;
+  const byChannel = await pool.query(
+    `SELECT status, COALESCE(channel, 'Direct / Website') AS channel,
+            count(*)::int AS n, COALESCE(sum(value),0)::float AS revenue,
+            COALESCE(sum(departure - arrival),0)::int AS nights
+     FROM bookings
+     WHERE status <> 'blocked' AND ($1::int IS NULL OR extract(year from arrival) = $1)
+     GROUP BY status, channel`,
+    [year]
+  );
+  const monthly = await pool.query(
+    `SELECT extract(month from arrival)::int AS month,
+            COALESCE(sum(value),0)::float AS revenue, count(*)::int AS n,
+            COALESCE(sum(departure - arrival),0)::int AS nights
+     FROM bookings
+     WHERE status = 'confirmed' AND ($1::int IS NULL OR extract(year from arrival) = $1)
+     GROUP BY 1 ORDER BY 1`,
+    [year]
+  );
+  const years = await pool.query(
+    `SELECT DISTINCT extract(year from arrival)::int AS y FROM bookings ORDER BY 1 DESC`
+  );
+  res.json({ byChannel: byChannel.rows, monthly: monthly.rows, years: years.rows.map((x) => x.y) });
 });
 
 app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
