@@ -23,12 +23,16 @@ const addDay = (s) => {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
-
   const apiKey = clean(process.env.SMOOBU_API_KEY);
   const apiSecret = clean(process.env.SMOOBU_API_SECRET);
   const live = clean(process.env.BOOKING_LIVE) === "true";
   const b = req.body || {};
+
+  // status sigur (nu creează nimic): confirmă dacă rezervările live sunt active
+  if (req.method === "GET") {
+    return res.status(200).json({ ok: true, live, configured: !!(apiKey && apiSecret) });
+  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
 
   if (!apiKey || !apiSecret) {
     return res.status(200).json({ ok: false, error: "Server neconfigurat (credențiale Smoobu)." });
