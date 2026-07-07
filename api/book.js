@@ -30,6 +30,24 @@ export default async function handler(req, res) {
   const b = req.body || {};
 
   // status sigur (nu creează nimic): confirmă dacă rezervările live sunt active
+  if (req.method === "GET" && (req.query || {}).emailtest === "1") {
+    const key = clean(process.env.RESEND_API_KEY);
+    const from = clean(process.env.EMAIL_FROM);
+    const to = clean(process.env.EMAIL_TO);
+    if (!key || !from || !to) return res.status(200).json({ emailtest: true, error: "lipsă RESEND_API_KEY / EMAIL_FROM / EMAIL_TO" });
+    try {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [to], subject: "Test ROOTS — email de rezervare", html: "<p>Acesta e un email de test de pe site-ul ROOTS. Dacă îl vezi, trimiterea funcționează.</p>" }),
+      });
+      const body = await r.text();
+      return res.status(200).json({ emailtest: true, status: r.status, body: body.slice(0, 300) });
+    } catch (e) {
+      return res.status(200).json({ emailtest: true, error: String((e && e.message) || e) });
+    }
+  }
+
   if (req.method === "GET" && (req.query || {}).emailcheck === "1") {
     const key = clean(process.env.RESEND_API_KEY);
     const from = clean(process.env.EMAIL_FROM);
