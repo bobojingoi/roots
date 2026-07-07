@@ -30,6 +30,22 @@ export default async function handler(req, res) {
   const b = req.body || {};
 
   // status sigur (nu creează nimic): confirmă dacă rezervările live sunt active
+  if (req.method === "GET" && (req.query || {}).emailcheck === "1") {
+    const key = clean(process.env.RESEND_API_KEY);
+    const from = clean(process.env.EMAIL_FROM);
+    const m = from.match(/@([^>\s]+)/);
+    const fromDomain = m ? m[1] : null;
+    if (!key) return res.status(200).json({ emailcheck: true, hasKey: false, fromDomain });
+    try {
+      const r = await fetch("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${key}` } });
+      const j = await r.json().catch(() => ({}));
+      const domains = (j.data || []).map((d) => ({ name: d.name, status: d.status }));
+      return res.status(200).json({ emailcheck: true, hasKey: true, fromDomain, resendStatus: r.status, domains });
+    } catch (e) {
+      return res.status(200).json({ emailcheck: true, hasKey: true, fromDomain, error: String((e && e.message) || e) });
+    }
+  }
+
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
