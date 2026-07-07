@@ -152,7 +152,8 @@ function requireAuth(req, res, next) {
 // Roots Hub: rolurile sunt owner / manager. Owner = control total.
 function requireOwner(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "Autentificare necesară" });
-  if (req.user.role !== "owner") return res.status(403).json({ error: "Acces interzis" });
+  if (req.user.role !== "owner" && req.user.role !== "admin")
+    return res.status(403).json({ error: "Acces interzis" });
   next();
 }
 

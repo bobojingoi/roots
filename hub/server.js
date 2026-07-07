@@ -9,6 +9,7 @@ const express = require('express');
 const { pool, initDb } = require('./db');
 const { emit } = require('./events');
 const storage = require('./storage');
+const smoobu = require('./smoobu');
 const {
   verifyPassword,
   hashPassword,
@@ -137,6 +138,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Email sau parolă greșite' });
   }
   setAuthCookie(req, res, user, Boolean(remember));
+  emit('UserLoggedIn', { email: user.email });
   res.json({ ok: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
 });
 
@@ -195,6 +197,7 @@ app.put('/api/v1/sections/:key', requireAuth, async (req, res) => {
     [key, JSON.stringify(draft), req.user.id]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Secțiune inexistentă' });
+  emit('DraftSaved', { section: key, by: req.user.email });
   res.json({ ok: true, updated_at: r.rows[0].updated_at });
 });
 
@@ -275,6 +278,7 @@ app.post('/api/v1/media', requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [id, key, url, thumbUrl, alt || null, width || null, height || null, main.length, req.user.id]
     );
+    emit('MediaUploaded', { key, by: req.user.email });
     res.json({ ok: true, media: r.rows[0] });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -293,6 +297,51 @@ app.patch('/api/v1/media/:id', requireAuth, async (req, res) => {
 app.delete('/api/v1/media/:id', requireOwner, async (req, res) => {
   await pool.query('DELETE FROM media WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
+});
+
+/* ============ UTILIZATORI (owner/admin) ============ */
+app.get('/api/v1/admin/users', requireOwner, async (_req, res) => {
+  const r = await pool.query('SELECT id, email, name, role, created_at FROM users ORDER BY created_at');
+  res.json({ users: r.rows });
+});
+app.post('/api/v1/admin/users', requireOwner, async (req, res) => {
+  const { email, name, password, role } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email și parolă obligatorii' });
+  const cleanRole = String(role || 'client').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '') || 'client';
+  try {
+    const r = await pool.query(
+      'INSERT INTO users (email, name, password_hash, role) VALUES (lower($1), $2, $3, $4) RETURNING id, email, name, role',
+      [email.trim(), name || '', await hashPassword(password), cleanRole]
+    );
+    emit('UserCreated', { email: r.rows[0].email, role: cleanRole, by: req.user.email });
+    res.json({ ok: true, user: r.rows[0] });
+  } catch (e) {
+    res.status(400).json({ error: e.message.includes('duplicate') ? 'Email deja folosit' : e.message });
+  }
+});
+app.patch('/api/v1/admin/users/:id', requireOwner, async (req, res) => {
+  const { name, role, password } = req.body || {};
+  const cleanRole = role ? String(role).toLowerCase().trim().replace(/[^a-z0-9_-]/g, '') : null;
+  const hash = password ? await hashPassword(password) : null;
+  const r = await pool.query(
+    'UPDATE users SET name = COALESCE($2, name), role = COALESCE($3, role), password_hash = COALESCE($4, password_hash) WHERE id = $1 RETURNING id, email, name, role',
+    [req.params.id, name || null, cleanRole, hash]
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Utilizator inexistent' });
+  emit('UserUpdated', { email: r.rows[0].email, by: req.user.email });
+  res.json({ ok: true, user: r.rows[0] });
+});
+app.delete('/api/v1/admin/users/:id', requireOwner, async (req, res) => {
+  if (String(req.params.id) === String(req.user.id)) return res.status(400).json({ error: 'Nu îți poți șterge propriul cont' });
+  const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING email', [req.params.id]);
+  if (r.rows.length) emit('UserDeleted', { email: r.rows[0].email, by: req.user.email });
+  res.json({ ok: true });
+});
+
+/* ============ ACTIVITATE (jurnal) ============ */
+app.get('/api/v1/admin/activity', requireAuth, async (_req, res) => {
+  const r = await pool.query('SELECT event, payload, created_at FROM events_log ORDER BY created_at DESC LIMIT 150');
+  res.json({ activity: r.rows });
 });
 
 /* ============ BLOG ============ */
@@ -351,6 +400,102 @@ app.post('/api/v1/admin/posts/:id/publish', requireAuth, async (req, res) => {
 app.delete('/api/v1/admin/posts/:id', requireOwner, async (req, res) => {
   await pool.query('DELETE FROM posts WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
+});
+
+/* ============ CRM: sync Smoobu + rezervări + clienți ============ */
+async function upsertGuestAndBooking(b) {
+  const name = b['guest-name'] || [b.firstname, b.lastname].filter(Boolean).join(' ') || null;
+  const email = (b.email || '').trim().toLowerCase() || null;
+  const phone = (b.phone || '').replace(/\s+/g, '') || null;
+  let guestId = null;
+  if (email || phone) {
+    const g = await pool.query(
+      'SELECT id FROM guests WHERE (lower(email) = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
+      [email, phone]
+    );
+    if (g.rows.length) {
+      guestId = g.rows[0].id;
+      await pool.query('UPDATE guests SET name = COALESCE($2, name), email = COALESCE($3, email), phone = COALESCE($4, phone), updated_at = now() WHERE id = $1', [guestId, name, email, phone]);
+    } else {
+      const ins = await pool.query('INSERT INTO guests (name, email, phone) VALUES ($1, $2, $3) RETURNING id', [name, email, phone]);
+      guestId = ins.rows[0].id;
+    }
+  }
+  const villa = (b.apartment && b.apartment.name) || String((b.apartment && b.apartment.id) || '');
+  const status = b['is-blocked-booking'] ? 'blocked' : (b.type === 'cancellation' ? 'cancelled' : 'confirmed');
+  const r = await pool.query(
+    `INSERT INTO bookings (smoobu_id, villa, arrival, departure, guests_count, value, status, guest_id, raw)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     ON CONFLICT (smoobu_id) DO UPDATE SET villa=$2, arrival=$3, departure=$4, guests_count=$5, value=$6, status=$7, guest_id=COALESCE($8, bookings.guest_id), raw=$9, updated_at=now()
+     RETURNING (xmax = 0) AS inserted`,
+    [String(b.id), villa, b.arrival, b.departure, (Number(b.adults) || 0) + (Number(b.children) || 0) || null, b.price || null, status, guestId, JSON.stringify(b)]
+  );
+  return r.rows[0].inserted;
+}
+
+async function runSmoobuSync() {
+  if (!smoobu.smoobuReady()) throw new Error('SMOOBU_API_KEY / SMOOBU_API_SECRET lipsesc din env.');
+  let page = 1, pages = 1, created = 0, seen = 0;
+  while (page <= pages && page <= 30) {
+    const j = await smoobu.signedGet('/api/reservations', 'page=' + page);
+    pages = j.page_count || j.pageCount || 1;
+    const list = j.bookings || [];
+    for (const b of list) {
+      seen++;
+      const inserted = await upsertGuestAndBooking(b);
+      if (inserted) { created++; await emit('BookingSynced', { smoobu_id: String(b.id), villa: (b.apartment && b.apartment.name) || '' }); }
+    }
+    page++;
+  }
+  return { seen, created, pages };
+}
+
+app.post('/api/v1/admin/sync-smoobu', requireAuth, async (req, res) => {
+  try {
+    const out = await runSmoobuSync();
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
+  }
+});
+// cron Vercel (GET, protejat de header-ul x-vercel-cron)
+app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
+  if (!req.headers['x-vercel-cron'] && !req.user) return res.status(401).json({ error: 'Doar cron sau autentificat' });
+  try { res.json({ ok: true, ...(await runSmoobuSync()) }); }
+  catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
+  const r = await pool.query(
+    `SELECT b.*, g.name AS guest_name, g.email AS guest_email, g.phone AS guest_phone
+     FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
+     ORDER BY b.arrival DESC LIMIT 300`
+  );
+  res.json({ bookings: r.rows });
+});
+app.get('/api/v1/admin/guests', requireAuth, async (_req, res) => {
+  const r = await pool.query(
+    `SELECT g.*, count(b.id)::int AS stays, COALESCE(sum(b.value),0)::numeric AS total_value,
+            max(b.departure) AS last_departure
+     FROM guests g LEFT JOIN bookings b ON b.guest_id = g.id AND b.status = 'confirmed'
+     GROUP BY g.id ORDER BY max(b.arrival) DESC NULLS LAST LIMIT 500`
+  );
+  res.json({ guests: r.rows });
+});
+app.patch('/api/v1/admin/guests/:id', requireAuth, async (req, res) => {
+  const { notes, marketing_consent } = req.body || {};
+  const r = await pool.query(
+    `UPDATE guests SET notes = COALESCE($2, notes),
+       marketing_consent = COALESCE($3, marketing_consent),
+       consent_source = CASE WHEN $3 IS NOT NULL THEN 'admin' ELSE consent_source END,
+       consent_at = CASE WHEN $3 IS NOT NULL THEN now() ELSE consent_at END,
+       updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [req.params.id, notes ?? null, typeof marketing_consent === 'boolean' ? marketing_consent : null]
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Client inexistent' });
+  emit('GuestUpdated', { id: req.params.id, by: req.user.email });
+  res.json({ ok: true, guest: r.rows[0] });
 });
 
 /* ============ pagini ============ */

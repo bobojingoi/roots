@@ -107,3 +107,6 @@ CREATE TABLE IF NOT EXISTS posts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_posts_pub ON posts(published_at DESC);
+
+-- roluri flexibile (admin/client/orice)
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;

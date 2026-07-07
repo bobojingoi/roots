@@ -173,10 +173,18 @@ function renderNav() {
       h += `<button class="nav-i ${TAB === 'sec:' + s.section_key ? 'on' : ''}" onclick="go('sec:${s.section_key}')">${ICONS.sec} ${esc(label)}</button>`;
     }
   }
+  h += `<div class="nav-cap">CRM</div>`;
+  h += `<button class="nav-i ${TAB === 'bookings' ? 'on' : ''}" onclick="go('bookings')">${ICONS.sec} Rezervări</button>`;
+  h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.sec} Clienți</button>`;
   h += `<div class="nav-cap">Blog</div>`;
   h += `<button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.sec} Articole</button>`;
   h += `<div class="nav-cap">Bibliotecă</div>`;
   h += `<button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
+  if (ME && (ME.role === 'owner' || ME.role === 'admin')) {
+    h += `<div class="nav-cap">Sistem</div>`;
+    h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.sec} Utilizatori</button>`;
+    h += `<button class="nav-i ${TAB === 'activity' ? 'on' : ''}" onclick="go('activity')">${ICONS.sec} Activitate</button>`;
+  }
   $('nav').innerHTML = h;
 }
 function go(tab) { TAB = tab; renderNav(); renderMain(); }
@@ -270,6 +278,10 @@ async function renderMain() {
   }
   if (TAB === 'media') { renderMedia(); return; }
   if (TAB === 'blog') { renderBlog(); return; }
+  if (TAB === 'bookings') { renderBookings(); return; }
+  if (TAB === 'guests') { renderGuests(); return; }
+  if (TAB === 'users') { renderUsers(); return; }
+  if (TAB === 'activity') { renderActivity(); return; }
   if (TAB.startsWith('sec:')) {
     const key = TAB.slice(4);
     CUR = SECTIONS.find((s) => s.section_key === key);
@@ -321,6 +333,109 @@ async function restoreV(id) {
   SECTIONS = j.sections;
   toast('Versiune adusă în draft — publică pentru a fi live');
   renderMain();
+}
+
+/* ============ CRM ============ */
+async function syncSmoobu(btn) {
+  btn.disabled = true; btn.textContent = 'Se sincronizează…';
+  try {
+    const j = await api('/api/v1/admin/sync-smoobu', { method: 'POST', body: '{}' });
+    toast(`Sincronizat: ${j.seen} rezervări (${j.created} noi)`);
+    if (TAB === 'bookings') renderBookings(); else renderGuests();
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Sincronizează din Smoobu'; }
+}
+const dt = (d) => (d ? new Date(d).toLocaleDateString('ro-RO') : '—');
+async function renderBookings() {
+  const j = await api('/api/v1/admin/bookings');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Rezervări</h1><div class="lead">Din Smoobu — actualizate la sincronizare (manual sau automat la 6h).</div></div>
+      <button class="btn p" onclick="syncSmoobu(this)">Sincronizează din Smoobu</button></div>
+    <div class="card" style="padding:8px 20px">
+      ${j.bookings.map((b) => `
+        <div class="vrow" style="gap:14px">
+          <span style="min-width:0"><b>${esc(b.guest_name || 'Fără nume')}</b>
+            <span style="color:#9aa8a1"> · ${esc(b.villa)} · ${dt(b.arrival)} → ${dt(b.departure)}${b.guests_count ? ' · ' + b.guests_count + ' pers' : ''}</span></span>
+          <span style="white-space:nowrap">${b.value ? Number(b.value).toLocaleString('ro-RO') + ' lei' : ''}
+            <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
+        </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare încă — apasă „Sincronizează din Smoobu".</div>'}
+    </div>`;
+}
+async function renderGuests() {
+  const j = await api('/api/v1/admin/guests');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Clienți</h1><div class="lead">Profiluri create automat din rezervări. Consimțământul de marketing se bifează doar cu acordul clientului (GDPR).</div></div>
+      <button class="btn p" onclick="syncSmoobu(this)">Sincronizează din Smoobu</button></div>
+    ${j.guests.map((g) => `
+      <div class="card" style="padding:16px 20px">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+          <div><b>${esc(g.name || 'Fără nume')}</b>
+            <div class="hint" style="margin-top:2px">${esc(g.email || '')}${g.phone ? ' · ' + esc(g.phone) : ''}</div></div>
+          <div style="text-align:right"><b>${g.stays}</b> sejururi · ${Number(g.total_value).toLocaleString('ro-RO')} lei
+            <div class="hint">ultimul: ${dt(g.last_departure)}</div></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+          <input class="f" style="flex:1;min-width:200px" placeholder="notițe" value="${esc(g.notes || '')}" onchange="updGuest('${g.id}',{notes:this.value})" />
+          <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#5c6b64;white-space:nowrap">
+            <input type="checkbox" ${g.marketing_consent ? 'checked' : ''} onchange="updGuest('${g.id}',{marketing_consent:this.checked})" /> consimțământ marketing</label>
+        </div>
+      </div>`).join('') || '<div class="card">Niciun client încă — sincronizează rezervările.</div>'}`;
+}
+async function updGuest(id, patch) { try { await api('/api/v1/admin/guests/' + id, { method: 'PATCH', body: JSON.stringify(patch) }); toast('Salvat'); } catch (e) { toast(e.message); } }
+
+/* ============ utilizatori & activitate ============ */
+const EVENT_LABELS = {
+  UserLoggedIn: 'Autentificare', DraftSaved: 'Draft salvat', ContentPublished: 'Publicat pe site',
+  MediaUploaded: 'Imagine încărcată', UserCreated: 'Utilizator creat', UserUpdated: 'Utilizator modificat',
+  UserDeleted: 'Utilizator șters', PostCreated: 'Articol creat', PostPublished: 'Articol publicat',
+  PostUnpublished: 'Articol retras', BookingSynced: 'Rezervare sincronizată',
+};
+async function renderUsers() {
+  const j = await api('/api/v1/admin/users');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Utilizatori</h1><div class="lead">Owner/Admin: control total · Client (sau orice alt rol): editează conținutul.</div></div></div>
+    <div class="card">
+      <b>Adaugă utilizator</b>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px">
+        <input class="f" id="nuEmail" placeholder="email" />
+        <input class="f" id="nuName" placeholder="nume" />
+        <input class="f" id="nuPass" placeholder="parolă" type="text" />
+        <input class="f" id="nuRole" placeholder="rol (admin / client / alt rol)" list="roleList" value="client" />
+        <datalist id="roleList"><option value="admin"><option value="client"><option value="owner"></datalist>
+        <button class="btn p" onclick="createUser()">Creează</button>
+      </div>
+    </div>
+    ${j.users.map((u) => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
+        <div><b>${esc(u.email)}</b><div class="hint" style="margin-top:2px">${esc(u.name || '')}</div></div>
+        <input class="f" style="max-width:150px" value="${esc(u.role)}" list="roleList" onchange="updUser('${u.id}',{role:this.value})" title="rol" />
+        <div style="display:flex;gap:8px">
+          <button class="btn s" onclick="resetUserPass('${u.id}')">Resetează parola</button>
+          <button class="btn d" onclick="delUser('${u.id}','${esc(u.email)}')">Șterge</button>
+        </div>
+      </div>`).join('')}`;
+}
+async function createUser() {
+  try {
+    await api('/api/v1/admin/users', { method: 'POST', body: JSON.stringify({ email: $('nuEmail').value, name: $('nuName').value, password: $('nuPass').value, role: $('nuRole').value }) });
+    toast('Utilizator creat'); renderUsers();
+  } catch (e) { toast(e.message); }
+}
+async function updUser(id, patch) { try { await api('/api/v1/admin/users/' + id, { method: 'PATCH', body: JSON.stringify(patch) }); toast('Salvat'); } catch (e) { toast(e.message); } }
+async function resetUserPass(id) { const p = prompt('Parola nouă:'); if (!p) return; await updUser(id, { password: p }); }
+async function delUser(id, email) { if (!confirm('Ștergi contul ' + email + '?')) return; try { await api('/api/v1/admin/users/' + id, { method: 'DELETE' }); toast('Șters'); renderUsers(); } catch (e) { toast(e.message); } }
+
+async function renderActivity() {
+  const j = await api('/api/v1/admin/activity');
+  $('main').innerHTML = `
+    <h1>Activitate</h1><div class="lead">Ultimele acțiuni din sistem.</div>
+    <div class="card" style="padding:8px 20px">
+      ${j.activity.map((a) => {
+        const pl = a.payload || {};
+        const what = [pl.section, pl.slug, pl.email && !pl.by ? pl.email : null, pl.key].filter(Boolean).join(' · ');
+        return `<div class="vrow"><span><b>${esc(EVENT_LABELS[a.event] || a.event)}</b>${what ? ' — ' + esc(what) : ''}${pl.by ? ` <span style="color:#9aa8a1">de ${esc(pl.by)}</span>` : ''}</span>
+          <span style="color:#9aa8a1;white-space:nowrap">${new Date(a.created_at).toLocaleString('ro-RO')}</span></div>`;
+      }).join('') || '<div class="hint">Nimic încă.</div>'}
+    </div>`;
 }
 
 /* ============ blog ============ */
