@@ -32,7 +32,11 @@ const wSections = (fun) => [
   { icon: 'in', title: 'Reguli & program', lines: ['Check-in: 16:00 – 22:00 · Check-out: până la 12:00', 'Ore de liniște: 22:00 – 10:00', 'Maxim 8–10 persoane', 'Evenimentele și petrecerile se anunță și se aprobă în prealabil', 'Animalele de companie – doar cu acord prealabil'] },
   { icon: 'parking', title: 'Parcare', lines: ['Parcare gratuită în curte sau pe aleea de acces', 'Pe alee, parchează pe partea dreaptă, ca să lași acces la vila vecină'] },
   { icon: 'tub', title: 'Ciubăr', lines: ['Program de funcționare: 20:00 – 23:00', 'Anunță-ne cu minim 4 ore înainte, ca să fie cald la timp', 'Cele 3 butoane controlează: jeturile, bulele și lumina'] },
-  { icon: 'fire', title: 'Saună', lines: ['Setează temperatura dorită din meniu și apasă ON', 'Termometrul devine roșu când sauna funcționează', '⚠️ Nu lăsa sauna pornită nesupravegheată'] },
+  { icon: 'fire', title: 'Saună', image: '', lines: [], steps: [
+    { text: 'Setează temperatura dorită din meniu și apasă ON', image: '' },
+    { text: 'Termometrul devine roșu când sauna funcționează', image: '' },
+    { text: '⚠️ Nu lăsa sauna pornită nesupravegheată', image: '' },
+  ] },
   { icon: 'fire', title: 'Vatră de foc & lumini exterioare', lines: ['Lemnele de foc sunt sub scările de la intrare', 'Luminile exterioare pornesc pe senzor de mișcare', 'Cele 4 întrerupătoare sunt în dulapul chiuvetei exterioare'] },
   { icon: 'key', title: 'Bucătărie', lines: ['Espressorul funcționează doar cu boabe', 'Tabletele pentru mașina de spălat vase sunt sub chiuvetă'] },
   { icon: 'play', title: 'Divertisment', lines: fun },
