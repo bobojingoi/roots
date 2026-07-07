@@ -31,7 +31,12 @@ export default async function handler(req, res) {
 
   // status sigur (nu creează nimic): confirmă dacă rezervările live sunt active
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, live, configured: !!(apiKey && apiSecret) });
+    return res.status(200).json({
+      ok: true,
+      live,
+      configured: !!(apiKey && apiSecret),
+      emailConfigured: !!(clean(process.env.RESEND_API_KEY) && clean(process.env.EMAIL_FROM)),
+    });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
 
