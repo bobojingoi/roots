@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
+import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 
 /* ============================================================
    ROOTS VILLAS — site + CMS
@@ -369,6 +370,65 @@ export const DEFAULT_CONTENT = {
     },
   },
 };
+
+/* ============ Continut din Roots Hub (CMS) ============ */
+/* Adaptor: formatul sectiunilor din Hub -> formatul folosit de componente. */
+export function hubToSite(h) {
+  if (!h) return {};
+  const out = {};
+  const txt = (x) => (typeof x === "string" ? x : (x && x.text) || "");
+  if (h.seo) out.seo = { ...DEFAULT_CONTENT.seo, ...h.seo };
+  if (h.hero) out.hero = { ...DEFAULT_CONTENT.hero, ...h.hero };
+  if (h.about) out.about = { title: h.about.title || "", text1: h.about.p1 || "", text2: h.about.p2 || "" };
+  if (h.villas && Array.isArray(h.villas.items))
+    out.villas = h.villas.items.map((v, i) => ({
+      id: v.slug || (i === 0 ? "redwood" : "sequoia"),
+      name: v.name || "",
+      tagline: v.tagline || "",
+      description: v.description || "",
+      features: (v.features || []).map(txt),
+      image: v.cover || v.image || "",
+      accent: i === 0 ? "ember" : "gold",
+    }));
+  if (h.editorial && Array.isArray(h.editorial.blocks))
+    out.editorial = h.editorial.blocks.map((b) => ({ title: b.title || "", paragraphs: (b.paragraphs || []).map(txt) }));
+  if (h.common) out.common = h.common;
+  if (h.rules) out.rules = h.rules;
+  if (h.testimonials) out.testimonials = h.testimonials;
+  if (h.video) out.video = h.video;
+  if (h.faq && Array.isArray(h.faq.items)) out.faq = h.faq.items;
+  if (h.location) out.location = h.location;
+  if (h.contact) out.contact = { ...DEFAULT_CONTENT.contact, ...h.contact };
+  const pages = {};
+  if (h.villa_redwood) pages.redwood = h.villa_redwood;
+  if (h.villa_sequoia) pages.sequoia = h.villa_sequoia;
+  if (Object.keys(pages).length) out.pages = { ...DEFAULT_CONTENT.pages, ...pages };
+  const mapW = (w) => ({ ...w, wifi: { name: w.wifiName || "", password: w.wifiPassword || "" } });
+  const wl = {};
+  if (h.welcome_redwood) wl.redwood = mapW(h.welcome_redwood);
+  if (h.welcome_sequoia) wl.sequoia = mapW(h.welcome_sequoia);
+  if (Object.keys(wl).length) out.welcome = { ...DEFAULT_CONTENT.welcome, ...wl };
+  return out;
+}
+
+/* In modul editare citim DRAFTURILE (cu token); altfel continutul publicat. */
+export async function loadHubRaw() {
+  if (EDIT_MODE) {
+    try {
+      const tok = (window.location.hash.match(/hubtok=([^&]+)/) || [])[1] || "";
+      const r = await fetch(HUB_URL + "/api/v1/sections", { headers: { Authorization: "Bearer " + tok } });
+      if (r.ok) {
+        const j = await r.json();
+        const raw = {};
+        for (const sct of j.sections) raw[sct.section_key] = sct.draft;
+        return raw;
+      }
+    } catch (e) { /* cadem pe published */ }
+  }
+  const r = await fetch(HUB_URL + "/api/v1/site-content");
+  const j = await r.json();
+  return j.content || {};
+}
 
 /* ---------- ICONS (inline, un singur stil de linie) ---------- */
 export const Ic = ({ d, size = 22, sw = 1.6 }) => (
@@ -740,10 +800,8 @@ export function useSiteContent() {
   useEffect(() => {
     (async () => {
       try {
-        if (window.storage) {
-          const res = await window.storage.get(STORAGE_KEY);
-          if (res && res.value) setContent({ ...DEFAULT_CONTENT, ...JSON.parse(res.value) });
-        }
+        const raw = await loadHubRaw();
+        setContent({ ...DEFAULT_CONTENT, ...hubToSite(raw) });
       } catch (e) {
         /* fără conținut salvat — folosim varianta implicită */
       }
@@ -842,15 +900,15 @@ function Hero({ hero }) {
       <div className="ridge ridge-far"><Ridge fill="#16342A" height={120} /></div>
       <div className="ridge ridge-near"><Ridge fill="#0C1F19" height={170} /></div>
       <div className="hero-inner wrap">
-        <div className="hero-eyebrow fade-up" style={{ animationDelay: ".3s" }}>{hero.eyebrow}</div>
+        <div className="hero-eyebrow fade-up" style={{ animationDelay: ".3s" }} data-edit="hero.eyebrow">{hero.eyebrow}</div>
         <h1>
-          <span className="h1-line"><span>{hero.titleA}</span></span>
-          <span className="h1-line"><span className="warm">{hero.titleB}</span></span>
+          <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
+          <span className="h1-line"><span className="warm" data-edit="hero.titleB">{hero.titleB}</span></span>
         </h1>
-        <p className="hero-sub fade-up">{hero.subtitle}</p>
+        <p className="hero-sub fade-up" data-edit="hero.subtitle">{hero.subtitle}</p>
         <div className="hero-ctas fade-up d2">
-          <a href="#final" className="btn btn-ember">{hero.ctaPrimary} {ICONS.arrow}</a>
-          <a href="#vile" className="btn btn-ghost">{hero.ctaSecondary}</a>
+          <a href="#final" className="btn btn-ember"><span data-edit="hero.ctaPrimary">{hero.ctaPrimary}</span> {ICONS.arrow}</a>
+          <a href="#vile" className="btn btn-ghost"><span data-edit="hero.ctaSecondary">{hero.ctaSecondary}</span></a>
         </div>
       </div>
       <div className="scroll-hint" aria-hidden="true" />
@@ -864,11 +922,11 @@ function About({ about }) {
       <div className="wrap about-grid">
         <div className="rv">
           <div className="eyebrow">Despre Roots</div>
-          <h2>{about.title}</h2>
+          <h2 data-edit="about.title">{about.title}</h2>
         </div>
         <div className="rv rv-d1">
-          <p className="lede" style={{ marginTop: 0 }}>{about.text1}</p>
-          <p className="lede">{about.text2}</p>
+          <p className="lede" style={{ marginTop: 0 }} data-edit="about.p1">{about.text1}</p>
+          <p className="lede" data-edit="about.p2">{about.text2}</p>
           <div className="stat-row">
             <div className="stat"><b>2</b><span>vile private</span></div>
             <div className="stat"><b>8–10</b><span>persoane / vilă</span></div>
@@ -881,7 +939,7 @@ function About({ about }) {
   );
 }
 
-function VillaCard({ villa, delay, contact }) {
+function VillaCard({ villa, delay, contact, idx }) {
   return (
     <article className={`vcard rv ${delay}`}>
       <div className="vcard-media">
@@ -898,9 +956,9 @@ function VillaCard({ villa, delay, contact }) {
         <span className="vcard-tag">{villa.id === "redwood" ? "Vila 01" : "Vila 02"}</span>
       </div>
       <div className="vcard-body">
-        <h3>{villa.name}</h3>
-        <div className="tagline">{villa.tagline}</div>
-        <p className="desc">{villa.description}</p>
+        <h3 data-edit={`villas.items.${idx}.name`}>{villa.name}</h3>
+        <div className="tagline" data-edit={`villas.items.${idx}.tagline`}>{villa.tagline}</div>
+        <p className="desc" data-edit={`villas.items.${idx}.description`}>{villa.description}</p>
         <div className="feat-list">
           {villa.features.map((f, i) => (
             <div className="feat" key={i}>
@@ -930,7 +988,7 @@ function Villas({ villas, contact }) {
           </div>
           <div className="villa-grid">
             {villas.map((v, i) => (
-              <VillaCard key={v.id} villa={v} contact={contact} delay={i === 1 ? "rv-d1" : ""} />
+              <VillaCard key={v.id} villa={v} contact={contact} idx={i} delay={i === 1 ? "rv-d1" : ""} />
             ))}
           </div>
         </div>
@@ -945,8 +1003,8 @@ function Editorial({ editorial }) {
       <div className="wrap edit-grid">
         {editorial.map((b, i) => (
           <div className={`edit-block rv ${i === 1 ? "rv-d1" : ""}`} key={i}>
-            <h3>{b.title}</h3>
-            {b.paragraphs.map((p, j) => <p key={j}>{p}</p>)}
+            <h3 data-edit={`editorial.blocks.${i}.title`}>{b.title}</h3>
+            {b.paragraphs.map((p, j) => <p key={j} data-edit={`editorial.blocks.${i}.paragraphs.${j}`}>{p}</p>)}
           </div>
         ))}
       </div>
@@ -961,8 +1019,8 @@ function Common({ common }) {
         <div className="wrap common-grid">
           <div className="rv">
             <div className="eyebrow">Între vile</div>
-            <h2>{common.title}</h2>
-            <p className="lede">{common.text}</p>
+            <h2 data-edit="common.title">{common.title}</h2>
+            <p className="lede" data-edit="common.text">{common.text}</p>
             <div className="pill-list">
               {common.features.map((f, i) => (
                 <div className="pill" key={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span>{f}</span></div>
@@ -990,8 +1048,8 @@ function Rules({ rules }) {
       <div className="wrap">
         <div className="rv" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
           <div className="eyebrow" style={{ justifyContent: "center" }}>Sejur fără griji</div>
-          <h2>{rules.title}</h2>
-          <p className="lede" style={{ margin: "20px auto 0" }}>{rules.intro}</p>
+          <h2 data-edit="rules.title">{rules.title}</h2>
+          <p className="lede" style={{ margin: "20px auto 0" }} data-edit="rules.intro">{rules.intro}</p>
         </div>
         <div className="rules-grid">
           {rules.items.map((r, i) => (
@@ -1014,11 +1072,11 @@ function Testimonials({ t }) {
           <div className="testi-head rv">
             <div>
               <div className="eyebrow">Oaspeții Roots</div>
-              <h2>{t.title}</h2>
-              <p className="lede">{t.intro}</p>
+              <h2 data-edit="testimonials.title">{t.title}</h2>
+              <p className="lede" data-edit="testimonials.intro">{t.intro}</p>
             </div>
             <div className="rating-badge">
-              <b>{t.rating}</b>
+              <b data-edit="testimonials.rating">{t.rating}</b>
               <div>
                 <div className="stars">{[0,1,2,3,4].map((i) => <span key={i}>{ICONS.star}</span>)}</div>
                 <span>rating mediu Google</span>
@@ -1046,8 +1104,8 @@ function Video({ video }) {
       <div className="wrap">
         <div className="rv">
           <div className="eyebrow">Atmosfera Roots</div>
-          <h2>{video.title}</h2>
-          <p className="lede">{video.text}</p>
+          <h2 data-edit="video.title">{video.title}</h2>
+          <p className="lede" data-edit="video.text">{video.text}</p>
         </div>
         <a className="video-card rv rv-d1" href={video.youtubeUrl} target="_blank" rel="noreferrer" aria-label="Deschide videoclipul Roots pe YouTube">
           <div className="vlabel"><span className="dot" />{video.label}</div>
@@ -1102,8 +1160,8 @@ function LocationSec({ location }) {
       <div className="wrap loc-grid">
         <div className="rv">
           <div className="eyebrow">Stupini · Brașov</div>
-          <h2>{location.title}</h2>
-          <p className="lede">{location.text}</p>
+          <h2 data-edit="location.title">{location.title}</h2>
+          <p className="lede" data-edit="location.text">{location.text}</p>
           <div className="loc-points">
             {location.points.map((p, i) => (
               <div className="loc-point" key={i}><span>{p.label}</span><b>{p.value}</b></div>
@@ -1495,22 +1553,13 @@ function Admin({ content, setContent, onClose, onSave, onReset, saved }) {
 
 /* ============================ APP ============================ */
 export default function RootsVillas() {
-  const [content, setContent] = useState(DEFAULT_CONTENT);
+  const [hubRaw, setHubRaw] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [toast, setToast] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        if (window.storage) {
-          const res = await window.storage.get(STORAGE_KEY);
-          if (res && res.value) {
-            const parsed = JSON.parse(res.value);
-            setContent({ ...DEFAULT_CONTENT, ...parsed });
-          }
-        }
+        setHubRaw(await loadHubRaw());
       } catch (e) {
         /* nu există conținut salvat încă — folosim varianta implicită */
       }
@@ -1518,33 +1567,13 @@ export default function RootsVillas() {
     })();
   }, []);
 
+  const content = useMemo(() => ({ ...DEFAULT_CONTENT, ...hubToSite(hubRaw || {}) }), [hubRaw]);
+
   useEffect(() => {
     if (content.seo && content.seo.title) document.title = content.seo.title;
   }, [content.seo]);
 
   useReveal();
-
-  const save = async () => {
-    try {
-      if (window.storage) await window.storage.set(STORAGE_KEY, JSON.stringify(content));
-      setSaved(true);
-      setToast("Modificările au fost salvate — sunt vizibile imediat pe site.");
-      setTimeout(() => setSaved(false), 2000);
-      setTimeout(() => setToast(""), 3200);
-    } catch (e) {
-      setToast("Salvarea nu a reușit. Încearcă din nou.");
-      setTimeout(() => setToast(""), 3200);
-    }
-  };
-
-  const reset = async () => {
-    setContent(DEFAULT_CONTENT);
-    try {
-      if (window.storage) await window.storage.delete(STORAGE_KEY);
-    } catch (e) {}
-    setToast("Conținutul a fost resetat la varianta inițială.");
-    setTimeout(() => setToast(""), 3200);
-  };
 
   if (!loaded) {
     return (
@@ -1572,18 +1601,7 @@ export default function RootsVillas() {
       <FinalCta contact={content.contact} />
       <Footer contact={content.contact} />
       <Fabs contact={content.contact} />
-      <button className="admin-fab" onClick={() => setAdminOpen(true)}>{ICONS.edit} Admin</button>
-      {adminOpen && (
-        <Admin
-          content={content}
-          setContent={setContent}
-          onClose={() => setAdminOpen(false)}
-          onSave={save}
-          onReset={reset}
-          saved={saved}
-        />
-      )}
-      {toast && <div className="toast">{toast}</div>}
+      {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>
   );
 }

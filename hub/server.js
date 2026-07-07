@@ -22,6 +22,23 @@ const {
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '30mb' })); // imaginile vin deja optimizate din browser
+
+/* CORS pentru editorul vizual de pe site (Bearer token, fara cookie-uri) */
+const CORS_ORIGINS = (process.env.CORS_ORIGINS ||
+  'https://roots-opal.vercel.app,https://rootsvillas.ro,https://www.rootsvillas.ro,http://localhost:5173'
+).split(',').map((s) => s.trim());
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && CORS_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
 app.use(attachUser);
 
 // Serverless: prima cerere per instanță se asigură că schema există (idempotent).
@@ -94,6 +111,15 @@ app.post('/api/v1/auth/login', async (req, res) => {
 app.post('/api/v1/auth/logout', (req, res) => {
   clearAuthCookie(req, res);
   res.json({ ok: true });
+});
+
+/* token temporar (2h) pentru editorul vizual de pe site */
+app.get('/api/v1/editor-token', requireAuth, (req, res) => {
+  const { signToken } = require('./auth');
+  res.json({
+    token: signToken({ id: req.user.id, role: req.user.role, email: req.user.email }, 2 * 60 * 60),
+    siteUrl: process.env.SITE_URL || 'https://roots-opal.vercel.app',
+  });
 });
 
 app.get('/api/v1/auth/me', requireAuth, async (req, res) => {

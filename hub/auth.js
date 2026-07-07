@@ -137,7 +137,10 @@ function clearAuthCookie(req, res) {
 /* ---------- middleware ---------- */
 // Non-blocking: reads the cookie and attaches req.user (or null). Always calls next().
 function attachUser(req, res, next) {
-  const token = parseCookies(req)[COOKIE];
+  let token = parseCookies(req)[COOKIE];
+  // editorul de pe site trimite tokenul ca Bearer (cookie-ul nu traverseaza domeniile)
+  const h = req.headers.authorization || "";
+  if (!token && h.startsWith("Bearer ")) token = h.slice(7);
   const payload = token ? verifyToken(token) : null;
   req.user = payload ? { id: payload.uid, role: payload.role, email: payload.email, imp: payload.imp || null } : null;
   next();

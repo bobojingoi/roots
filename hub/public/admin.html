@@ -78,6 +78,7 @@
   <div class="logo"><span class="dot">R</span><div>Roots Hub<small>ADMINISTRARE</small></div></div>
   <div class="acts">
     <span id="who"></span>
+    <button onclick="openSiteEditor()" style="background:var(--brand);border-color:var(--brand)">✏️ Editor pe site</button>
     <button onclick="openAccount()">Setări cont</button>
     <button onclick="logout()">Deconectare</button>
   </div>
@@ -385,6 +386,12 @@ async function setAlt(id, alt) { await api('/api/v1/media/' + id, { method: 'PAT
 async function delMedia(id) { if (!confirm('Ștergi imaginea?')) return; await api('/api/v1/media/' + id, { method: 'DELETE' }); renderMedia(); }
 
 /* ============ cont ============ */
+async function openSiteEditor() {
+  try {
+    const j = await api('/api/v1/editor-token');
+    window.open(j.siteUrl + '/?edit#hubtok=' + encodeURIComponent(j.token), '_blank');
+  } catch (e) { toast(e.message); }
+}
 function openAccount() { $('accDlg').showModal(); }
 async function saveAccount() {
   try {
