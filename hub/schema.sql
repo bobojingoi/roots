@@ -91,3 +91,19 @@ CREATE TABLE IF NOT EXISTS events_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_events_log ON events_log(event, created_at DESC);
+
+-- blog
+CREATE TABLE IF NOT EXISTS posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  excerpt TEXT,
+  cover TEXT,
+  body TEXT,
+  seo_title TEXT,
+  seo_description TEXT,
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_posts_pub ON posts(published_at DESC);

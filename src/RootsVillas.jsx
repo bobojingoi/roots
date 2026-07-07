@@ -895,6 +895,7 @@ export function Header({ content }) {
           <a href="#reguli">Regulile casei</a>
           <a href="#faq">Întrebări</a>
           <a href="#locatie">Locație</a>
+          <Link to="/blog">Blog</Link>
           <a href={`https://wa.me/${content.contact.whatsapp.replace(/[^0-9]/g, "")}`} className="cta" target="_blank" rel="noreferrer">
             Rezervă acum
           </a>

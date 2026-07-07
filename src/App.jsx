@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import RootsVillas from "./RootsVillas.jsx";
 import VillaPage from "./VillaPage.jsx";
 import WelcomePage from "./WelcomePage.jsx";
+import { BlogList, BlogPost } from "./BlogPage.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
 function ScrollToTop() {
@@ -23,6 +24,8 @@ export default function App() {
         <Route path="/vila-sequoia" element={<VillaPage villaId="sequoia" />} />
         <Route path="/welcome-redwood" element={<WelcomePage villaId="redwood" />} />
         <Route path="/welcome-sequoia" element={<WelcomePage villaId="sequoia" />} />
+        <Route path="/blog" element={<BlogList />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="*" element={<RootsVillas />} />
       </Routes>
     </>

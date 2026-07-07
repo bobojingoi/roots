@@ -173,6 +173,8 @@ function renderNav() {
       h += `<button class="nav-i ${TAB === 'sec:' + s.section_key ? 'on' : ''}" onclick="go('sec:${s.section_key}')">${ICONS.sec} ${esc(label)}</button>`;
     }
   }
+  h += `<div class="nav-cap">Blog</div>`;
+  h += `<button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.sec} Articole</button>`;
   h += `<div class="nav-cap">Bibliotecă</div>`;
   h += `<button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
   $('nav').innerHTML = h;
@@ -267,6 +269,7 @@ async function renderMain() {
     return;
   }
   if (TAB === 'media') { renderMedia(); return; }
+  if (TAB === 'blog') { renderBlog(); return; }
   if (TAB.startsWith('sec:')) {
     const key = TAB.slice(4);
     CUR = SECTIONS.find((s) => s.section_key === key);
@@ -319,6 +322,66 @@ async function restoreV(id) {
   toast('Versiune adusă în draft — publică pentru a fi live');
   renderMain();
 }
+
+/* ============ blog ============ */
+let POSTS = [], POST = null;
+async function renderBlog() {
+  const j = await api('/api/v1/admin/posts');
+  POSTS = j.posts;
+  if (POST) { renderPostEditor(); return; }
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Blog</h1><div class="lead">Articole — draft până apeși „Publică".</div></div>
+      <button class="btn p" onclick="newPost()">+ Articol nou</button></div>
+    ${POSTS.map((p) => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px">
+        <div><b>${esc(p.title)}</b>
+          <div class="hint" style="margin-top:2px">/blog/${esc(p.slug)} · ${p.published_at ? 'Publicat ' + new Date(p.published_at).toLocaleDateString('ro-RO') : 'Draft'}</div></div>
+        <span class="badge ${p.published_at ? 'pub' : 'mod'}">${p.published_at ? 'Publicat' : 'Draft'}</span>
+        <button class="btn s" onclick="editPost('${p.id}')">Editează</button>
+      </div>`).join('') || '<div class="card">Niciun articol încă.</div>'}`;
+}
+function newPost() { POST = { id: null, title: '', slug: '', excerpt: '', cover: '', body: '', seo_title: '', seo_description: '', published_at: null }; renderPostEditor(); }
+function editPost(id) { POST = { ...POSTS.find((p) => p.id === id) }; renderPostEditor(); }
+function pf(k, label, area, rows) {
+  const v = esc(POST[k] || '');
+  return `<label class="f">${label}</label>` + (area
+    ? `<textarea class="f" rows="${rows || 3}" oninput="POST['${k}']=this.value">${v}</textarea>`
+    : `<input class="f" value="${v}" oninput="POST['${k}']=this.value" />`);
+}
+function renderPostEditor() {
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>${POST.id ? 'Editează articol' : 'Articol nou'}</h1></div>
+      <span class="badge ${POST.published_at ? 'pub' : 'mod'}">${POST.published_at ? 'Publicat' : 'Draft'}</span></div>
+    <div class="card">
+      ${pf('title', 'Titlu')}
+      ${pf('slug', 'Slug (URL) — gol = generat din titlu')}
+      ${pf('excerpt', 'Rezumat (apare în listă)', true, 2)}
+      ${pf('cover', 'Imagine copertă (URL din Galerie media)')}
+      ${pf('body', 'Conținut (Markdown: ## titlu, **bold**, - listă)', true, 14)}
+      ${pf('seo_title', 'SEO title (opțional)')}
+      ${pf('seo_description', 'SEO description (opțional)', true, 2)}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn s" onclick="POST=null;renderBlog()">← Înapoi</button>
+      <button class="btn s" onclick="savePost(false)">Salvează</button>
+      <button class="btn p" onclick="savePost(true)">${POST.published_at ? 'Salvează și republică' : 'Salvează și publică'}</button>
+      ${POST.id && POST.published_at ? `<button class="btn s" onclick="unpublishPost()">Retrage de pe site</button>` : ''}
+      ${POST.id ? `<button class="btn d" onclick="deletePost()">Șterge</button>` : ''}
+    </div>`;
+}
+async function savePost(publish) {
+  try {
+    let saved;
+    if (POST.id) saved = (await api('/api/v1/admin/posts/' + POST.id, { method: 'PUT', body: JSON.stringify(POST) })).post;
+    else saved = (await api('/api/v1/admin/posts', { method: 'POST', body: JSON.stringify(POST) })).post;
+    POST = saved;
+    if (publish) { await api('/api/v1/admin/posts/' + POST.id + '/publish', { method: 'POST', body: '{}' }); POST.published_at = new Date().toISOString(); }
+    toast(publish ? 'Publicat — live pe /blog' : 'Salvat');
+    renderPostEditor();
+  } catch (e) { toast(e.message); }
+}
+async function unpublishPost() { await api('/api/v1/admin/posts/' + POST.id + '/publish', { method: 'POST', body: JSON.stringify({ unpublish: true }) }); POST.published_at = null; toast('Retras de pe site'); renderPostEditor(); }
+async function deletePost() { if (!confirm('Ștergi articolul definitiv?')) return; await api('/api/v1/admin/posts/' + POST.id, { method: 'DELETE' }); POST = null; toast('Șters'); renderBlog(); }
 
 /* ============ media ============ */
 async function renderMedia() {
