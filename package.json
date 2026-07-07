@@ -1,20 +1,40 @@
 {
   "name": "roots-villas",
-  "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "devsafe": "rm -rf .next && cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" payload build",
+    "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint ."
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.18.1"
+    "@payloadcms/db-postgres": "3.85.2",
+    "@payloadcms/next": "3.85.2",
+    "@payloadcms/richtext-lexical": "3.85.2",
+    "@payloadcms/ui": "3.85.2",
+    "cross-env": "^10.1.0",
+    "dotenv": "^16.4.7",
+    "graphql": "^16.8.1",
+    "next": "16.2.7",
+    "payload": "3.85.2",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "sharp": "0.34.2"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0"
+    "@types/node": "^24.12.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "16.2.7",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }

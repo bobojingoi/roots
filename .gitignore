@@ -1,3 +1,10 @@
 node_modules
+.next
+/build
 dist
 .env
+.env*.local
+next-env.d.ts
+.DS_Store
+/media
+*.tsbuildinfo
