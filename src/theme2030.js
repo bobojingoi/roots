@@ -22,7 +22,7 @@ body.t-aurora .roots{background:transparent;color:var(--ink)}
 
 /* ---- aurora vie în fundal ---- */
 body.t-aurora::before{
-  content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
+  content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
   background:
     radial-gradient(38% 30% at 18% 22%, rgba(255,122,69,.16), transparent 70%),
     radial-gradient(34% 28% at 82% 12%, rgba(64,201,148,.13), transparent 70%),
@@ -36,7 +36,6 @@ body.t-aurora::before{
   50%{transform:translate3d(2%,2%,0) rotate(2deg) scale(1.06)}
   100%{transform:translate3d(-1%,3%,0) rotate(-2deg) scale(1.02)}
 }
-body.t-aurora .roots > *{position:relative;z-index:1}
 
 /* ---- selecție & scrollbar ---- */
 body.t-aurora ::selection{background:var(--ember);color:#0A0A0A}
