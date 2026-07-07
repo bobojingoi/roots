@@ -11,6 +11,7 @@ import {
   useScrolled,
   useReveal,
   useHubContent,
+  ThemeStyle,
 } from "./RootsVillas.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
@@ -261,6 +262,7 @@ export default function VillaPage({ villaId }) {
   return (
     <div className="roots">
       <style>{CSS}</style>
+      <ThemeStyle content={content} />
       <style>{VILLA_CSS}</style>
       <VHeader contact={contact} />
 

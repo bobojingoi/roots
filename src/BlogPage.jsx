@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, useScrolled } from "./RootsVillas.jsx";
+import { CSS, Footer, Fabs, useHubContent, useScrolled, ThemeStyle } from "./RootsVillas.jsx";
 import { HUB_URL } from "./HubEditor.jsx";
 
 /* Blog public — listă + articol, în designul site-ului (Fraunces/Manrope, pine/ember). */
@@ -86,6 +86,7 @@ export function BlogList() {
   return (
     <div className="roots">
       <style>{CSS}</style>
+      <ThemeStyle content={content} />
       <style>{BLOG_CSS}</style>
       <BlogHeader />
       <main className="blog-main">
@@ -139,6 +140,7 @@ export function BlogPost() {
   return (
     <div className="roots">
       <style>{CSS}</style>
+      <ThemeStyle content={content} />
       <style>{BLOG_CSS}</style>
       <BlogHeader />
       <main className="post-main">

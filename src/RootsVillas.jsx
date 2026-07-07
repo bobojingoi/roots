@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
+import { CSS_AURORA, applyTheme } from "./theme2030.js";
 
 /* ============================================================
    ROOTS VILLAS — site + CMS
@@ -399,6 +400,7 @@ export function hubToSite(h) {
   if (h.faq && Array.isArray(h.faq.items)) out.faq = h.faq.items;
   if (h.location) out.location = h.location;
   if (h.contact) out.contact = { ...DEFAULT_CONTENT.contact, ...h.contact };
+  if (h.ui) out.ui = h.ui;
   const pages = {};
   if (h.villa_redwood) pages.redwood = h.villa_redwood;
   if (h.villa_sequoia) pages.sequoia = h.villa_sequoia;
@@ -830,6 +832,13 @@ export function useSiteContent() {
     })();
   }, []);
   return { content, loaded };
+}
+
+/* Tema activă a site-ului (Versiuni UI din admin): classic | aurora */
+export function ThemeStyle({ content }) {
+  const theme = (content && content.ui && content.ui.theme) || "aurora";
+  useEffect(() => { applyTheme(theme); }, [theme]);
+  return theme !== "classic" ? <style>{CSS_AURORA}</style> : null;
 }
 
 /* ============================ DECOR ============================ */
@@ -1638,6 +1647,7 @@ export default function RootsVillas() {
   return (
     <div className="roots">
       <style>{CSS}</style>
+      <ThemeStyle content={content} />
       <Header content={content} />
       <Hero hero={content.hero} />
       <About about={content.about} />

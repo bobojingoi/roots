@@ -201,7 +201,7 @@ function renderNav() {
   });
   // secțiuni noi necunoscute meniului (adăugate ulterior în DB) — să nu dispară
   const known = new Set(PAGES_NAV.flatMap((p) => p.keys));
-  const extra = SECTIONS.filter((s) => !known.has(s.section_key));
+  const extra = SECTIONS.filter((s) => !known.has(s.section_key) && s.section_key !== 'ui');
   if (extra.length) {
     h += `<div class="nav-cap">Alte secțiuni</div>`;
     for (const s of extra) {
@@ -220,6 +220,7 @@ function renderNav() {
     h += `<div class="nav-cap">Sistem</div>`;
     h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.sec} Utilizatori</button>`;
     h += `<button class="nav-i ${TAB === 'activity' ? 'on' : ''}" onclick="go('activity')">${ICONS.sec} Activitate</button>`;
+    h += `<button class="nav-i ${TAB === 'themes' ? 'on' : ''}" onclick="go('themes')">${ICONS.sec} Versiuni UI</button>`;
   }
   $('nav').innerHTML = h;
 }
@@ -299,6 +300,7 @@ async function renderMain() {
   if (TAB === 'blog') { renderBlog(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
+  if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
   if (TAB === 'activity') { renderActivity(); return; }
   if (TAB.startsWith('sec:')) {
@@ -582,6 +584,42 @@ function renderGuestsList() {
       </div>`).join('') || '<div class="card">Niciun client pe filtrul ales.</div>';
 }
 async function updGuest(id, patch) { try { await api('/api/v1/admin/guests/' + id, { method: 'PATCH', body: JSON.stringify(patch) }); toast('Salvat'); } catch (e) { toast(e.message); } }
+
+/* ============ versiuni UI (teme site) ============ */
+const THEMES = [
+  { id: 'aurora', name: 'Aurora 2030', desc: 'Lux nocturn: aurora animată în fundal, suprafețe de sticlă, tipografie uriașă cu gradient, glow de jar pe interacțiuni.', chip: 'linear-gradient(120deg,#0A120F 40%,#FF7A45 80%,#FFD9A0)' },
+  { id: 'classic', name: 'Clasic — Seară la Stupini', desc: 'Designul original: fundal ivory cald, apus, verde brad și accente ember. Sigur și primitor.', chip: 'linear-gradient(120deg,#FBF7EF 45%,#E8722C 80%,#122B22)' },
+];
+function activeTheme() {
+  const sec = SECTIONS.find((x) => x.section_key === 'ui');
+  return (sec && sec.draft && sec.draft.theme) || 'aurora';
+}
+function renderThemes() {
+  const act = activeTheme();
+  $('main').innerHTML = `
+    <h1>Versiuni UI</h1>
+    <div class="lead">Schimbi designul întregului site cu un click — fără deploy. Poți reveni oricând.</div>
+    ${THEMES.map((t) => `
+      <div class="card" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="width:86px;height:56px;border-radius:12px;background:${t.chip};flex-shrink:0;border:1px solid var(--line)"></div>
+        <div style="flex:1;min-width:220px"><b>${esc(t.name)}</b><div class="hint" style="margin-top:3px">${esc(t.desc)}</div></div>
+        ${t.id === act
+          ? `<span class="badge pub">Activă pe site</span>`
+          : `<button class="btn p" onclick="setTheme('${t.id}', this)">Activează</button>`}
+      </div>`).join('')}
+    <div class="hint">Sfat: deschide site-ul într-un tab alăturat și comută — schimbarea e live imediat după activare.</div>`;
+}
+async function setTheme(id, btn) {
+  btn.disabled = true; btn.textContent = 'Se activează…';
+  try {
+    await api('/api/v1/sections/ui', { method: 'PUT', body: JSON.stringify({ draft: { theme: id } }) });
+    await api('/api/v1/sections/ui/publish', { method: 'POST' });
+    const sec = SECTIONS.find((x) => x.section_key === 'ui');
+    if (sec) { sec.draft = { theme: id }; sec.published = { theme: id }; }
+    toast(id === 'classic' ? 'Revenit la designul clasic' : 'Aurora 2030 e live pe site ✨');
+    renderThemes();
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Activează'; }
+}
 
 /* ============ utilizatori & activitate ============ */
 const EVENT_LABELS = {

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent } from "./RootsVillas.jsx";
+import { CSS, Footer, Fabs, useHubContent, ThemeStyle } from "./RootsVillas.jsx";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
@@ -31,6 +31,7 @@ export default function ReservePage() {
   return (
     <div className="roots">
       <style>{CSS}</style>
+      <ThemeStyle content={content} />
       <style>{VILLA_CSS}</style>
       <style>{RES_CSS}</style>
       <header className="hdr solid" style={{ position: "fixed" }}>
