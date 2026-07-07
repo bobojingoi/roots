@@ -10,6 +10,7 @@ const WELCOME_CSS = `
 .wel-top{padding:16px 20px;border-bottom:1px solid var(--line)}
 .wel-top .logo{color:var(--pine)}
 .wel{max-width:680px;margin:0 auto;padding:8px 20px 90px}
+.wel-heroimg{height:230px;margin:0 -20px;background-size:cover;background-position:center;border-radius:0 0 26px 26px}
 .wel-hero{padding:30px 0 20px;text-align:center}
 .wel-eyebrow{font-size:12.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);margin-bottom:10px}
 .wel-hero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(34px,9vw,52px);color:var(--pine);line-height:1.05}
@@ -83,6 +84,7 @@ export default function WelcomePage({ villaId }) {
       </header>
 
       <main className="wel">
+        {w.heroImage && <div className="wel-heroimg" style={{ backgroundImage: `url(${w.heroImage})` }} role="img" aria-label={villa.name} />}
         <section className="wel-hero">
           <div className="wel-eyebrow">Bine ai venit</div>
           <h1>{villa.name}</h1>

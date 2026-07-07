@@ -344,6 +344,7 @@ export const DEFAULT_CONTENT = {
       mapsUrl: "https://maps.google.com/?q=Strada%20F%C3%A2nt%C3%A2nii%2046%20Bra%C8%99ov",
       wifi: { name: "", password: "" },
       keybox: "1965",
+      heroImage: "",
       sections: welcomeSections([
         "Pe barul din bucătărie sunt 2 telecomenzi – cea din dreapta e pentru videoproiector",
         "PlayStation 5 în living",
@@ -357,6 +358,7 @@ export const DEFAULT_CONTENT = {
       mapsUrl: "https://maps.google.com/?q=Stupini%20Bra%C8%99ov",
       wifi: { name: "", password: "" },
       keybox: "",
+      heroImage: "",
       sections: welcomeSections([
         "Masă de biliard",
         "Cramă",
