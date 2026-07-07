@@ -1092,7 +1092,7 @@ function Testimonials({ t }) {
   }, []);
   // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
   const items = !EDIT_MODE && g
-    ? g.reviews.slice(0, 3).map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
+    ? g.reviews.filter((rv) => (rv.rating || 0) >= 4).slice(0, 3).map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
     : t.items;
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : t.rating;
   return (
