@@ -110,6 +110,27 @@ const welcomeSections = (entertainment) => [
   { icon: "play", title: "Divertisment", lines: entertainment },
 ];
 
+/* recomandări locale (comune ambelor vile) — link-uri de navigare Waze */
+const wz = (q) => `https://ul.waze.com/ul?q=${encodeURIComponent(q + ", Brașov")}&navigate=yes`;
+const recNames = (names) => names.map((n) => ({ name: n, waze: wz(n) }));
+const WELCOME_RECS = [
+  { cat: "Cumpărături", items: recNames(["Dodo Market", "La doi pași", "Lidl"]) },
+  { cat: "Tradițional", items: recNames(["Ograda", "Sergiana", "La Ceaun", "Gaura Dulce", "Calul Bălan", "Casa Tudor", "Roata Norocului", "Coliba Haiducilor – Poiana Brașov", "Stâna Turistică – Poiana Brașov"]) },
+  { cat: "Restaurante italienești", items: recNames(["Dei Frati", "Bistro de l'Arte", "Trattoria del Chianti", "Don Antonio – Coresi", "Pizza Hot"]) },
+  { cat: "Fine dining", items: recNames(["Casa Hirscher", "Prato", "Luther Brasserie", "Sub Tâmpa", "Ma Cocotte", "Artegianale", "Kasho Lounge", "Aha Lounge", "Millenium", "Das Fort – Râșnov"]) },
+  { cat: "Burgeri", items: recNames(["Passage", "Terroir Boutique du Vin", "The Food Guys"]) },
+  { cat: "Vinoteci", items: recNames(["Somelier – Centrul Vechi", "Terroir Boutique du Vin", "Ma Cocotte", "Artegianale"]) },
+  { cat: "Cafenele", items: recNames(["CH9 – Centrul Vechi", "ZATZ", "Cafeteca", "NOLA – Centrul Vechi", "Shake Coffee", "Galeria Art and Coffee"]) },
+  { cat: "Piscine", items: recNames(["Paradisul Acvatic", "Bielmann", "K-Tribute", "Hotel Belvedere", "Hotel Aro Palace"]) },
+  { cat: "Viața de noapte", items: recNames(["Kayus Lounge", "K Tribute", "Times", "Al Camin"]) },
+  { cat: "Aventură", items: [{ name: "ATV / Moto – Sorin Dumitru", tel: "0722840744" }, ...recNames(["Kowa Park & Lounge", "Aventura Park", "MasterKart", "Poiana Brașov"])] },
+  { cat: "Plimbări", items: recNames(["Tâmpa", "Canionul Șapte Scări", "Masivul Postăvaru", "Promenada Nouă"]) },
+];
+const WELCOME_SHOP_DIRS = [
+  { label: "Dodo Market", waze: "https://ul.waze.com/ul?q=Strada%20Fagurului%2032A%2C%20Stupini%2C%20Brasov%2C%20Romania&navigate=yes" },
+  { label: "Lidl", waze: "https://ul.waze.com/ul?q=Bulevardul%20Grivitei%202E%2C%20500182%20Brasov%2C%20Romania&navigate=yes" },
+];
+
 export const DEFAULT_CONTENT = {
   seo: {
     title: "ROOTS Villas Brașov — Două vile private cu ciubăr și saună",
@@ -328,6 +349,8 @@ export const DEFAULT_CONTENT = {
         "PlayStation 5 în living",
         "Masă de ping-pong",
       ]),
+      directions: [{ label: "Navighează la vilă", waze: wz("Strada Fântânii 46") }, ...WELCOME_SHOP_DIRS],
+      recommendations: WELCOME_RECS,
     },
     sequoia: {
       address: "Stupini, Brașov",
@@ -339,6 +362,8 @@ export const DEFAULT_CONTENT = {
         "Cramă",
         "PlayStation 5 în living",
       ]),
+      directions: [{ label: "Navighează la vilă", waze: wz("Stupini") }, ...WELCOME_SHOP_DIRS],
+      recommendations: WELCOME_RECS,
     },
   },
 };

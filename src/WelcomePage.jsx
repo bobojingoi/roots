@@ -32,6 +32,20 @@ const WELCOME_CSS = `
 .wel-actions .btn{padding:13px 22px;font-size:14.5px}
 .wel-foot{text-align:center;color:var(--ink-soft);font-size:13px;margin-top:26px}
 .wel-load{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:sans-serif;color:#122B22}
+.wel-dirs{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
+.wel-dir{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:11px 18px;font-weight:700;font-size:14px;color:var(--pine);text-decoration:none}
+.wel-dir:hover{border-color:var(--ember);color:var(--ember)}
+.wel-dir svg{color:var(--ember);width:18px;height:18px}
+.wel-recs{margin-top:10px}
+.wel-recs h2{font-family:'Fraunces',serif;font-weight:500;font-size:26px;color:var(--pine);text-align:center;margin-bottom:6px}
+.wel-recs>p{text-align:center;color:var(--ink-soft);font-size:14px;line-height:1.5;margin-bottom:24px}
+.wel-recgrp{margin-bottom:22px}
+.wel-recgrp h4{font-size:12.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);margin-bottom:12px}
+.wel-reclist{display:flex;flex-wrap:wrap;gap:8px}
+.wel-rec{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--ink);text-decoration:none}
+.wel-rec:hover{border-color:var(--ember);color:var(--ember)}
+.wel-rec svg{width:15px;height:15px;color:var(--ink-soft);flex-shrink:0}
+.wel-rec:hover svg{color:var(--ember)}
 `;
 
 export default function WelcomePage({ villaId }) {
@@ -83,6 +97,14 @@ export default function WelcomePage({ villaId }) {
           {w.wifi && w.wifi.password && <div className="wel-chip"><span>Parolă WiFi</span><b>{w.wifi.password}</b></div>}
         </div>
 
+        {w.directions && w.directions.length > 0 && (
+          <div className="wel-dirs">
+            {w.directions.map((d, i) => (
+              <a className="wel-dir" key={i} href={d.waze} target="_blank" rel="noreferrer">{ICONS.pin} {d.label}</a>
+            ))}
+          </div>
+        )}
+
         {(w.sections || []).map((s, i) => (
           <section className="wel-card" key={i}>
             <div className="wel-card-h">
@@ -104,6 +126,31 @@ export default function WelcomePage({ villaId }) {
             {wa && <a className="btn btn-pine" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">{ICONS.wa} WhatsApp</a>}
           </div>
         </section>
+
+        {w.recommendations && w.recommendations.length > 0 && (
+          <section className="wel-recs">
+            <h2>Recomandările noastre</h2>
+            <p>Locurile noastre preferate din Brașov și împrejurimi — apasă pentru navigare.</p>
+            {w.recommendations.map((g, i) => (
+              <div className="wel-recgrp" key={i}>
+                <h4>{g.cat}</h4>
+                <div className="wel-reclist">
+                  {g.items.map((it, j) => (
+                    <a
+                      className="wel-rec"
+                      key={j}
+                      href={it.tel ? `tel:${it.tel}` : it.waze || "#"}
+                      target={it.tel ? undefined : "_blank"}
+                      rel="noreferrer"
+                    >
+                      {it.tel ? ICONS.phone : ICONS.pin} {it.name}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         <p className="wel-foot">Sejur plăcut la ROOTS! · Stupini, Brașov</p>
       </main>
