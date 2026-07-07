@@ -1,11 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {
-      "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
-    }
+    { "name": "dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 5173 },
+    { "name": "hub", "runtimeExecutable": "npm", "runtimeArgs": ["start", "--prefix", "C:/Users/jingo/Desktop/Fisiere_Git/roots-project/hub"], "port": 4000 }
   ]
 }
