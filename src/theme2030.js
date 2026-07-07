@@ -188,9 +188,52 @@ body.t-aurora .rv{transition-duration:1.1s}
 @media(prefers-reduced-motion:reduce){ body.t-aurora::before{animation:none} }
 `;
 
+/* AURORA LIGHT — varianta pe alb: aceeași eleganță, canvas luminos. */
+export const CSS_AURORA_LIGHT = `
+body.t-al{background:#FBFAF6}
+body.t-al::before{
+  content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(36% 30% at 16% 18%, rgba(232,114,44,.10), transparent 70%),
+    radial-gradient(32% 26% at 84% 10%, rgba(46,125,79,.08), transparent 70%),
+    radial-gradient(38% 32% at 72% 82%, rgba(233,184,114,.12), transparent 70%);
+  filter:blur(46px);
+  animation:aurora-drift 28s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift{
+  0%{transform:translate3d(-2%,-1%,0) scale(1)}
+  100%{transform:translate3d(2%,2%,0) scale(1.05)}
+}
+body.t-al .roots{background:transparent}
+body.t-al .hdr .wrap{
+  background:rgba(255,255,255,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(30,42,36,.08);border-radius:100px;padding:10px 22px;
+  box-shadow:0 10px 36px rgba(30,42,36,.10);max-width:1080px;
+}
+body.t-al .hdr{padding:14px 0}
+body.t-al .hdr.solid{background:transparent;box-shadow:none;backdrop-filter:none}
+body.t-al .hdr .logo{color:var(--pine)}
+body.t-al .nav a{color:var(--ink-soft)}
+body.t-al .nav a:hover{color:var(--ember)}
+body.t-al .lang{border-color:var(--line);color:var(--ink-soft)}
+body.t-al .burger{border-color:var(--line);color:var(--pine)}
+body.t-al .nav .cta{background:linear-gradient(120deg,#E8722C,#F0A051);box-shadow:0 8px 26px rgba(232,114,44,.35)}
+body.t-al .hero h1 .warm{
+  color:transparent;background:linear-gradient(100deg,#E9B872 5%,#E8722C 60%,#F08A3C 95%);
+  -webkit-background-clip:text;background-clip:text;
+}
+body.t-al .btn-ember{background:linear-gradient(120deg,#E8722C,#F0A051)}
+body.t-al .vcard:hover{box-shadow:0 30px 70px rgba(0,0,0,.4), 0 14px 44px rgba(232,114,44,.18)}
+body.t-al .sec, body.t-al .villas-band, body.t-al .common, body.t-al .testi-band, body.t-al .final{scroll-margin-top:90px}
+body.t-al .rule, body.t-al .pill, body.t-al .bpost-card, body.t-al .wel-card{box-shadow:0 8px 28px rgba(30,42,36,.06)}
+body.t-al .rule:hover, body.t-al .pill:hover{box-shadow:0 18px 40px rgba(232,114,44,.14)}
+body.t-al .cal-card{box-shadow:0 34px 90px rgba(30,42,36,.16);border:1px solid rgba(30,42,36,.07)}
+body.t-al .villas-band, body.t-al .testi-band, body.t-al .final{box-shadow:0 30px 80px rgba(13,27,42,.25)}
+`;
+
 /* Comută tema pe <body> și întoarce stilul de injectat. */
 export function applyTheme(theme) {
-  const isAurora = theme !== "classic";
-  document.body.classList.toggle("t-aurora", isAurora);
-  return isAurora ? CSS_AURORA : "";
+  document.body.classList.toggle("t-aurora", theme === "aurora");
+  document.body.classList.toggle("t-al", theme === "aurora-light");
+  return theme === "aurora" ? CSS_AURORA : theme === "aurora-light" ? CSS_AURORA_LIGHT : "";
 }

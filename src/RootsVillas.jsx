@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
-import { CSS_AURORA, applyTheme } from "./theme2030.js";
+import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
 import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
 
 /* ============================================================
@@ -868,11 +868,12 @@ export function LangSwitcher() {
   );
 }
 
-/* Tema activă a site-ului (Versiuni UI din admin): classic | aurora */
+/* Tema activă a site-ului (Versiuni UI din admin): classic | aurora | aurora-light */
 export function ThemeStyle({ content }) {
-  const theme = (content && content.ui && content.ui.theme) || "aurora";
+  const theme = (content && content.ui && content.ui.theme) || "aurora-light";
   useEffect(() => { applyTheme(theme); applyLangDir(); }, [theme]);
-  return theme !== "classic" ? <style>{CSS_AURORA}</style> : null;
+  const css = theme === "aurora" ? CSS_AURORA : theme === "aurora-light" ? CSS_AURORA_LIGHT : "";
+  return css ? <style>{css}</style> : null;
 }
 
 /* ============================ DECOR ============================ */
@@ -980,7 +981,7 @@ function Hero({ hero }) {
       <div className="ridge ridge-near"><Ridge fill="#0C1F19" height={170} /></div>
       <div className="hero-inner wrap">
         <div className="hero-eyebrow fade-up" style={{ animationDelay: ".3s" }} data-edit="hero.eyebrow">{hero.eyebrow}</div>
-        <h1>
+        <h1 style={{ fontSize: { s: "clamp(30px,4.8vw,52px)", m: "clamp(36px,6vw,68px)", l: "clamp(42px,7.2vw,84px)", xl: "clamp(46px,8.4vw,104px)" }[hero.titleSize] || "clamp(36px,6vw,68px)" }}>
           <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
           <span className="h1-line"><span className="warm" data-edit="hero.titleB">{hero.titleB}</span></span>
         </h1>
@@ -1146,7 +1147,7 @@ function Rules({ rules }) {
   );
 }
 
-function Testimonials({ t: T }) {
+function Testimonials({ t: T, cfg }) {
   const [g, setG] = useState(null);
   useEffect(() => {
     fetch(HUB_URL + "/api/v1/google-reviews")
@@ -1155,8 +1156,14 @@ function Testimonials({ t: T }) {
       .catch(() => {});
   }, []);
   // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
+  const C = cfg || {};
   const items = !EDIT_MODE && g
-    ? g.reviews.filter((rv) => (rv.rating || 0) >= 4).slice(0, 3).map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
+    ? g.reviews
+        .filter((rv) => (rv.rating || 0) >= (C.minRating ?? 4))
+        .filter((rv) => !(C.hidden || []).includes(rv.name))
+        .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
+        .slice(0, C.count || 3)
+        .map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
     : T.items;
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
   return (
@@ -1693,7 +1700,7 @@ export default function RootsVillas() {
       <Editorial editorial={content.editorial} />
       <Common common={content.common} />
       <Rules rules={content.rules} />
-      <Testimonials t={content.testimonials} />
+      <Testimonials t={content.testimonials} cfg={content.reviews} />
       <Video video={content.video} />
       <FAQ faq={content.faq} />
       <LocationSec location={content.location} />
