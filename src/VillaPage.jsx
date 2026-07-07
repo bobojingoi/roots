@@ -61,7 +61,10 @@ const VILLA_CSS = `
 .cal-day.free,.cal-day.today{cursor:pointer}
 .cal-day.busy{cursor:not-allowed}
 .cal-day.free:hover{background:var(--sand)}
-.cal-day.sel-start,.cal-day.sel-end{background:var(--ember);color:#fff}
+.cal-day.sel-start .dn,.cal-day.sel-end .dn{color:var(--pine);font-weight:700}
+.cal-day.sel-start::after,.cal-day.sel-end::after{content:"";position:absolute;inset:0;z-index:0;background:var(--ember)}
+.cal-day.sel-start::after{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.cal-day.sel-end::after{clip-path:polygon(0 0,100% 0,0 100%)}
 .cal-day.in-range{background:rgba(232,114,44,.16);color:var(--pine);border-radius:4px}
 .cal-legend .lg.sel{background:var(--ember)}
 /* zile de turnover: jumătate hașurate (check-in/check-out în aceeași zi) */
