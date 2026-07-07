@@ -911,6 +911,9 @@ function Hero({ hero }) {
           <a href="#vile" className="btn btn-ghost"><span data-edit="hero.ctaSecondary">{hero.ctaSecondary}</span></a>
         </div>
       </div>
+      {EDIT_MODE && (
+        <button type="button" className="hub-imgbtn" data-edit-img="hero.image">📷 Imagine de fundal</button>
+      )}
       <div className="scroll-hint" aria-hidden="true" />
     </section>
   );
@@ -942,7 +945,7 @@ function About({ about }) {
 function VillaCard({ villa, delay, contact, idx }) {
   return (
     <article className={`vcard rv ${delay}`}>
-      <div className="vcard-media">
+      <div className="vcard-media" data-edit-img={`villas.items.${idx}.cover`} title="Click pentru a alege imaginea">
         {villa.image ? (
           <div className="ph" style={{ backgroundImage: `url(${villa.image})` }} />
         ) : (
@@ -1027,7 +1030,7 @@ function Common({ common }) {
               ))}
             </div>
           </div>
-          <div className="common-art rv rv-d1">
+          <div className="common-art rv rv-d1" data-edit-img="common.image" title="Click pentru a alege imaginea">
             {common.image ? <div className="ph" style={{ backgroundImage: `url(${common.image})` }} /> : (
               <>
                 <div className="sun" />

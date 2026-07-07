@@ -26,11 +26,26 @@ body.hub-edit [data-edit]:focus{outline:2px solid #E8722C;background:rgba(232,11
 .hub-editbar button.pub:hover{background:#0f6e56}
 .hub-editbar button:disabled{opacity:.45;cursor:not-allowed}
 .hub-editbar .st{color:#9fd9c3}
+body.hub-edit [data-edit-img]{outline:2px dashed rgba(21,122,85,.75);outline-offset:-2px;cursor:pointer}
+body.hub-edit [data-edit-img]:hover{outline-style:solid;outline-color:#157a55}
+.hub-imgbtn{position:absolute;top:96px;right:22px;z-index:9;border:none;border-radius:100px;padding:10px 16px;
+  background:#157a55;color:#fff;font:700 13px 'Manrope',sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.hub-picker{position:fixed;inset:0;z-index:100000;background:rgba(14,31,25,.55);display:grid;place-items:center;padding:20px}
+.hub-picker-box{background:#fff;border-radius:18px;max-width:720px;width:100%;max-height:80vh;overflow:auto;padding:18px;
+  font-family:'Manrope',system-ui,sans-serif;color:#14201b}
+.hub-picker-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.hub-picker-head b{font-size:16px;margin-right:auto}
+.hub-picker-head button{border:1.5px solid #e3e8e5;background:#fff;border-radius:100px;padding:8px 14px;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.hub-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.hub-picker-grid img{width:100%;height:96px;object-fit:cover;border-radius:10px;cursor:pointer;border:3px solid transparent}
+.hub-picker-grid img:hover{border-color:#157a55}
 `;
 
 export default function HubEditor({ hubRaw, setHubRaw }) {
   const [dirty, setDirty] = useState(() => new Set());
   const [status, setStatus] = useState("");
+  const [picker, setPicker] = useState(null); // calea de imagine în editare
+  const [media, setMedia] = useState(null);
 
   // stil + marcaj mod editare
   useEffect(() => {
@@ -52,15 +67,31 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     });
   });
 
-  // link-urile editabile nu trebuie să navigheze în modul editare
+  // link-urile editabile nu trebuie să navigheze; zonele de imagine deschid pickerul
   useEffect(() => {
     const onClick = (e) => {
+      const img = e.target.closest && e.target.closest("[data-edit-img]");
+      if (img) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPicker(img.getAttribute("data-edit-img"));
+        return;
+      }
       const ed = e.target.closest && e.target.closest("[data-edit]");
       if (ed && ed.closest("a")) e.preventDefault();
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, []);
+
+  // biblioteca media se încarcă la prima deschidere a pickerului
+  useEffect(() => {
+    if (picker && media === null) {
+      call("GET", "/api/v1/media")
+        .then((j) => setMedia(j.media || []))
+        .catch(() => setMedia([]));
+    }
+  }, [picker]);
 
   const commit = useCallback(
     (path, value) => {
@@ -123,6 +154,30 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
   };
 
   return (
+    <>
+    {picker && (
+      <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setPicker(null); }}>
+        <div className="hub-picker-box">
+          <div className="hub-picker-head">
+            <b>Alege imaginea</b>
+            <button onClick={() => { commit(picker, ""); setPicker(null); }}>Fără imagine</button>
+            <button onClick={() => setPicker(null)}>Închide</button>
+          </div>
+          {media === null ? (
+            <p>Se încarcă biblioteca…</p>
+          ) : media.length === 0 ? (
+            <p>Nicio imagine încă — încarcă întâi în Galerie media, din admin.</p>
+          ) : (
+            <div className="hub-picker-grid">
+              {media.map((m) => (
+                <img key={m.id} src={m.thumb_url || m.url} alt={m.alt || ""} title={m.alt || ""}
+                  onClick={() => { commit(picker, m.url); setPicker(null); }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     <div className="hub-editbar">
       ✏️ Mod editare — click pe textele conturate
       <b>{dirty.size} {dirty.size === 1 ? "secțiune modificată" : "secțiuni modificate"}</b>
@@ -131,5 +186,6 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
       <button onClick={() => { window.location.href = window.location.pathname; }}>Ieși</button>
       {status && <span className="st">{status}</span>}
     </div>
+    </>
   );
 }
