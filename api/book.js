@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, error: "Server neconfigurat (credențiale Smoobu)." });
   }
 
-  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice } = b;
+  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice, country } = b;
   if (!apartmentId || !arrivalDate || !departureDate) {
     return res.status(400).json({ ok: false, error: "apartmentId, arrivalDate și departureDate sunt obligatorii." });
   }
@@ -80,6 +80,7 @@ export default async function handler(req, res) {
     phone: phone || "",
     adults: Number(adults) || 1,
     children: Number(children) || 0,
+    country: (country && String(country).trim()) || "Romania",
     price: total,
     notice: notice || "Rezervare de pe site (roots).",
   };
