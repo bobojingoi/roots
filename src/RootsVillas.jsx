@@ -51,6 +51,65 @@ const VILLA_POLICIES = [
 ];
 const VILLA_MAP_EMBED = "https://maps.google.com/maps?q=Stupini%2C%20Bra%C8%99ov&z=14&output=embed";
 
+/* ---- instrucțiuni pentru oaspeți (pagini /welcome-*) ---- */
+const welcomeSections = (entertainment) => [
+  {
+    icon: "in",
+    title: "Reguli & program",
+    lines: [
+      "Check-in: 16:00 – 22:00 · Check-out: până la 12:00",
+      "Ore de liniște: 22:00 – 10:00",
+      "Maxim 8–10 persoane",
+      "Evenimentele și petrecerile se anunță și se aprobă în prealabil",
+      "Animalele de companie – doar cu acord prealabil",
+    ],
+  },
+  {
+    icon: "parking",
+    title: "Parcare",
+    lines: [
+      "Parcare gratuită în curte sau pe aleea de acces",
+      "Pe alee, parchează pe partea dreaptă, ca să lași acces la vila vecină",
+    ],
+  },
+  {
+    icon: "tub",
+    title: "Ciubăr",
+    lines: [
+      "Program de funcționare: 20:00 – 23:00",
+      "Anunță-ne cu minim 4 ore înainte, ca să fie cald la timp",
+      "Cele 3 butoane controlează: jeturile, bulele și lumina",
+    ],
+  },
+  {
+    icon: "fire",
+    title: "Saună",
+    lines: [
+      "Setează temperatura dorită din meniu și apasă ON",
+      "Termometrul devine roșu când sauna funcționează",
+      "⚠️ Nu lăsa sauna pornită nesupravegheată",
+    ],
+  },
+  {
+    icon: "fire",
+    title: "Vatră de foc & lumini exterioare",
+    lines: [
+      "Lemnele de foc sunt sub scările de la intrare",
+      "Luminile exterioare pornesc pe senzor de mișcare",
+      "Cele 4 întrerupătoare sunt în dulapul chiuvetei exterioare",
+    ],
+  },
+  {
+    icon: "key",
+    title: "Bucătărie",
+    lines: [
+      "Espressorul funcționează doar cu boabe",
+      "Tabletele pentru mașina de spălat vase sunt sub chiuvetă",
+    ],
+  },
+  { icon: "play", title: "Divertisment", lines: entertainment },
+];
+
 export const DEFAULT_CONTENT = {
   seo: {
     title: "ROOTS Villas Brașov — Două vile private cu ciubăr și saună",
@@ -256,6 +315,30 @@ export const DEFAULT_CONTENT = {
       facilities: villaFacilities(["Biliard", "Cramă privată", "Play-Station 5", "Living și zonă de dining"]),
       policies: VILLA_POLICIES,
       mapEmbed: VILLA_MAP_EMBED,
+    },
+  },
+  welcome: {
+    redwood: {
+      address: "Strada Fântânii 46, Brașov 500482",
+      mapsUrl: "https://maps.google.com/?q=Strada%20F%C3%A2nt%C3%A2nii%2046%20Bra%C8%99ov",
+      wifi: { name: "", password: "" },
+      keybox: "1965",
+      sections: welcomeSections([
+        "Pe barul din bucătărie sunt 2 telecomenzi – cea din dreapta e pentru videoproiector",
+        "PlayStation 5 în living",
+        "Masă de ping-pong",
+      ]),
+    },
+    sequoia: {
+      address: "Stupini, Brașov",
+      mapsUrl: "https://maps.google.com/?q=Stupini%20Bra%C8%99ov",
+      wifi: { name: "", password: "" },
+      keybox: "",
+      sections: welcomeSections([
+        "Masă de biliard",
+        "Cramă",
+        "PlayStation 5 în living",
+      ]),
     },
   },
 };

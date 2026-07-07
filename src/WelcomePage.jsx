@@ -1,0 +1,112 @@
+import React, { useEffect } from "react";
+import { Link } from "react-router-dom";
+import { CSS, ICONS, useSiteContent } from "./RootsVillas.jsx";
+
+/* Pagină de instrucțiuni pentru oaspeți (/welcome-redwood, /welcome-sequoia).
+   Conținut din DEFAULT_CONTENT.welcome[villaId]. Mobile-first. */
+
+const WELCOME_CSS = `
+.wel-page{background:var(--ivory);min-height:100vh}
+.wel-top{padding:16px 20px;border-bottom:1px solid var(--line)}
+.wel-top .logo{color:var(--pine)}
+.wel{max-width:680px;margin:0 auto;padding:8px 20px 90px}
+.wel-hero{padding:30px 0 20px;text-align:center}
+.wel-eyebrow{font-size:12.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);margin-bottom:10px}
+.wel-hero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(34px,9vw,52px);color:var(--pine);line-height:1.05}
+.wel-addr{display:inline-flex;align-items:center;gap:8px;margin-top:12px;color:var(--ink-soft);font-weight:600;font-size:14.5px;text-decoration:none}
+.wel-addr:hover{color:var(--ember)}
+.wel-addr svg{color:var(--ember)}
+.wel-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:6px 0 26px}
+.wel-chip{background:var(--pine);color:var(--ivory);border-radius:16px;padding:14px 18px;text-align:center}
+.wel-chip span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin-bottom:5px}
+.wel-chip b{font-family:'Fraunces',serif;font-weight:500;font-size:24px;letter-spacing:.02em;word-break:break-word}
+.wel-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;margin-bottom:16px}
+.wel-card-h{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.wel-ico{width:44px;height:44px;flex-shrink:0;border-radius:12px;background:var(--sand);display:grid;place-items:center;color:var(--ember)}
+.wel-card-h h3{font-family:'Fraunces',serif;font-weight:500;font-size:21px;color:var(--pine)}
+.wel-card ul{list-style:none;display:grid;gap:11px}
+.wel-card li{position:relative;padding-left:22px;font-size:15px;line-height:1.55;color:var(--ink)}
+.wel-card li::before{content:"";position:absolute;left:3px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--ember)}
+.wel-help p{font-size:15px;color:var(--ink-soft);line-height:1.6;margin-bottom:16px}
+.wel-actions{display:flex;gap:12px;flex-wrap:wrap}
+.wel-actions .btn{padding:13px 22px;font-size:14.5px}
+.wel-foot{text-align:center;color:var(--ink-soft);font-size:13px;margin-top:26px}
+.wel-load{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:sans-serif;color:#122B22}
+`;
+
+export default function WelcomePage({ villaId }) {
+  const { content, loaded } = useSiteContent();
+  useEffect(() => { window.scrollTo(0, 0); }, [villaId]);
+
+  if (!loaded) return <div className="wel-load">Se încarcă…</div>;
+
+  const villa = (content.villas || []).find((v) => v.id === villaId);
+  const w = (content.welcome || {})[villaId];
+  const contact = content.contact || {};
+
+  if (!villa || !w) {
+    return (
+      <div className="roots wel-page" style={{ display: "grid", placeItems: "center" }}>
+        <style>{CSS}</style>
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <p style={{ marginBottom: 16 }}>Pagina nu a fost găsită.</p>
+          <Link to="/" className="btn btn-ember">Înapoi la pagina principală</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const phone = (contact.phone || "").replace(/\s/g, "");
+  const wa = (contact.whatsapp || "").replace(/[^0-9]/g, "");
+
+  return (
+    <div className="roots wel-page">
+      <style>{CSS}</style>
+      <style>{WELCOME_CSS}</style>
+
+      <header className="wel-top">
+        <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+      </header>
+
+      <main className="wel">
+        <section className="wel-hero">
+          <div className="wel-eyebrow">Bine ai venit</div>
+          <h1>{villa.name}</h1>
+          {w.address && (
+            <a className="wel-addr" href={w.mapsUrl || "#"} target="_blank" rel="noreferrer">{ICONS.pin} {w.address}</a>
+          )}
+        </section>
+
+        <div className="wel-chips">
+          {w.keybox && <div className="wel-chip"><span>Cod cutie chei</span><b>{w.keybox}</b></div>}
+          {w.wifi && w.wifi.name && <div className="wel-chip"><span>Rețea WiFi</span><b>{w.wifi.name}</b></div>}
+          {w.wifi && w.wifi.password && <div className="wel-chip"><span>Parolă WiFi</span><b>{w.wifi.password}</b></div>}
+        </div>
+
+        {(w.sections || []).map((s, i) => (
+          <section className="wel-card" key={i}>
+            <div className="wel-card-h">
+              <span className="wel-ico">{ICONS[s.icon] || ICONS.key}</span>
+              <h3>{s.title}</h3>
+            </div>
+            <ul>{s.lines.map((l, j) => <li key={j}>{l}</li>)}</ul>
+          </section>
+        ))}
+
+        <section className="wel-card wel-help">
+          <div className="wel-card-h">
+            <span className="wel-ico">{ICONS.phone}</span>
+            <h3>Ai nevoie de ajutor?</h3>
+          </div>
+          <p>Suntem la un mesaj distanță — sună-ne sau scrie-ne pe WhatsApp și îți răspundem rapid.</p>
+          <div className="wel-actions">
+            {contact.phone && <a className="btn btn-ember" href={`tel:${phone}`}>{ICONS.phone} {contact.phone}</a>}
+            {wa && <a className="btn btn-pine" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">{ICONS.wa} WhatsApp</a>}
+          </div>
+        </section>
+
+        <p className="wel-foot">Sejur plăcut la ROOTS! · Stupini, Brașov</p>
+      </main>
+    </div>
+  );
+}

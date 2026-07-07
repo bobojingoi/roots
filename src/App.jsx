@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import RootsVillas from "./RootsVillas.jsx";
 import VillaPage from "./VillaPage.jsx";
+import WelcomePage from "./WelcomePage.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
 function ScrollToTop() {
@@ -20,6 +21,8 @@ export default function App() {
         <Route path="/" element={<RootsVillas />} />
         <Route path="/vila-redwood" element={<VillaPage villaId="redwood" />} />
         <Route path="/vila-sequoia" element={<VillaPage villaId="sequoia" />} />
+        <Route path="/welcome-redwood" element={<WelcomePage villaId="redwood" />} />
+        <Route path="/welcome-sequoia" element={<WelcomePage villaId="sequoia" />} />
         <Route path="*" element={<RootsVillas />} />
       </Routes>
     </>
