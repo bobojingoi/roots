@@ -79,12 +79,21 @@
   .dlegend div{display:flex;justify-content:space-between;gap:8px;align-items:center}
   .dlegend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0}
   .dlegend .lft{display:flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bars{display:flex;align-items:flex-end;gap:6px;height:150px;margin-top:14px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:210px;margin-top:26px}
+  .bars .bar{height:100%;display:flex;align-items:flex-end;cursor:pointer}
+  .bars .bar:hover i{filter:brightness(1.18)}
   .bars .bv{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#5c6b64;white-space:nowrap;padding-bottom:2px}
-  .bars .bar{flex:1;background:var(--brand-soft);border-radius:6px 6px 0 0;position:relative;min-height:3px}
-  .bars .bar i{position:absolute;inset:auto 0 0 0;background:var(--brand);border-radius:6px 6px 0 0;display:block}
+  .bar{flex:1;background:var(--brand-soft);border-radius:8px 8px 0 0;position:relative;min-height:3px}
+  .bar i{position:relative;width:100%;background:linear-gradient(180deg,#1e9a6d,#157a55);border-radius:8px 8px 0 0;display:block;height:0;transition:height .9s cubic-bezier(.2,.7,.2,1)}
   .bars-l{display:flex;gap:6px;font-size:10.5px;color:#9aa8a1;margin-top:5px}
   .bars-l span{flex:1;text-align:center}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .anim{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+  .donut{transition:transform .3s}
+  .card:hover .donut{transform:scale(1.04)}
+  .tl-tip{position:fixed;z-index:999;background:#0e1f19;color:#fff;padding:9px 13px;border-radius:11px;font-size:12.5px;line-height:1.5;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none}
+  .tl-tip b{color:#9fd9c3}
+  svg .tl-dot{cursor:pointer;transition:r .15s}
   @media(max-width:640px){
     .top{flex-wrap:wrap;gap:8px;padding:10px 14px}
     .top .acts{flex-wrap:wrap}
@@ -347,8 +356,20 @@ async function restoreV(id) {
 
 /* ============ dashboard statistici ============ */
 const DPAL = ['#157a55', '#e8722c', '#378add', '#e9b872', '#d4537e', '#7f77dd', '#5f5e5a'];
-let DASH_Y = String(new Date().getFullYear());
-function dashYear(v) { DASH_Y = v; renderDash(); }
+let DASH_Y = String(new Date().getFullYear()), DASH_M = '';
+function dashYear(v) { DASH_Y = v; DASH_M = ''; renderDash(); }
+function dashMonth(v) { DASH_M = v; renderDash(); }
+function countUp(el, target, fmt) {
+  const t0 = performance.now(), dur = 750;
+  function tick(t) {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(target * e);
+    if (k < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  // plasă de siguranță: în tab-uri de fundal rAF e înghețat — fixăm valoarea finală
+  setTimeout(() => { el.textContent = fmt(target); }, dur + 150);
+}
 function donut(title, rows, valueKey, fmt) {
   const data = {};
   rows.forEach((r) => { data[r.channel] = (data[r.channel] || 0) + Number(r[valueKey] || 0); });
@@ -372,13 +393,13 @@ async function renderDash() {
   const m = $('main');
   m.innerHTML = '<h1>Panou de control</h1><div class="lead">Se încarcă statisticile…</div>';
   let st = { byChannel: [], monthly: [], years: [] };
-  try { st = await api('/api/v1/admin/stats?year=' + (DASH_Y || '')); } catch (e) {}
+  try { st = await api('/api/v1/admin/stats?year=' + (DASH_Y || '') + '&month=' + (DASH_M || '')); } catch (e) {}
   const conf = st.byChannel.filter((r) => r.status === 'confirmed');
   const canc = st.byChannel.filter((r) => r.status === 'cancelled');
   const sum = (rows, k) => rows.reduce((s, r) => s + Number(r[k] || 0), 0);
   const revenue = sum(conf, 'revenue'), nB = sum(conf, 'n'), nights = sum(conf, 'nights'), nC = sum(canc, 'n');
-  const daysInYear = DASH_Y ? 365 : Math.max(1, st.years.length) * 365;
-  const occupancy = Math.min(100, (nights / (daysInYear * 2)) * 100);
+  const periodDays = DASH_M ? 30.4 : (DASH_Y ? 365 : Math.max(1, st.years.length) * 365);
+  const occupancy = Math.min(100, (nights / (periodDays * 2)) * 100);
   const lei = (v) => Number(v).toLocaleString('ro-RO', { maximumFractionDigits: 0 }) + ' lei';
   const M = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
   const byM = Array.from({ length: 12 }, (_, i) => st.monthly.find((x) => x.month === i + 1) || { revenue: 0, n: 0 });
@@ -386,31 +407,47 @@ async function renderDash() {
   const pub = SECTIONS.filter((sc) => sc.published).length;
   m.innerHTML = `
     <div class="sec-head"><div><h1>Panou de control</h1><div class="lead">Statistici din rezervările Smoobu (sincronizate).</div></div>
-      <select class="f" style="max-width:140px" onchange="dashYear(this.value)">
-        <option value="" ${!DASH_Y ? 'selected' : ''}>Toți anii</option>
-        ${st.years.map((y) => `<option ${String(y) === DASH_Y ? 'selected' : ''}>${y}</option>`).join('')}
-      </select></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select class="f" style="max-width:130px" onchange="dashYear(this.value)">
+          <option value="" ${!DASH_Y ? 'selected' : ''}>Toți anii</option>
+          ${st.years.map((y) => `<option ${String(y) === DASH_Y ? 'selected' : ''}>${y}</option>`).join('')}
+        </select>
+        <select class="f" style="max-width:140px" onchange="dashMonth(this.value)" ${!DASH_Y ? 'disabled' : ''}>
+          <option value="">Tot anul</option>
+          ${MONTH_NAMES.map((n, i) => `<option value="${i + 1}" ${String(i + 1) === DASH_M ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+      </div></div>
     <div class="grid3">
-      <div class="kpi"><span>venituri (confirmate)</span><b>${lei(revenue)}</b></div>
-      <div class="kpi"><span>rezervări</span><b>${nB}</b></div>
-      <div class="kpi"><span>nopți</span><b>${nights}</b></div>
-      <div class="kpi"><span>anulări</span><b>${nC}</b></div>
-      <div class="kpi"><span>grad de ocupare (2 vile)</span><b>${occupancy.toFixed(1)}%</b></div>
-      <div class="kpi"><span>secțiuni publicate</span><b>${pub} / ${SECTIONS.length}</b></div>
+      <div class="kpi anim"><span>venituri (confirmate)</span><b data-cnt="${revenue}" data-fmt="lei">0</b></div>
+      <div class="kpi anim" style="animation-delay:.06s"><span>rezervări</span><b data-cnt="${nB}" data-fmt="int">0</b></div>
+      <div class="kpi anim" style="animation-delay:.12s"><span>nopți</span><b data-cnt="${nights}" data-fmt="int">0</b></div>
+      <div class="kpi anim" style="animation-delay:.18s"><span>anulări</span><b data-cnt="${nC}" data-fmt="int">0</b></div>
+      <div class="kpi anim" style="animation-delay:.24s"><span>grad de ocupare (2 vile)</span><b data-cnt="${occupancy.toFixed(1)}" data-fmt="pct">0</b></div>
+      <div class="kpi anim" style="animation-delay:.3s"><span>secțiuni publicate</span><b>${pub} / ${SECTIONS.length}</b></div>
     </div>
     ${st.byChannel.length === 0 ? `<div class="card" style="margin-top:16px"><b>Fără date încă</b><div class="hint">Apasă „Sincronizează din Smoobu" în CRM → Rezervări. Sync-ul aduce acum întregul istoric (din 2019) și anulările.</div></div>` : `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:16px">
-      ${donut('Venituri / canal', conf, 'revenue', lei)}
-      ${donut('Rezervări / canal', conf, 'n', null)}
-      ${donut('Nopți / canal', conf, 'nights', null)}
-      ${donut('Anulări / canal', canc, 'n', null)}
+      <div class="anim" style="animation-delay:.1s">${donut('Venituri / canal', conf, 'revenue', lei)}</div>
+      <div class="anim" style="animation-delay:.18s">${donut('Rezervări / canal', conf, 'n', null)}</div>
+      <div class="anim" style="animation-delay:.26s">${donut('Nopți / canal', conf, 'nights', null)}</div>
+      <div class="anim" style="animation-delay:.34s">${donut('Anulări / canal', canc, 'n', null)}</div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <b>Venituri pe luni${DASH_Y ? ' · ' + DASH_Y : ''}</b>
-      <div class="bars">${byM.map((x) => `<div class="bar" title="${lei(x.revenue)} · ${x.n} rezervări"><i style="height:${Math.round((x.revenue / maxR) * 100)}%">${x.revenue ? `<span class="bv">${compact(x.revenue)}</span>` : ''}</i></div>`).join('')}</div>
+    <div class="card anim" style="margin-top:12px;animation-delay:.2s">
+      <b>Venituri pe luni${DASH_Y ? ' · ' + DASH_Y : ' · toți anii'}</b>
+      <div class="bars">${byM.map((x, i) => `<div class="bar" title="${M[i]}: ${lei(x.revenue)} · ${x.n} rezervări" onclick="if(DASH_Y)dashMonth('${i + 1}')"><i data-h="${Math.round((x.revenue / maxR) * 100)}">${x.revenue ? `<span class="bv">${compact(x.revenue)}</span>` : ''}</i></div>`).join('')}</div>
       <div class="bars-l">${M.map((n) => `<span>${n}</span>`).join('')}</div>
     </div>
     ${timelineChart(st.timeline || [])}`}`;
+  // animații: count-up pe KPI + barele cresc din 0
+  m.querySelectorAll('[data-cnt]').forEach((el) => {
+    const v = parseFloat(el.dataset.cnt), f = el.dataset.fmt;
+    const fmt = f === 'lei' ? (x) => lei(x) : f === 'pct' ? (x) => x.toFixed(1) + '%' : (x) => String(Math.round(x));
+    countUp(el, v, fmt);
+  });
+  setTimeout(() => {
+    m.querySelectorAll('.bar i').forEach((el) => { el.style.height = el.dataset.h + '%'; });
+  }, 60);
+  attachTimelineTip();
 }
 function compact(v) { return v >= 1000 ? (v / 1000).toFixed(v >= 100000 ? 0 : 1).replace('.0', '') + 'k' : String(Math.round(v)); }
 function timelineChart(tl) {
@@ -422,10 +459,11 @@ function timelineChart(tl) {
   const pts = tl.map((p, i) => `${x(i).toFixed(1)},${y(p.revenue).toFixed(1)}`).join(' ');
   const area = `${PAD},${H - 26} ${pts} ${(W - PAD).toFixed(1)},${H - 26}`;
   const janLabels = tl.map((p, i) => (p.m === 1 || i === 0) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" font-size="11" fill="#9aa8a1" text-anchor="middle">${p.y}</text>` : '').join('');
-  const dots = tl.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.revenue).toFixed(1)}" r="3.4" fill="#157a55"><title>${p.m}/${p.y}: ${Number(p.revenue).toLocaleString('ro-RO')} lei · ${p.n} rezervări</title></circle>`).join('');
-  return `<div class="card" style="margin-top:12px">
+  const dots = tl.map((p, i) => `<circle class="tl-dot" data-i="${i}" data-y="${p.y}" data-m="${p.m}" data-rev="${p.revenue}" data-n="${p.n}" cx="${x(i).toFixed(1)}" cy="${y(p.revenue).toFixed(1)}" r="3.6" fill="#157a55"></circle>`).join('');
+  return `<div class="card anim" style="margin-top:12px;animation-delay:.3s">
     <b>Evoluția veniturilor în timp</b>
-    <div class="hint" style="margin-top:2px">Toate lunile cu rezervări confirmate, pe întreg istoricul. Punctele arată detalii la hover.</div>
+    <div class="hint" style="margin-top:2px">Hover pe puncte pentru detalii · click pe un vârf sare direct la luna respectivă.</div>
+    <div class="tl-tip" id="tlTip"></div>
     <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:560px;margin-top:8px">
       <text x="${PAD}" y="16" font-size="11" fill="#9aa8a1">max ${compact(maxV)} lei</text>
       <line x1="${PAD}" y1="${H - 26}" x2="${W - PAD}" y2="${H - 26}" stroke="#e3e8e5" stroke-width="1" />
@@ -435,6 +473,22 @@ function timelineChart(tl) {
       ${janLabels}
     </svg></div>
   </div>`;
+}
+
+function attachTimelineTip() {
+  const tip = $('tlTip');
+  if (!tip) return;
+  const MN = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
+  document.querySelectorAll('.tl-dot').forEach((c) => {
+    c.addEventListener('mouseenter', (e) => {
+      c.setAttribute('r', '6');
+      tip.innerHTML = `<b>${MN[c.dataset.m - 1]} ${c.dataset.y}</b><br>${Number(c.dataset.rev).toLocaleString('ro-RO')} lei · ${c.dataset.n} rezervări`;
+      tip.style.display = 'block';
+    });
+    c.addEventListener('mousemove', (e) => { tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY - 14) + 'px'; });
+    c.addEventListener('mouseleave', () => { c.setAttribute('r', '3.6'); tip.style.display = 'none'; });
+    c.addEventListener('click', () => { DASH_Y = String(c.dataset.y); DASH_M = String(c.dataset.m); renderDash(); });
+  });
 }
 
 /* ============ CRM ============ */

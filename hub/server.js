@@ -472,14 +472,16 @@ app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
 
 app.get('/api/v1/admin/stats', requireAuth, async (req, res) => {
   const year = parseInt(req.query.year, 10) || null;
+  const month = parseInt(req.query.month, 10) || null;
   const byChannel = await pool.query(
     `SELECT status, COALESCE(channel, 'Direct / Website') AS channel,
             count(*)::int AS n, COALESCE(sum(value),0)::float AS revenue,
             COALESCE(sum(departure - arrival),0)::int AS nights
      FROM bookings
      WHERE status <> 'blocked' AND ($1::int IS NULL OR extract(year from arrival) = $1)
+       AND ($2::int IS NULL OR extract(month from arrival) = $2)
      GROUP BY status, channel`,
-    [year]
+    [year, month]
   );
   const monthly = await pool.query(
     `SELECT extract(month from arrival)::int AS month,
