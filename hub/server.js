@@ -96,6 +96,38 @@ app.get('/api/v1/health', async (_req, res) => {
   }
 });
 
+/* ============ Google Reviews (public, cache 6h) ============ */
+let gReviewsCache = null; // { at, data }
+app.get('/api/v1/google-reviews', async (_req, res) => {
+  const key = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
+  const placeId = (process.env.GOOGLE_PLACE_ID || '').trim();
+  if (!key || !placeId) return res.json({ configured: false, rating: null, reviews: [] });
+  if (gReviewsCache && Date.now() - gReviewsCache.at < 6 * 3600e3) return res.json(gReviewsCache.data);
+  try {
+    const r = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}` +
+        `&fields=rating,user_ratings_total,reviews&language=ro&key=${key}`
+    );
+    const j = await r.json();
+    const out = {
+      configured: true,
+      rating: (j.result && j.result.rating) || null,
+      total: (j.result && j.result.user_ratings_total) || 0,
+      reviews: ((j.result && j.result.reviews) || []).map((rv) => ({
+        name: rv.author_name,
+        rating: rv.rating,
+        text: rv.text,
+        time: rv.relative_time_description,
+        photo: rv.profile_photo_url,
+      })),
+    };
+    gReviewsCache = { at: Date.now(), data: out };
+    res.json(out);
+  } catch (e) {
+    res.json({ configured: true, rating: null, reviews: [], error: e.message });
+  }
+});
+
 /* ============ AUTH ============ */
 app.post('/api/v1/auth/login', async (req, res) => {
   const { email, password, remember } = req.body || {};

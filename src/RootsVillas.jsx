@@ -1082,6 +1082,18 @@ function Rules({ rules }) {
 }
 
 function Testimonials({ t }) {
+  const [g, setG] = useState(null);
+  useEffect(() => {
+    fetch(HUB_URL + "/api/v1/google-reviews")
+      .then((r) => r.json())
+      .then((j) => { if (j && j.reviews && j.reviews.length) setG(j); })
+      .catch(() => {});
+  }, []);
+  // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
+  const items = !EDIT_MODE && g
+    ? g.reviews.slice(0, 3).map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
+    : t.items;
+  const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : t.rating;
   return (
     <section>
       <div className="testi-band">
@@ -1093,7 +1105,7 @@ function Testimonials({ t }) {
               <p className="lede" data-edit="testimonials.intro">{t.intro}</p>
             </div>
             <div className="rating-badge">
-              <b data-edit="testimonials.rating">{t.rating}</b>
+              <b data-edit="testimonials.rating">{rating}</b>
               <div>
                 <div className="stars">{[0,1,2,3,4].map((i) => <span key={i}>{ICONS.star}</span>)}</div>
                 <span>rating mediu Google</span>
@@ -1101,7 +1113,7 @@ function Testimonials({ t }) {
             </div>
           </div>
           <div className="testi-grid">
-            {t.items.map((item, i) => (
+            {items.map((item, i) => (
               <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i}>
                 <div className="q">"</div>
                 <p data-edit={`testimonials.items.${i}.text`}>{item.text}</p>
