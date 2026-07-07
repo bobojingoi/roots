@@ -29,6 +29,8 @@
   .nav-i.on{background:var(--brand-soft);color:var(--brand-d)}
   .nav-i svg{width:18px;height:18px;flex-shrink:0}
   .nav-cap{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9aa8a1;padding:12px 13px 6px}
+  .nav-toggle{display:block;width:100%;background:none;border:none;text-align:left;cursor:pointer;font-family:inherit}
+  .nav-toggle:hover{color:var(--brand-d)}
   main{min-width:0}
   h1{font-size:22px;margin-bottom:4px}
   .lead{color:var(--muted);font-size:13.5px;margin-bottom:18px}
@@ -127,7 +129,7 @@ const SECTION_META = {
 
 /* meniul e organizat pe PAGINI — fiecare pagină se configurează separat */
 const PAGES_NAV = [
-  { cap: 'Pagina principală', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
+  { cap: 'Conținut site', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
   { cap: 'Vila Redwood', keys: ['villa_redwood', 'welcome_redwood'] },
   { cap: 'Vila Sequoia', keys: ['villa_sequoia', 'welcome_sequoia'] },
 ];
@@ -151,18 +153,22 @@ async function api(path, opts = {}) {
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ============ nav ============ */
+let NAVOPEN = new Set();
+function toggleGroup(idx) { NAVOPEN.has(idx) ? NAVOPEN.delete(idx) : NAVOPEN.add(idx); renderNav(); }
 function renderNav() {
   const have = new Set(SECTIONS.map((s) => s.section_key));
   let h = `<button class="nav-i ${TAB === 'panou' ? 'on' : ''}" onclick="go('panou')">${ICONS.panou} Panou</button>`;
-  for (const page of PAGES_NAV) {
+  PAGES_NAV.forEach((page, pi) => {
     const keys = page.keys.filter((k) => have.has(k));
-    if (!keys.length) continue;
-    h += `<div class="nav-cap">${esc(page.cap)}</div>`;
-    for (const k of keys) {
+    if (!keys.length) return;
+    const active = keys.some((k) => TAB === 'sec:' + k);
+    const open = NAVOPEN.has(pi) || active;
+    h += `<button class="nav-cap nav-toggle" onclick="toggleGroup(${pi})">${open ? '&#9662;' : '&#9656;'} ${esc(page.cap)}</button>`;
+    if (open) for (const k of keys) {
       const [label] = SECTION_META[k] || [k];
       h += `<button class="nav-i ${TAB === 'sec:' + k ? 'on' : ''}" onclick="go('sec:${k}')">${ICONS.sec} ${esc(label)}</button>`;
     }
-  }
+  });
   // secțiuni noi necunoscute meniului (adăugate ulterior în DB) — să nu dispară
   const known = new Set(PAGES_NAV.flatMap((p) => p.keys));
   const extra = SECTIONS.filter((s) => !known.has(s.section_key));
@@ -345,40 +351,78 @@ async function syncSmoobu(btn) {
   } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Sincronizează din Smoobu'; }
 }
 const dt = (d) => (d ? new Date(d).toLocaleDateString('ro-RO') : '—');
+const MONTH_NAMES = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
+let BOOKINGS = [], BK_F = { y: '', m: '', c: '' };
+function bkFilter(k, v) { BK_F[k] = v; renderBookingsList(); }
 async function renderBookings() {
   const j = await api('/api/v1/admin/bookings');
+  BOOKINGS = j.bookings;
+  const years = [...new Set(BOOKINGS.map((b) => new Date(b.arrival).getFullYear()))].sort((a, b) => b - a);
+  const channels = [...new Set(BOOKINGS.map((b) => b.channel).filter(Boolean))].sort();
   $('main').innerHTML = `
-    <div class="sec-head"><div><h1>Rezervări</h1><div class="lead">Din Smoobu — actualizate la sincronizare (manual sau automat la 6h).</div></div>
+    <div class="sec-head"><div><h1>Rezervări</h1><div class="lead">Din Smoobu — cu canalul sursă; sincronizare manuală sau automată la 6h.</div></div>
       <button class="btn p" onclick="syncSmoobu(this)">Sincronizează din Smoobu</button></div>
-    <div class="card" style="padding:8px 20px">
-      ${j.bookings.map((b) => `
-        <div class="vrow" style="gap:14px">
-          <span style="min-width:0"><b>${esc(b.guest_name || 'Fără nume')}</b>
-            <span style="color:#9aa8a1"> · ${esc(b.villa)} · ${dt(b.arrival)} → ${dt(b.departure)}${b.guests_count ? ' · ' + b.guests_count + ' pers' : ''}</span></span>
-          <span style="white-space:nowrap">${b.value ? Number(b.value).toLocaleString('ro-RO') + ' lei' : ''}
-            <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
-        </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare încă — apasă „Sincronizează din Smoobu".</div>'}
-    </div>`;
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <select class="f" style="max-width:130px" onchange="bkFilter('y', this.value)">
+        <option value="">Toți anii</option>${years.map((y) => `<option ${String(y) === BK_F.y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+      <select class="f" style="max-width:150px" onchange="bkFilter('m', this.value)">
+        <option value="">Toate lunile</option>${MONTH_NAMES.map((n, i) => `<option value="${i + 1}" ${String(i + 1) === BK_F.m ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      <select class="f" style="max-width:170px" onchange="bkFilter('c', this.value)">
+        <option value="">Toate canalele</option>${channels.map((c) => `<option ${c === BK_F.c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+    </div>
+    <div class="card" style="padding:8px 20px" id="bkList"></div>`;
+  renderBookingsList();
 }
+function renderBookingsList() {
+  const rows = BOOKINGS.filter((b) => {
+    const d = new Date(b.arrival);
+    if (BK_F.y && String(d.getFullYear()) !== BK_F.y) return false;
+    if (BK_F.m && String(d.getMonth() + 1) !== BK_F.m) return false;
+    if (BK_F.c && b.channel !== BK_F.c) return false;
+    return true;
+  });
+  const total = rows.reduce((sum, b) => sum + (Number(b.value) || 0), 0);
+  $('bkList').innerHTML = `
+    <div class="vrow" style="color:#5c6b64"><span><b>${rows.length}</b> rezervări</span><span><b>${total.toLocaleString('ro-RO')}</b> lei</span></div>
+    ${rows.map((b) => `
+      <div class="vrow" style="gap:14px">
+        <span style="min-width:0"><b>${esc(b.guest_name || 'Fără nume')}</b>
+          <span style="color:#9aa8a1"> · ${esc(b.villa)} · ${dt(b.arrival)} → ${dt(b.departure)}${b.guests_count ? ' · ' + b.guests_count + ' pers' : ''}</span>
+          ${b.channel ? `<span class="badge pub" style="margin-left:8px">${esc(b.channel)}</span>` : ''}</span>
+        <span style="white-space:nowrap">${b.value ? Number(b.value).toLocaleString('ro-RO') + ' lei' : ''}
+          <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
+      </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare pe filtrele alese.</div>'}`;
+}
+let GUESTS = [], GS_Y = '';
+function gsFilter(v) { GS_Y = v; renderGuestsList(); }
 async function renderGuests() {
   const j = await api('/api/v1/admin/guests');
+  GUESTS = j.guests;
+  const years = [...new Set(GUESTS.flatMap((g) => g.years || []))].sort((a, b) => b - a);
   $('main').innerHTML = `
     <div class="sec-head"><div><h1>Clienți</h1><div class="lead">Profiluri create automat din rezervări. Consimțământul de marketing se bifează doar cu acordul clientului (GDPR).</div></div>
       <button class="btn p" onclick="syncSmoobu(this)">Sincronizează din Smoobu</button></div>
-    ${j.guests.map((g) => `
+    <div style="margin-bottom:12px"><select class="f" style="max-width:190px" onchange="gsFilter(this.value)">
+      <option value="">Toți anii (după sejururi)</option>${years.map((y) => `<option ${String(y) === GS_Y ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
+    <div id="gsList"></div>`;
+  renderGuestsList();
+}
+function renderGuestsList() {
+  const rows = GUESTS.filter((g) => !GS_Y || (g.years || []).map(String).includes(GS_Y));
+  $('gsList').innerHTML = rows.map((g) => `
       <div class="card" style="padding:16px 20px">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
           <div><b>${esc(g.name || 'Fără nume')}</b>
             <div class="hint" style="margin-top:2px">${esc(g.email || '')}${g.phone ? ' · ' + esc(g.phone) : ''}</div></div>
           <div style="text-align:right"><b>${g.stays}</b> sejururi · ${Number(g.total_value).toLocaleString('ro-RO')} lei
-            <div class="hint">ultimul: ${dt(g.last_departure)}</div></div>
+            <div class="hint">ultimul: ${dt(g.last_departure)}${(g.channels || []).length ? ' · ' + g.channels.map(esc).join(', ') : ''}</div></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
           <input class="f" style="flex:1;min-width:200px" placeholder="notițe" value="${esc(g.notes || '')}" onchange="updGuest('${g.id}',{notes:this.value})" />
           <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#5c6b64;white-space:nowrap">
             <input type="checkbox" ${g.marketing_consent ? 'checked' : ''} onchange="updGuest('${g.id}',{marketing_consent:this.checked})" /> consimțământ marketing</label>
         </div>
-      </div>`).join('') || '<div class="card">Niciun client încă — sincronizează rezervările.</div>'}`;
+      </div>`).join('') || '<div class="card">Niciun client pe filtrul ales.</div>';
 }
 async function updGuest(id, patch) { try { await api('/api/v1/admin/guests/' + id, { method: 'PATCH', body: JSON.stringify(patch) }); toast('Salvat'); } catch (e) { toast(e.message); } }
 

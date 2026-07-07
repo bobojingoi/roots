@@ -422,13 +422,14 @@ async function upsertGuestAndBooking(b) {
     }
   }
   const villa = (b.apartment && b.apartment.name) || String((b.apartment && b.apartment.id) || '');
+  const channel = (b.channel && (b.channel.name || b.channel.id)) ? String(b.channel.name || b.channel.id) : null;
   const status = b['is-blocked-booking'] ? 'blocked' : (b.type === 'cancellation' ? 'cancelled' : 'confirmed');
   const r = await pool.query(
-    `INSERT INTO bookings (smoobu_id, villa, arrival, departure, guests_count, value, status, guest_id, raw)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     ON CONFLICT (smoobu_id) DO UPDATE SET villa=$2, arrival=$3, departure=$4, guests_count=$5, value=$6, status=$7, guest_id=COALESCE($8, bookings.guest_id), raw=$9, updated_at=now()
+    `INSERT INTO bookings (smoobu_id, villa, arrival, departure, guests_count, value, status, guest_id, raw, channel)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     ON CONFLICT (smoobu_id) DO UPDATE SET villa=$2, arrival=$3, departure=$4, guests_count=$5, value=$6, status=$7, guest_id=COALESCE($8, bookings.guest_id), raw=$9, channel=$10, updated_at=now()
      RETURNING (xmax = 0) AS inserted`,
-    [String(b.id), villa, b.arrival, b.departure, (Number(b.adults) || 0) + (Number(b.children) || 0) || null, b.price || null, status, guestId, JSON.stringify(b)]
+    [String(b.id), villa, b.arrival, b.departure, (Number(b.adults) || 0) + (Number(b.children) || 0) || null, b.price || null, status, guestId, JSON.stringify(b), channel]
   );
   return r.rows[0].inserted;
 }
@@ -476,7 +477,9 @@ app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
 app.get('/api/v1/admin/guests', requireAuth, async (_req, res) => {
   const r = await pool.query(
     `SELECT g.*, count(b.id)::int AS stays, COALESCE(sum(b.value),0)::numeric AS total_value,
-            max(b.departure) AS last_departure
+            max(b.departure) AS last_departure,
+            array_remove(array_agg(DISTINCT b.channel), NULL) AS channels,
+            array_remove(array_agg(DISTINCT extract(year from b.arrival)::int), NULL) AS years
      FROM guests g LEFT JOIN bookings b ON b.guest_id = g.id AND b.status = 'confirmed'
      GROUP BY g.id ORDER BY max(b.arrival) DESC NULLS LAST LIMIT 500`
   );
