@@ -57,8 +57,16 @@ Direcția: „Seară la Stupini" — apus cald, creste de brazi, jar de firepit.
 2. Editare CMS pentru conținutul paginilor de vilă (galerii foto, facilități pe categorii,
    politici) — acum se editează din cod (`DEFAULT_CONTENT.pages`), în Admin sunt doar
    hero + ID Smoobu.
-3. Flux de rezervare mai bogat: selecție interval în calendar + trimitere către Smoobu
-   (booking) în loc de doar link WhatsApp.
+3. Flux de rezervare (booking custom prin API + plată proprie) — pe etape:
+   - **Etapa 1 (DONE):** `AvailabilityCalendar.jsx` e widget de rezervare — selecție
+     interval, preț live din Smoobu (proxy întoarce `availability` + `prices`), avans
+     `depositPct` (default 30%, prop din VillaPage), selecție oaspeți, CTA „Trimite cererea"
+     pe WhatsApp. Fără plată/rezervare falsă (site live).
+   - **Etapa 2 (TODO):** `/api/book` = creare rezervare reală în Smoobu
+     (`POST /api/reservations`, `channelId:70`, semnare HMAC POST cu body-hash = SHA256 al
+     JSON-ului; câmpuri `prepayment`/`deposit` pt avans). Întâi dry-run, apoi live.
+   - **Etapa 3 (TODO):** înlocuiește CTA-ul WhatsApp cu plată reală (Stripe/alt procesator);
+     pe succes → creare rezervare Smoobu; la dublă-rezervare → refund.
 4. Spargerea `RootsVillas.jsx` în componente separate (`components/`, `admin/`).
 5. Backend real pentru CMS (înlocuirea shim-ului localStorage): API + DB. Autentificare
    pentru Admin (acum butonul e public, doar pe `/`).
