@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, ThemeStyle } from "./RootsVillas.jsx";
+import { CSS, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { t } from "./i18n.js";
 import { mdToHtml } from "./BlogPage.jsx";
 
 /* Pagini de text (Despre noi, politici legale) — conținut din Hub, markdown. */
@@ -26,9 +27,10 @@ function TextHeader() {
       <div className="wrap">
         <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
         <nav className="nav">
-          <Link to="/">Acasă</Link>
-          <Link to="/blog">Blog</Link>
-          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+          <Link to="/">{t("nav_home")}</Link>
+          <Link to="/blog">{t("nav_blog")}</Link>
+          <LangSwitcher />
+          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
         </nav>
       </div>
     </header>

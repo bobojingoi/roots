@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, ThemeStyle } from "./RootsVillas.jsx";
+import { CSS, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { t } from "./i18n.js";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
@@ -9,7 +10,8 @@ import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 const RES_CSS = `
 .res-main{max-width:1020px;margin:0 auto;padding:140px 22px 90px}
 .res-head{text-align:center;max-width:640px;margin:0 auto 34px}
-.res-switch{display:flex;justify-content:center;gap:10px;margin-bottom:30px;flex-wrap:wrap}
+.res-switch{display:flex;justify-content:center;gap:10px;margin-bottom:30px;flex-wrap:wrap;position:relative;z-index:6}
+.res-main .cal-card{margin-top:0}
 .res-tab{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:12px 26px;font:700 15px 'Manrope',sans-serif;color:var(--ink);cursor:pointer;transition:all .2s}
 .res-tab:hover{border-color:var(--ember);color:var(--ember)}
 .res-tab.on{background:var(--pine);border-color:var(--pine);color:var(--ivory)}
@@ -38,17 +40,18 @@ export default function ReservePage() {
         <div className="wrap">
           <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
           <nav className="nav">
-            <Link to="/">Acasă</Link>
+            <Link to="/">{t("nav_home")}</Link>
             <Link to="/vila-redwood">Redwood</Link>
             <Link to="/vila-sequoia">Sequoia</Link>
+            <LangSwitcher />
           </nav>
         </div>
       </header>
       <main className="res-main">
         <div className="res-head">
-          <div className="eyebrow" style={{ justifyContent: "center" }}>Rezervare directă</div>
-          <h2 className="serif" style={{ fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, color: "var(--pine)" }}>Rezervă la Roots</h2>
-          <p className="lede" style={{ margin: "14px auto 0" }}>Alege vila, perioada și numărul de oaspeți — vezi disponibilitatea live și trimite rezervarea.</p>
+          <div className="eyebrow" style={{ justifyContent: "center" }}>{t("res_eyebrow")}</div>
+          <h2 className="serif" style={{ fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, color: "var(--pine)" }}>{t("res_title")}</h2>
+          <p className="lede" style={{ margin: "14px auto 0" }}>{t("res_sub")}</p>
         </div>
         <div className="res-switch">
           <button className={`res-tab ${villaId === "redwood" ? "on" : ""}`} onClick={() => setVillaId("redwood")}>Vila Redwood</button>

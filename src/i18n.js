@@ -100,6 +100,16 @@ const D = {
   final_title:  { ro: "Locul e pregătit. Focul așteaptă.", en: "The place is ready. The fire is waiting.", he: "המקום מוכן. האש מחכה.", fr: "Le lieu est prêt. Le feu vous attend." },
   final_lede:   { ro: "Scrie-ne pe WhatsApp sau sună-ne — îți răspundem rapid cu disponibilitatea și toate detaliile.", en: "Message us on WhatsApp or call — we reply fast with availability and details.", he: "כתבו לנו בוואטסאפ או התקשרו — נחזור אליכם מהר עם זמינות ופרטים.", fr: "Écrivez-nous sur WhatsApp ou appelez — réponse rapide avec disponibilités et détails." },
   write_wa:     { ro: "Scrie-ne pe WhatsApp", en: "Message us on WhatsApp", he: "כתבו לנו בוואטסאפ", fr: "Écrivez-nous sur WhatsApp" },
+  res_eyebrow:  { ro: "Rezervare directă", en: "Direct booking", he: "הזמנה ישירה", fr: "Réservation directe" },
+  res_title:    { ro: "Rezervă la Roots", en: "Book your stay at Roots", he: "הזמינו שהות ב-Roots", fr: "Réservez chez Roots" },
+  res_sub:      { ro: "Alege vila, perioada și numărul de oaspeți — vezi disponibilitatea live și trimite rezervarea.", en: "Pick your villa, dates and number of guests — see live availability and send your booking.", he: "בחרו וילה, תאריכים ומספר אורחים — בדקו זמינות בזמן אמת ושלחו הזמנה.", fr: "Choisissez la villa, les dates et le nombre de personnes — disponibilité en direct et réservation immédiate." },
+  vp_details:   { ro: "Detalii vilă", en: "Villa details", he: "פרטי הווילה", fr: "Détails de la villa" },
+  vp_facilities:{ ro: "Compartimentarea și echiparea vilei", en: "Rooms & amenities", he: "חדרים ומתקנים", fr: "Pièces et équipements" },
+  vp_gal_ext:   { ro: "Cum arată exteriorul {v}", en: "The exterior of {v}", he: "כך נראה החוץ של {v}", fr: "L'extérieur de {v}" },
+  vp_gal_int:   { ro: "Cum arată interiorul {v}", en: "Inside {v}", he: "כך נראה הפנים של {v}", fr: "L'intérieur de {v}" },
+  vp_loc_title: { ro: "Localizată în Brașov, într-un cartier de case liniștit, la 10 minute de centru.", en: "Located in Brașov, in a quiet residential neighbourhood, 10 minutes from the center.", he: "ממוקמת בברשוב, בשכונת מגורים שקטה, 10 דקות מהמרכז.", fr: "Située à Brașov, dans un quartier résidentiel calme, à 10 minutes du centre." },
+  vp_more_info: { ro: "Alte informații utile", en: "Other useful information", he: "מידע שימושי נוסף", fr: "Autres informations utiles" },
+  vp_open_maps: { ro: "Deschide locația în Google Maps", en: "Open location in Google Maps", he: "פתחו את המיקום ב-Google Maps", fr: "Ouvrir dans Google Maps" },
 };
 
 export function t(key, vars) {

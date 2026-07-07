@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { Link } from "react-router-dom";
 import HubEditor, { EDIT_MODE } from "./HubEditor.jsx";
+import { t } from "./i18n.js";
 import {
   CSS,
   ICONS,
@@ -12,6 +13,7 @@ import {
   useReveal,
   useHubContent,
   ThemeStyle,
+  LangSwitcher,
 } from "./RootsVillas.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
@@ -184,9 +186,10 @@ function VHeader({ contact }) {
           <span className="logo-ring">R</span>ROOTS
         </Link>
         <nav className="nav">
-          <Link to="/">Acasă</Link>
-          <a href="#facilitati">Facilități</a>
-          <a href="#locatie">Locație</a>
+          <Link to="/">{t("nav_home")}</Link>
+          <a href="#facilitati">{t("vp_details")}</a>
+          <a href="#locatie">{t("nav_location")}</a>
+          <LangSwitcher />
           <Link to="/rezervare" className="cta">Rezervă acum</Link>
         </nav>
       </div>
@@ -298,15 +301,15 @@ export default function VillaPage({ villaId }) {
       </div>
 
       {/* GALERII */}
-      <Gallery title={`Cum arată exteriorul ${genitiv(villa.name)}`} items={page.galleryExterior} basePath={`${sk}.galleryExterior`} />
-      <Gallery title={`Cum arată interiorul ${genitiv(villa.name)}`} items={page.galleryInterior} basePath={`${sk}.galleryInterior`} />
+      <Gallery title={t("vp_gal_ext", { v: villa.name })} items={page.galleryExterior} basePath={`${sk}.galleryExterior`} />
+      <Gallery title={t("vp_gal_int", { v: villa.name })} items={page.galleryInterior} basePath={`${sk}.galleryInterior`} />
 
       {/* FACILITĂȚI */}
       <section className="sec" id="facilitati" style={{ paddingTop: 60 }}>
         <div className="wrap">
           <div className="fac-head rv">
-            <div className="eyebrow" style={{ justifyContent: "center" }}>Detalii vilă</div>
-            <h2>Compartimentarea și echiparea vilei</h2>
+            <div className="eyebrow" style={{ justifyContent: "center" }}>{t("vp_details")}</div>
+            <h2>{t("vp_facilities")}</h2>
           </div>
           {page.facilities.map((group, gi) => (
             <div className="fac-group rv" key={group.cat}>
@@ -332,13 +335,13 @@ export default function VillaPage({ villaId }) {
         <div className="wrap">
           <div className="rv">
             <div className="eyebrow">Stupini · Brașov</div>
-            <h2>Localizată în Brașov, într-un cartier de case liniștit, la 10 minute de centru.</h2>
+            <h2>{t("vp_loc_title")}</h2>
           </div>
           <div className="vmap rv rv-d1">
             <iframe src={page.mapEmbed} title={`Hartă ${villa.name}`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
           </div>
           <a className="vmap-link" href={content.location?.mapsUrl || "https://maps.google.com/?q=Stupini+Brasov"} target="_blank" rel="noreferrer">
-            {ICONS.pin} Deschide locația în Google Maps
+            {ICONS.pin} {t("vp_open_maps")}
           </a>
         </div>
       </section>
@@ -346,7 +349,7 @@ export default function VillaPage({ villaId }) {
       {/* POLITICI */}
       <section className="sec" style={{ paddingTop: 40 }}>
         <div className="wrap">
-          <h3 className="vpol-h rv">Alte informații utile</h3>
+          <h3 className="vpol-h rv">{t("vp_more_info")}</h3>
           <div className="vpol-grid rv rv-d1">
             {page.policies.map((p, pi) => (
               <div className="vpol-col" key={p.title}>

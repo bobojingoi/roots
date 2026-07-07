@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, useScrolled, ThemeStyle } from "./RootsVillas.jsx";
+import { CSS, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { t } from "./i18n.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
 /* Blog public — listă + articol, în designul site-ului (Fraunces/Manrope, pine/ember). */
@@ -65,9 +66,10 @@ function BlogHeader() {
       <div className="wrap">
         <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
         <nav className="nav">
-          <Link to="/">Acasă</Link>
-          <Link to="/blog">Blog</Link>
-          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+          <Link to="/">{t("nav_home")}</Link>
+          <Link to="/blog">{t("nav_blog")}</Link>
+          <LangSwitcher />
+          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
         </nav>
       </div>
     </header>
