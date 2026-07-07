@@ -5,6 +5,7 @@ import VillaPage from "./VillaPage.jsx";
 import WelcomePage from "./WelcomePage.jsx";
 import { BlogList, BlogPost } from "./BlogPage.jsx";
 import ReservePage from "./ReservePage.jsx";
+import TextPage from "./TextPage.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
 function ScrollToTop() {
@@ -28,6 +29,10 @@ export default function App() {
         <Route path="/rezervare" element={<ReservePage />} />
         <Route path="/blog" element={<BlogList />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
+        <Route path="/despre-noi" element={<TextPage sectionKey="about_page" />} />
+        <Route path="/politica-de-confidentialitate" element={<TextPage sectionKey="legal_privacy" />} />
+        <Route path="/politica-cookies" element={<TextPage sectionKey="legal_cookies" />} />
+        <Route path="/termeni-si-conditii" element={<TextPage sectionKey="legal_terms" />} />
         <Route path="*" element={<RootsVillas />} />
       </Routes>
     </>

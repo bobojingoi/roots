@@ -35,7 +35,7 @@ const BLOG_CSS = `
 `;
 
 /* markdown minim: ## titluri, - liste, **bold**, *italic*, [text](url) */
-function mdToHtml(md) {
+export function mdToHtml(md) {
   const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const inline = (t) =>
     t

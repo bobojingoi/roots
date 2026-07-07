@@ -1284,11 +1284,12 @@ export function Footer({ contact }) {
           </div>
           <div>
             <h5>Politici</h5>
-            <a href="#top">Politica de confidențialitate</a>
-            <a href="#top">Politica cookies</a>
-            <a href="#top">Termeni și condiții</a>
-            <a href="#top">ANPC — reclamații consumatori</a>
-            <a href="#top">SAL — soluționarea litigiilor</a>
+            <Link to="/despre-noi">Despre noi</Link>
+            <Link to="/politica-de-confidentialitate">Politica de confidențialitate</Link>
+            <Link to="/politica-cookies">Politica cookies</Link>
+            <Link to="/termeni-si-conditii">Termeni și condiții</Link>
+            <a href="https://anpc.ro" target="_blank" rel="noreferrer">ANPC — protecția consumatorului</a>
+            <a href="https://anpc.ro/ce-este-sal/" target="_blank" rel="noreferrer">SAL — soluționarea litigiilor</a>
           </div>
         </div>
         <div className="foot-bottom">

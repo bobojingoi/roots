@@ -151,17 +151,21 @@ const SECTION_META = {
   faq:             ['FAQ', 'Întrebări pe categorii'],
   location:        ['Locație', 'Descriere, hartă, repere'],
   contact:         ['Contact & Social', 'Telefon, WhatsApp, email, social'],
-  villa_redwood:   ['Pagina vilei', 'Hero, galerii, facilități, politici, Smoobu'],
-  villa_sequoia:   ['Pagina vilei', 'Hero, galerii, facilități, politici, Smoobu'],
-  welcome_redwood: ['Instrucțiuni oaspeți', 'Cod chei, WiFi, reguli, recomandări'],
-  welcome_sequoia: ['Instrucțiuni oaspeți', 'Cod chei, WiFi, reguli, recomandări'],
+  villa_redwood:   ['Vila Redwood', 'Pagina vilei: hero, galerii, facilități, Smoobu'],
+  villa_sequoia:   ['Vila Sequoia', 'Pagina vilei: hero, galerii, facilități, Smoobu'],
+  welcome_redwood: ['Instrucțiuni Redwood', 'Cod chei, WiFi, reguli, recomandări'],
+  welcome_sequoia: ['Instrucțiuni Sequoia', 'Cod chei, WiFi, reguli, recomandări'],
+  about_page:      ['Despre noi', 'Povestea Roots (pagina /despre-noi)'],
+  legal_privacy:   ['Politica de confidențialitate', 'Pagina legală GDPR'],
+  legal_cookies:   ['Politica de cookies', 'Pagina legală cookies'],
+  legal_terms:     ['Termeni și condiții', 'Pagina legală T&C'],
 };
 
 /* meniul e organizat pe PAGINI — fiecare pagină se configurează separat */
 const PAGES_NAV = [
-  { cap: 'Conținut site', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
-  { cap: 'Vila Redwood', keys: ['villa_redwood', 'welcome_redwood'] },
-  { cap: 'Vila Sequoia', keys: ['villa_sequoia', 'welcome_sequoia'] },
+  { cap: 'Home page', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
+  { cap: 'Vile & instrucțiuni', keys: ['villa_redwood', 'villa_sequoia', 'welcome_redwood', 'welcome_sequoia'] },
+  { cap: 'Pagini text', keys: ['about_page', 'legal_privacy', 'legal_cookies', 'legal_terms'] },
 ];
 
 const ICONS = {
@@ -188,15 +192,16 @@ function toggleGroup(idx) { NAVOPEN.has(idx) ? NAVOPEN.delete(idx) : NAVOPEN.add
 function renderNav() {
   const have = new Set(SECTIONS.map((s) => s.section_key));
   let h = `<button class="nav-i ${TAB === 'panou' ? 'on' : ''}" onclick="go('panou')">${ICONS.panou} Panou</button>`;
+  h += `<div class="nav-cap">Conținut site</div>`;
   PAGES_NAV.forEach((page, pi) => {
     const keys = page.keys.filter((k) => have.has(k));
     if (!keys.length) return;
     const active = keys.some((k) => TAB === 'sec:' + k);
     const open = NAVOPEN.has(pi) || active;
-    h += `<button class="nav-cap nav-toggle" onclick="toggleGroup(${pi})">${open ? '&#9662;' : '&#9656;'} ${esc(page.cap)}</button>`;
+    h += `<button class="nav-cap nav-toggle" style="padding-left:22px" onclick="toggleGroup(${pi})">${open ? '&#9662;' : '&#9656;'} ${esc(page.cap)}</button>`;
     if (open) for (const k of keys) {
       const [label] = SECTION_META[k] || [k];
-      h += `<button class="nav-i ${TAB === 'sec:' + k ? 'on' : ''}" onclick="go('sec:${k}')">${ICONS.sec} ${esc(label)}</button>`;
+      h += `<button class="nav-i ${TAB === 'sec:' + k ? 'on' : ''}" style="padding-left:26px" onclick="go('sec:${k}')">${ICONS.sec} ${esc(label)}</button>`;
     }
   });
   // secțiuni noi necunoscute meniului (adăugate ulterior în DB) — să nu dispară
