@@ -49,17 +49,25 @@ function Month({ year, month, availability, today, checkIn, checkOut, onPick }) 
     const key = iso(year, month, d);
     const date = new Date(year, month, d);
     const isPast = date < today;
-    const busy = availability[key] === 0;
+    const prev = new Date(year, month, d - 1); // și peste granița de lună
+    const aPrev = availability[iso(prev.getFullYear(), prev.getMonth(), prev.getDate())];
+    const a = availability[key];
+    // noapte ocupată + noapte precedentă liberă = ziua de check-in (sosire) -> half, după-amiaza ocupată
+    // noapte liberă + noapte precedentă ocupată = ziua de check-out (plecare) -> half, dimineața ocupată
+    let stateCls;
+    if (isPast) stateCls = "past";
+    else if (a === 0) stateCls = aPrev === 0 ? "busy" : "turn-in";
+    else stateCls = aPrev === 0 ? "turn-out" : "free";
     const cls = [
-      "cal-day",
-      isPast ? "past" : busy ? "busy" : "free",
+      "cal-day", stateCls,
       date.getTime() === today.getTime() ? "today" : "",
       key === checkIn ? "sel-start" : "",
       key === checkOut ? "sel-end" : "",
       checkIn && checkOut && key > checkIn && key < checkOut ? "in-range" : "",
     ].filter(Boolean).join(" ");
+    const title = isPast ? "" : a === 0 ? (aPrev === 0 ? "Ocupat" : "Check-out disponibil") : (aPrev === 0 ? "Check-in disponibil" : "Liber");
     cells.push(
-      <span className={cls} key={key} onClick={() => !isPast && onPick(key)} title={isPast ? "" : busy ? "Ocupat" : "Liber"}>{d}</span>
+      <span className={cls} key={key} onClick={() => !isPast && onPick(key)} title={title}><span className="dn">{d}</span></span>
     );
   }
   return (

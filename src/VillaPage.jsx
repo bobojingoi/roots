@@ -64,6 +64,15 @@ const VILLA_CSS = `
 .cal-day.sel-start,.cal-day.sel-end{background:var(--ember);color:#fff}
 .cal-day.in-range{background:rgba(232,114,44,.16);color:var(--pine);border-radius:4px}
 .cal-legend .lg.sel{background:var(--ember)}
+/* zile de turnover: jumătate hașurate (check-in/check-out în aceeași zi) */
+.cal-day{position:relative;overflow:hidden}
+.cal-day .dn{position:relative;z-index:1}
+.cal-day.turn-in,.cal-day.turn-out{color:#B85575;cursor:pointer}
+.cal-day.turn-in::before,.cal-day.turn-out::before{content:"";position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(-45deg,rgba(230,120,150,.30),rgba(230,120,150,.30) 4px,rgba(230,120,150,.12) 4px,rgba(230,120,150,.12) 8px)}
+.cal-day.turn-in::before{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.cal-day.turn-out::before{clip-path:polygon(0 0,100% 0,0 100%)}
+.cal-day.turn-in:hover,.cal-day.turn-out:hover{background:var(--sand)}
+.cal-day.sel-start::before,.cal-day.sel-end::before,.cal-day.in-range::before{display:none}
 .cal-hint{display:flex;align-items:center;gap:12px;margin:-8px 0 16px;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
 .cal-clear{background:none;border:none;color:var(--ember);font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:underline}
 .bk-panel{margin-top:22px;padding-top:22px;border-top:1px solid var(--line)}
