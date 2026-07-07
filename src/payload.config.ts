@@ -1,4 +1,7 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { s3Storage } from '@payloadcms/storage-s3'
+import { en } from '@payloadcms/translations/languages/en'
+import { ro } from '@payloadcms/translations/languages/ro'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -27,9 +30,17 @@ function sanitizeDbUri(raw: string): string {
 export default buildConfig({
   admin: {
     user: Users.slug,
+    theme: 'light',
+    meta: {
+      titleSuffix: ' · ROOTS Administrare',
+    },
     importMap: {
       baseDir: path.resolve(dirname),
     },
+  },
+  i18n: {
+    supportedLanguages: { ro, en },
+    fallbackLanguage: 'ro',
   },
   collections: [Users, Media, Villas],
   globals: [HomePage, SiteSettings],
@@ -56,4 +67,25 @@ export default buildConfig({
     defaultLocale: 'ro',
     fallback: true,
   },
+  plugins: [
+    // Imagini pe Supabase Storage (S3) — activ doar când env-urile sunt setate.
+    // Local, fără ele, fișierele se salvează pe disc.
+    ...(process.env.S3_BUCKET
+      ? [
+          s3Storage({
+            collections: { media: true },
+            bucket: process.env.S3_BUCKET,
+            config: {
+              endpoint: process.env.S3_ENDPOINT || '',
+              region: process.env.S3_REGION || 'eu-central-1',
+              credentials: {
+                accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+                secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+              },
+              forcePathStyle: true,
+            },
+          }),
+        ]
+      : []),
+  ],
 })
