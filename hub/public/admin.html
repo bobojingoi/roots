@@ -79,7 +79,8 @@
   .dlegend div{display:flex;justify-content:space-between;gap:8px;align-items:center}
   .dlegend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0}
   .dlegend .lft{display:flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bars{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:14px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:150px;margin-top:14px}
+  .bars .bv{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#5c6b64;white-space:nowrap;padding-bottom:2px}
   .bars .bar{flex:1;background:var(--brand-soft);border-radius:6px 6px 0 0;position:relative;min-height:3px}
   .bars .bar i{position:absolute;inset:auto 0 0 0;background:var(--brand);border-radius:6px 6px 0 0;display:block}
   .bars-l{display:flex;gap:6px;font-size:10.5px;color:#9aa8a1;margin-top:5px}
@@ -406,18 +407,50 @@ async function renderDash() {
     </div>
     <div class="card" style="margin-top:12px">
       <b>Venituri pe luni${DASH_Y ? ' · ' + DASH_Y : ''}</b>
-      <div class="bars">${byM.map((x) => `<div class="bar" title="${lei(x.revenue)} · ${x.n} rezervări"><i style="height:${Math.round((x.revenue / maxR) * 100)}%"></i></div>`).join('')}</div>
+      <div class="bars">${byM.map((x) => `<div class="bar" title="${lei(x.revenue)} · ${x.n} rezervări"><i style="height:${Math.round((x.revenue / maxR) * 100)}%">${x.revenue ? `<span class="bv">${compact(x.revenue)}</span>` : ''}</i></div>`).join('')}</div>
       <div class="bars-l">${M.map((n) => `<span>${n}</span>`).join('')}</div>
-    </div>`}`;
+    </div>
+    ${timelineChart(st.timeline || [])}`}`;
+}
+function compact(v) { return v >= 1000 ? (v / 1000).toFixed(v >= 100000 ? 0 : 1).replace('.0', '') + 'k' : String(Math.round(v)); }
+function timelineChart(tl) {
+  if (!tl || tl.length < 2) return '';
+  const W = 900, H = 200, PAD = 34;
+  const maxV = Math.max(...tl.map((p) => p.revenue), 1);
+  const x = (i) => PAD + (i / (tl.length - 1)) * (W - PAD * 2);
+  const y = (v) => H - 26 - (v / maxV) * (H - 56);
+  const pts = tl.map((p, i) => `${x(i).toFixed(1)},${y(p.revenue).toFixed(1)}`).join(' ');
+  const area = `${PAD},${H - 26} ${pts} ${(W - PAD).toFixed(1)},${H - 26}`;
+  const janLabels = tl.map((p, i) => (p.m === 1 || i === 0) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" font-size="11" fill="#9aa8a1" text-anchor="middle">${p.y}</text>` : '').join('');
+  const dots = tl.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.revenue).toFixed(1)}" r="3.4" fill="#157a55"><title>${p.m}/${p.y}: ${Number(p.revenue).toLocaleString('ro-RO')} lei · ${p.n} rezervări</title></circle>`).join('');
+  return `<div class="card" style="margin-top:12px">
+    <b>Evoluția veniturilor în timp</b>
+    <div class="hint" style="margin-top:2px">Toate lunile cu rezervări confirmate, pe întreg istoricul. Punctele arată detalii la hover.</div>
+    <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:560px;margin-top:8px">
+      <text x="${PAD}" y="16" font-size="11" fill="#9aa8a1">max ${compact(maxV)} lei</text>
+      <line x1="${PAD}" y1="${H - 26}" x2="${W - PAD}" y2="${H - 26}" stroke="#e3e8e5" stroke-width="1" />
+      <polygon points="${area}" fill="rgba(21,122,85,.12)" />
+      <polyline points="${pts}" fill="none" stroke="#157a55" stroke-width="2.4" stroke-linejoin="round" />
+      ${dots}
+      ${janLabels}
+    </svg></div>
+  </div>`;
 }
 
 /* ============ CRM ============ */
 async function syncSmoobu(btn) {
-  btn.disabled = true; btn.textContent = 'Se sincronizează…';
+  btn.disabled = true;
+  let page = 1, totalSeen = 0, totalNew = 0;
   try {
-    const j = await api('/api/v1/admin/sync-smoobu', { method: 'POST', body: '{}' });
-    toast(`Sincronizat: ${j.seen} rezervări (${j.created} noi)`);
-    if (TAB === 'bookings') renderBookings(); else renderGuests();
+    for (let i = 0; i < 40 && page; i++) {
+      btn.textContent = `Se sincronizează… pagina ${page}`;
+      const j = await api('/api/v1/admin/sync-smoobu', { method: 'POST', body: JSON.stringify({ startPage: page }) });
+      totalSeen += j.seen; totalNew += j.created;
+      toast(`Pagina ${page}${j.pages ? '/' + j.pages : ''} · ${totalSeen} rezervări (${totalNew} noi)`);
+      page = j.nextPage;
+    }
+    toast(`Gata: ${totalSeen} rezervări sincronizate (${totalNew} noi)`);
+    if (TAB === 'bookings') renderBookings(); else if (TAB === 'guests') renderGuests(); else renderDash();
   } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Sincronizează din Smoobu'; }
 }
 const dt = (d) => (d ? new Date(d).toLocaleDateString('ro-RO') : '—');

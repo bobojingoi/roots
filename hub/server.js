@@ -434,11 +434,11 @@ async function upsertGuestAndBooking(b) {
   return r.rows[0].inserted;
 }
 
-async function runSmoobuSync() {
+async function runSmoobuSync(startPage = 1, maxPagesPerCall = 5) {
   if (!smoobu.smoobuReady()) throw new Error('SMOOBU_API_KEY / SMOOBU_API_SECRET lipsesc din env.');
-  let page = 1, pages = 1, created = 0, seen = 0;
+  let page = startPage, pages = startPage, created = 0, seen = 0, processed = 0;
   const to = new Date(Date.now() + 2 * 365 * 86400e3).toISOString().slice(0, 10);
-  while (page <= pages && page <= 60) {
+  while (page <= pages && processed < maxPagesPerCall) {
     // query canonic: parametri sortați alfabetic (cerință semnătură HMAC)
     const q = ['from=2019-01-01', 'page=' + page, 'showCancellation=true', 'to=' + to].join('&');
     const j = await smoobu.signedGet('/api/reservations', q);
@@ -449,14 +449,15 @@ async function runSmoobuSync() {
       const inserted = await upsertGuestAndBooking(b);
       if (inserted) { created++; await emit('BookingSynced', { smoobu_id: String(b.id), villa: (b.apartment && b.apartment.name) || '' }); }
     }
-    page++;
+    page++; processed++;
   }
-  return { seen, created, pages };
+  return { seen, created, pages, nextPage: page <= pages ? page : null };
 }
 
 app.post('/api/v1/admin/sync-smoobu', requireAuth, async (req, res) => {
   try {
-    const out = await runSmoobuSync();
+    const startPage = Math.max(1, parseInt(req.body && req.body.startPage, 10) || 1);
+    const out = await runSmoobuSync(startPage);
     res.json({ ok: true, ...out });
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
@@ -465,7 +466,7 @@ app.post('/api/v1/admin/sync-smoobu', requireAuth, async (req, res) => {
 // cron Vercel (GET, protejat de header-ul x-vercel-cron)
 app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
   if (!req.headers['x-vercel-cron'] && !req.user) return res.status(401).json({ error: 'Doar cron sau autentificat' });
-  try { res.json({ ok: true, ...(await runSmoobuSync()) }); }
+  try { res.json({ ok: true, ...(await runSmoobuSync(1, 8)) }); }
   catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
@@ -492,7 +493,13 @@ app.get('/api/v1/admin/stats', requireAuth, async (req, res) => {
   const years = await pool.query(
     `SELECT DISTINCT extract(year from arrival)::int AS y FROM bookings ORDER BY 1 DESC`
   );
-  res.json({ byChannel: byChannel.rows, monthly: monthly.rows, years: years.rows.map((x) => x.y) });
+  const timeline = await pool.query(
+    `SELECT extract(year from arrival)::int AS y, extract(month from arrival)::int AS m,
+            COALESCE(sum(value),0)::float AS revenue, count(*)::int AS n
+     FROM bookings WHERE status = 'confirmed'
+     GROUP BY 1, 2 ORDER BY 1, 2`
+  );
+  res.json({ byChannel: byChannel.rows, monthly: monthly.rows, years: years.rows.map((x) => x.y), timeline: timeline.rows });
 });
 
 app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
