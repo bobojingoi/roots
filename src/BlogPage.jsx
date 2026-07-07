@@ -67,7 +67,7 @@ function BlogHeader() {
         <nav className="nav">
           <Link to="/">Acasă</Link>
           <Link to="/blog">Blog</Link>
-          <Link to="/#vile" className="cta">Rezervă acum</Link>
+          <Link to="/rezervare" className="cta">Rezervă acum</Link>
         </nav>
       </div>
     </header>

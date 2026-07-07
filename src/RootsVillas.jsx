@@ -507,7 +507,14 @@ section{position:relative}
 .nav a:hover{color:var(--ember-2)}
 .nav .cta{color:#fff;background:var(--ember);padding:10px 20px;border-radius:100px;box-shadow:0 6px 18px rgba(232,114,44,.35)}
 .nav .cta:hover{color:#fff;background:var(--ember-2);transform:translateY(-1px)}
-@media(max-width:760px){.nav a:not(.cta){display:none}}
+@media(max-width:760px){.nav a:not(.cta){display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
+.burger{display:none;width:42px;height:42px;border-radius:10px;border:1.5px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:19px;cursor:pointer;flex-shrink:0}
+.hdr.solid .burger{border-color:var(--line);color:var(--pine)}
+@media(max-width:760px){.burger{display:grid;place-items:center}}
+.mnav{position:fixed;inset:0;z-index:80;background:rgba(12,31,25,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px}
+.mnav a{color:#fff;font-size:21px;font-weight:600;text-decoration:none;font-family:'Fraunces',serif}
+.mnav a.cta{background:var(--ember);padding:14px 34px;border-radius:100px;font-family:'Manrope',sans-serif;font-size:16px;font-weight:700}
+.mnav .close{position:absolute;top:20px;right:22px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer;line-height:1}
 
 /* ---- hero: scena de seară ---- */
 .hero{min-height:100svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
@@ -883,6 +890,7 @@ export const Embers = () => {
 /* ============================ PUBLIC SITE ============================ */
 export function Header({ content }) {
   const scrolled = useScrolled();
+  const [menu, setMenu] = useState(false);
   return (
     <header className={`hdr ${scrolled ? "solid" : ""}`}>
       <div className="wrap">
@@ -896,11 +904,22 @@ export function Header({ content }) {
           <a href="#faq">Întrebări</a>
           <a href="#locatie">Locație</a>
           <Link to="/blog">Blog</Link>
-          <a href={`https://wa.me/${content.contact.whatsapp.replace(/[^0-9]/g, "")}`} className="cta" target="_blank" rel="noreferrer">
-            Rezervă acum
-          </a>
+          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+          <button className="burger" onClick={() => setMenu(true)} aria-label="Deschide meniul">☰</button>
         </nav>
       </div>
+      {menu && (
+        <div className="mnav" onClick={() => setMenu(false)}>
+          <button className="close" aria-label="Închide meniul">×</button>
+          <a href="#vile">Vilele</a>
+          <a href="#spatii">Spații comune</a>
+          <a href="#reguli">Regulile casei</a>
+          <a href="#faq">Întrebări</a>
+          <a href="#locatie">Locație</a>
+          <Link to="/blog">Blog</Link>
+          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+        </div>
+      )}
     </header>
   );
 }
@@ -922,7 +941,7 @@ function Hero({ hero }) {
         </h1>
         <p className="hero-sub fade-up" data-edit="hero.subtitle">{hero.subtitle}</p>
         <div className="hero-ctas fade-up d2">
-          <a href="#final" className="btn btn-ember"><span data-edit="hero.ctaPrimary">{hero.ctaPrimary}</span> {ICONS.arrow}</a>
+          <Link to="/rezervare" className="btn btn-ember"><span data-edit="hero.ctaPrimary">{hero.ctaPrimary}</span> {ICONS.arrow}</Link>
           <a href="#vile" className="btn btn-ghost"><span data-edit="hero.ctaSecondary">{hero.ctaSecondary}</span></a>
         </div>
       </div>
@@ -986,7 +1005,7 @@ function VillaCard({ villa, delay, contact, idx }) {
           ))}
         </div>
         <div className="vcard-ctas">
-          <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Bună! Aș dori o rezervare la " + villa.name)}`} target="_blank" rel="noreferrer" className="btn btn-ember">Rezervă acum</a>
+          <Link to={`/rezervare?vila=${villa.id}`} className="btn btn-ember">Rezervă acum</Link>
           <Link to={`/vila-${villa.id}`} className="btn btn-outline-ivory">Vezi detalii</Link>
         </div>
       </div>
@@ -1265,7 +1284,10 @@ export function Footer({ contact }) {
         </div>
         <div className="foot-bottom">
           <span>© {new Date().getFullYear()} ROOTS Villas Brașov. Toate drepturile rezervate.</span>
-          <span>Stupini · Brașov · România</span>
+          <span>
+            Stupini · Brașov · România ·{" "}
+            <a href="https://roots-hub-dun.vercel.app/login" style={{ display: "inline", margin: 0 }}>Administrare</a>
+          </span>
         </div>
       </div>
     </footer>

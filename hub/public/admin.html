@@ -73,6 +73,15 @@
   .vrow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
   dialog{border:none;border-radius:16px;padding:24px;max-width:420px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
   dialog::backdrop{background:rgba(14,31,25,.45)}
+  @media(max-width:640px){
+    .top{flex-wrap:wrap;gap:8px;padding:10px 14px}
+    .top .acts{flex-wrap:wrap}
+    .wrap{padding:12px;gap:12px}
+    .side{position:static}
+    .sec-head{flex-direction:column;align-items:flex-start}
+    .grid3{grid-template-columns:1fr 1fr}
+    .card{padding:14px}
+  }
 </style>
 </head>
 <body>

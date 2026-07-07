@@ -15,7 +15,7 @@ import {
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
 /* stiluri specifice paginii de vilă (peste design system-ul comun) */
-const VILLA_CSS = `
+export const VILLA_CSS = `
 /* ---- villa hero ---- */
 .vhero{position:relative;min-height:74vh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
   background:linear-gradient(180deg,#0B1626 0%,#152B3D 42%,#3D4A56 66%,#8A5A46 88%,#C4713C 100%)}
@@ -186,7 +186,7 @@ function VHeader({ contact }) {
           <Link to="/">Acasă</Link>
           <a href="#facilitati">Facilități</a>
           <a href="#locatie">Locație</a>
-          <a href={wa} className="cta" target="_blank" rel="noreferrer">Rezervă acum</a>
+          <Link to="/rezervare" className="cta">Rezervă acum</Link>
         </nav>
       </div>
     </header>
@@ -354,7 +354,7 @@ export default function VillaPage({ villaId }) {
             ))}
           </div>
           <div className="vpol-cta">
-            <a className="btn btn-ember" href={wa} target="_blank" rel="noreferrer">Rezervă acum {ICONS.arrow}</a>
+            <Link className="btn btn-ember" to={`/rezervare?vila=${villaId}`}>Rezervă acum {ICONS.arrow}</Link>
           </div>
         </div>
       </section>
