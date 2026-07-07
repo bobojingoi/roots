@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 
 /* ============================================================
    Widget de rezervare — calendar cu selecție de interval,
-   preț live din Smoobu (/api/availability întoarce availability + prices),
-   calcul avans, selecție oaspeți și trimiterea cererii.
+   preț live din Smoobu, avans, formular oaspete și creare
+   rezervare reală prin /api/book (când BOOKING_LIVE=true).
    ============================================================ */
 
 const MONTHS_RO = [
@@ -15,18 +15,8 @@ const pad = (n) => String(n).padStart(2, "0");
 const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 const fmt = (date) => iso(date.getFullYear(), date.getMonth(), date.getDate());
 const parseISO = (s) => new Date(s + "T00:00:00");
-const addDays = (s, n) => {
-  const d = parseISO(s);
-  d.setDate(d.getDate() + n);
-  return fmt(d);
-};
-/* nopțile dintr-un sejur: check-in inclusiv, check-out exclusiv */
-const eachNight = (ci, co) => {
-  const out = [];
-  let d = ci;
-  while (d < co) { out.push(d); d = addDays(d, 1); }
-  return out;
-};
+const addDays = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); return fmt(d); };
+const eachNight = (ci, co) => { const out = []; let d = ci; while (d < co) { out.push(d); d = addDays(d, 1); } return out; };
 const lei = (n) => new Intl.NumberFormat("ro-RO").format(Math.round(n));
 
 function useAvailability(apartmentId, startDate, endDate) {
@@ -44,11 +34,7 @@ function useAvailability(apartmentId, startDate, endDate) {
         setData({ availability: json.availability || {}, prices: json.prices || {} });
         setStatus(json.mock ? "mock" : "ok");
       })
-      .catch(() => {
-        if (cancelled) return;
-        setData({ availability: {}, prices: {} });
-        setStatus("error");
-      });
+      .catch(() => { if (!cancelled) { setData({ availability: {}, prices: {} }); setStatus("error"); } });
     return () => { cancelled = true; };
   }, [apartmentId, startDate, endDate]);
   return { ...data, status };
@@ -64,29 +50,21 @@ function Month({ year, month, availability, today, checkIn, checkOut, onPick }) 
     const date = new Date(year, month, d);
     const isPast = date < today;
     const busy = availability[key] === 0;
-    const isStart = key === checkIn;
-    const isEnd = key === checkOut;
-    const inRange = checkIn && checkOut && key > checkIn && key < checkOut;
     const cls = [
       "cal-day",
       isPast ? "past" : busy ? "busy" : "free",
       date.getTime() === today.getTime() ? "today" : "",
-      isStart ? "sel-start" : "",
-      isEnd ? "sel-end" : "",
-      inRange ? "in-range" : "",
+      key === checkIn ? "sel-start" : "",
+      key === checkOut ? "sel-end" : "",
+      checkIn && checkOut && key > checkIn && key < checkOut ? "in-range" : "",
     ].filter(Boolean).join(" ");
     cells.push(
-      <span className={cls} key={key} onClick={() => !isPast && onPick(key)} title={isPast ? "" : busy ? "Ocupat" : "Liber"}>
-        {d}
-      </span>
+      <span className={cls} key={key} onClick={() => !isPast && onPick(key)} title={isPast ? "" : busy ? "Ocupat" : "Liber"}>{d}</span>
     );
   }
   return (
     <div className="cal-month">
-      <div className="cal-mhead">
-        <span className="cal-myear">{year}</span>
-        <b className="cal-mname">{MONTHS_RO[month]}</b>
-      </div>
+      <div className="cal-mhead"><span className="cal-myear">{year}</span><b className="cal-mname">{MONTHS_RO[month]}</b></div>
       <div className="cal-dow">{DOW_RO.map((w) => <span key={w}>{w}</span>)}</div>
       <div className="cal-grid">{cells}</div>
     </div>
@@ -107,12 +85,7 @@ function Stepper({ label, value, set, min, max }) {
 }
 
 export default function AvailabilityCalendar({
-  apartmentId,
-  villaName = "vila",
-  contact = {},
-  capacity = 10,
-  depositPct = 30,
-  currency = "lei",
+  apartmentId, villaName = "vila", contact = {}, capacity = 10, depositPct = 30, currency = "lei",
   title = "Verifică disponibilitatea și rezervă",
 }) {
   const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
@@ -121,6 +94,9 @@ export default function AvailabilityCalendar({
   const [checkOut, setCheckOut] = useState(null);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
+  const [step, setStep] = useState("select"); // select | form | sending | done
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+  const [result, setResult] = useState(null);
 
   const m2 = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   const startDate = iso(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -130,23 +106,20 @@ export default function AvailabilityCalendar({
 
   const atStart = cursor.getFullYear() === today.getFullYear() && cursor.getMonth() === today.getMonth();
   const shift = useCallback((n) => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + n, 1)), []);
-
-  const nightsAllFree = useCallback(
-    (ci, co) => eachNight(ci, co).every((n) => availability[n] !== 0),
-    [availability]
-  );
+  const nightsAllFree = useCallback((ci, co) => eachNight(ci, co).every((n) => availability[n] !== 0), [availability]);
 
   const pick = useCallback((dateStr) => {
+    if (step !== "select") setStep("select");
     const restart = !checkIn || (checkIn && checkOut) || dateStr <= checkIn;
     if (restart) {
-      if (availability[dateStr] === 0) return; // nu porni pe o zi ocupată
-      setCheckIn(dateStr); setCheckOut(null);
-      return;
+      if (availability[dateStr] === 0) return;
+      setCheckIn(dateStr); setCheckOut(null); return;
     }
-    // alegem check-out (dateStr > checkIn)
     if (nightsAllFree(checkIn, dateStr)) setCheckOut(dateStr);
     else if (availability[dateStr] !== 0) { setCheckIn(dateStr); setCheckOut(null); }
-  }, [checkIn, checkOut, availability, nightsAllFree]);
+  }, [step, checkIn, checkOut, availability, nightsAllFree]);
+
+  const clearSel = () => { setCheckIn(null); setCheckOut(null); setStep("select"); setResult(null); };
 
   const nights = checkIn && checkOut ? eachNight(checkIn, checkOut) : [];
   const priceKnown = nights.length > 0 && nights.every((n) => prices[n] != null);
@@ -164,6 +137,42 @@ export default function AvailabilityCalendar({
   );
   const waHref = `https://wa.me/${wa}?text=${waMsg}`;
 
+  const emailOk = /.+@.+\..+/.test(form.email);
+  const formValid = form.firstName.trim() && form.lastName.trim() && emailOk && form.phone.trim().length >= 6;
+  const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async () => {
+    setStep("sending");
+    try {
+      const r = await fetch("/api/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apartmentId, arrivalDate: checkIn, departureDate: checkOut, adults, children,
+          firstName: form.firstName.trim(), lastName: form.lastName.trim(),
+          email: form.email.trim(), phone: form.phone.trim(),
+        }),
+      });
+      setResult(await r.json());
+    } catch (e) {
+      setResult({ ok: false, error: "Eroare de rețea. Încearcă din nou sau scrie-ne pe WhatsApp." });
+    }
+    setStep("done");
+  };
+
+  const Recap = () => (
+    <div className="bk-summary">
+      <div className="bk-row"><span>{checkIn} → {checkOut}</span><span>{nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</span></div>
+      {priceKnown ? (
+        <>
+          <div className="bk-row"><span>Total sejur</span><b>{lei(total)} {currency}</b></div>
+          <div className="bk-row hi"><span>Avans ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>
+          <div className="bk-row muted"><span>Rest la check-in</span><span>{lei(rest)} {currency}</span></div>
+        </>
+      ) : <div className="bk-row muted"><span>Preț</span><span>la cerere</span></div>}
+    </div>
+  );
+
   return (
     <div className="cal-card">
       <div className="cal-head">
@@ -176,9 +185,7 @@ export default function AvailabilityCalendar({
 
       <div className="cal-hint">
         {!checkIn ? "Alege data de check-in." : !checkOut ? "Alege data de check-out." : `${nights.length} ${nights.length === 1 ? "noapte" : "nopți"} selectate.`}
-        {(checkIn || checkOut) && (
-          <button className="cal-clear" onClick={() => { setCheckIn(null); setCheckOut(null); }}>Golește selecția</button>
-        )}
+        {(checkIn || checkOut) && <button className="cal-clear" onClick={clearSel}>Golește selecția</button>}
       </div>
 
       <div className="cal-months">
@@ -199,31 +206,65 @@ export default function AvailabilityCalendar({
 
       {/* --- panou rezervare --- */}
       <div className="bk-panel">
-        <div className="bk-guests">
-          <Stepper label="Adulți" value={adults} set={setAdults} min={1} max={capacity} />
-          <Stepper label="Copii" value={children} set={setChildren} min={0} max={Math.max(0, capacity - adults)} />
-          <div className="bk-cap">Maxim {capacity} persoane</div>
-        </div>
+        {step === "select" && (
+          <>
+            <div className="bk-guests">
+              <Stepper label="Adulți" value={adults} set={setAdults} min={1} max={capacity} />
+              <Stepper label="Copii" value={children} set={setChildren} min={0} max={Math.max(0, capacity - adults)} />
+              <div className="bk-cap">Maxim {capacity} persoane</div>
+            </div>
+            {hasRange && <Recap />}
+            <button className="bk-cta" disabled={!hasRange} onClick={() => setStep("form")}>
+              {hasRange ? "Continuă spre rezervare" : "Alege perioada pentru a rezerva"}
+            </button>
+            {hasRange && <p className="bk-soon">Sau <a href={waHref} target="_blank" rel="noreferrer">scrie-ne pe WhatsApp</a>.</p>}
+          </>
+        )}
 
-        {hasRange && (
-          <div className="bk-summary">
-            <div className="bk-row"><span>{checkIn} → {checkOut}</span><span>{nights.length} {nights.length === 1 ? "noapte" : "nopți"}</span></div>
-            {priceKnown ? (
-              <>
-                <div className="bk-row"><span>Total sejur</span><b>{lei(total)} {currency}</b></div>
-                <div className="bk-row hi"><span>Avans acum ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>
-                <div className="bk-row muted"><span>Rest la check-in</span><span>{lei(rest)} {currency}</span></div>
-              </>
-            ) : (
-              <div className="bk-row muted"><span>Preț</span><span>la cerere</span></div>
-            )}
+        {step === "form" && (
+          <div className="bk-form">
+            <Recap />
+            <div className="bk-fields">
+              <input className="bk-input" placeholder="Prenume" value={form.firstName} onChange={setF("firstName")} />
+              <input className="bk-input" placeholder="Nume" value={form.lastName} onChange={setF("lastName")} />
+              <input className="bk-input" type="email" placeholder="Email" value={form.email} onChange={setF("email")} />
+              <input className="bk-input" type="tel" placeholder="Telefon" value={form.phone} onChange={setF("phone")} />
+            </div>
+            <div className="bk-actions">
+              <button className="bk-back" onClick={() => setStep("select")}>← Înapoi</button>
+              <button className="bk-cta grow" disabled={!formValid} onClick={submit}>Trimite rezervarea</button>
+            </div>
+            <p className="bk-soon">Fără plată online acum — confirmăm rezervarea și detaliile avansului pe email/telefon.</p>
           </div>
         )}
 
-        <a className={`bk-cta ${hasRange ? "" : "disabled"}`} href={hasRange ? waHref : undefined} target="_blank" rel="noreferrer" aria-disabled={!hasRange}>
-          {hasRange ? "Trimite cererea de rezervare" : "Alege perioada pentru a rezerva"}
-        </a>
-        <p className="bk-soon">Plata online a avansului se activează în curând. Momentan confirmăm rezervarea pe WhatsApp, rapid.</p>
+        {step === "sending" && <div className="bk-done"><p>Se trimite rezervarea…</p></div>}
+
+        {step === "done" && (
+          result && result.ok && !result.dryRun ? (
+            <div className="bk-done ok">
+              <h4>Rezervare înregistrată ✓</h4>
+              <p>{checkIn} → {checkOut} · {nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</p>
+              {priceKnown && <p className="bk-total">Total {lei(total)} {currency} · avans {lei(deposit)} {currency}</p>}
+              <p className="bk-soon">Te contactăm în scurt timp pentru confirmarea detaliilor și a avansului. Mulțumim!</p>
+            </div>
+          ) : result && result.dryRun ? (
+            <div className="bk-done">
+              <h4>Aproape gata</h4>
+              <p>Rezervarea online se activează în curând. Trimite cererea pe WhatsApp și îți confirmăm imediat.</p>
+              <a className="bk-cta" href={waHref} target="_blank" rel="noreferrer">Trimite pe WhatsApp</a>
+            </div>
+          ) : (
+            <div className="bk-done err">
+              <h4>Nu am putut finaliza</h4>
+              <p>{(result && result.error) || "A apărut o eroare."}</p>
+              <div className="bk-actions">
+                <button className="bk-back" onClick={clearSel}>Alege alte date</button>
+                <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">Scrie-ne pe WhatsApp</a>
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   );
