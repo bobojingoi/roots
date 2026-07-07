@@ -100,6 +100,7 @@ const VILLA_CSS = `
 .bk-done.err h4{color:#C24}
 .bk-done p{font-size:14.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:6px}
 .bk-done .bk-total{color:var(--ink);font-weight:600}
+.bk-detail{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink-soft);background:var(--sand);border-radius:8px;padding:8px 10px;word-break:break-word;text-align:left}
 .bk-done .bk-cta,.bk-done .bk-actions{margin-top:16px}
 
 /* ---- gallery / carusel ---- */

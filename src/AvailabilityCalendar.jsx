@@ -258,6 +258,7 @@ export default function AvailabilityCalendar({
             <div className="bk-done err">
               <h4>Nu am putut finaliza</h4>
               <p>{(result && result.error) || "A apărut o eroare."}</p>
+              {result && result.detail && <p className="bk-detail">{result.detail}</p>}
               <div className="bk-actions">
                 <button className="bk-back" onClick={clearSel}>Alege alte date</button>
                 <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">Scrie-ne pe WhatsApp</a>
