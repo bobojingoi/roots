@@ -57,6 +57,35 @@ const VILLA_CSS = `
 .cal-note{font-size:12.5px;color:var(--ink-soft)}
 .cal-note.err{color:#C24}
 
+/* ---- selecție interval + panou rezervare ---- */
+.cal-day.free,.cal-day.today{cursor:pointer}
+.cal-day.busy{cursor:not-allowed}
+.cal-day.free:hover{background:var(--sand)}
+.cal-day.sel-start,.cal-day.sel-end{background:var(--ember);color:#fff}
+.cal-day.in-range{background:rgba(232,114,44,.16);color:var(--pine);border-radius:4px}
+.cal-legend .lg.sel{background:var(--ember)}
+.cal-hint{display:flex;align-items:center;gap:12px;margin:-8px 0 16px;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+.cal-clear{background:none;border:none;color:var(--ember);font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:underline}
+.bk-panel{margin-top:22px;padding-top:22px;border-top:1px solid var(--line)}
+.bk-guests{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:18px}
+.bk-guest{display:flex;align-items:center;gap:12px}
+.bk-guest>span{font-size:14px;font-weight:600;color:var(--ink)}
+.bk-step{display:inline-flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:100px;padding:5px 8px}
+.bk-step button{width:28px;height:28px;border-radius:50%;border:none;background:var(--sand);color:var(--pine);font-size:17px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.bk-step button:disabled{opacity:.35;cursor:not-allowed}
+.bk-step b{min-width:18px;text-align:center;font-size:15px}
+.bk-cap{font-size:12.5px;color:var(--ink-soft)}
+.bk-summary{background:var(--sand);border-radius:16px;padding:16px 18px;margin-bottom:16px}
+.bk-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14.5px;padding:5px 0;color:var(--ink)}
+.bk-row b{font-family:'Fraunces',serif;font-weight:500}
+.bk-row.hi{color:var(--ember)}
+.bk-row.hi b{color:var(--ember);font-size:19px}
+.bk-row.muted{color:var(--ink-soft);font-size:13px}
+.bk-cta{display:block;text-align:center;background:var(--ember);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:100px;text-decoration:none;box-shadow:0 10px 26px rgba(232,114,44,.4);transition:transform .2s,background .2s}
+.bk-cta:hover{background:var(--ember-2);transform:translateY(-2px)}
+.bk-cta.disabled{background:var(--sand);color:var(--ink-soft);box-shadow:none;pointer-events:none}
+.bk-soon{margin-top:12px;font-size:12.5px;color:var(--ink-soft);text-align:center;line-height:1.5}
+
 /* ---- gallery / carusel ---- */
 .vg-title{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(24px,3.4vw,34px);color:var(--pine);text-align:center;margin-bottom:36px}
 .vg-wrap{position:relative}
@@ -216,9 +245,15 @@ export default function VillaPage({ villaId }) {
         </div>
       </section>
 
-      {/* CALENDAR */}
+      {/* CALENDAR + REZERVARE */}
       <div className="wrap">
-        <AvailabilityCalendar apartmentId={page.smoobuId} />
+        <AvailabilityCalendar
+          apartmentId={page.smoobuId}
+          villaName={villa.name}
+          contact={contact}
+          capacity={10}
+          depositPct={30}
+        />
       </div>
 
       {/* GALERII */}

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
   // Lipsește o credențială / ID -> date demonstrative, ca UI-ul să funcționeze oricum.
   if (!apiKey || !apiSecret || !apartmentId) {
-    return res.status(200).json({ availability: mockAvailability(startDate, endDate), mock: true });
+    return res.status(200).json({ ...mockData(startDate, endDate), mock: true });
   }
 
   // query canonic: perechi sortate alfabetic, paranteze codate (%5B%5D)
@@ -52,15 +52,17 @@ export default async function handler(req, res) {
     const json = JSON.parse(text);
     const perApt = (json && json.data && json.data[apartmentId]) || {};
     const availability = {};
+    const prices = {};
     for (const [date, info] of Object.entries(perApt)) {
       availability[date] = info && typeof info.available === "number" ? info.available : 1;
+      if (info && info.price != null) prices[date] = info.price;
     }
     res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
-    return res.status(200).json({ availability, mock: false });
+    return res.status(200).json({ availability, prices, mock: false });
   } catch (e) {
     // Nu stricăm pagina dacă Smoobu e indisponibil — cădem pe date demonstrative.
     return res.status(200).json({
-      availability: mockAvailability(startDate, endDate),
+      ...mockData(startDate, endDate),
       mock: true,
       note: String((e && e.message) || e),
     });
@@ -88,16 +90,19 @@ async function signedGet(path, query, apiKey, apiSecret) {
   return { status: r.status, text };
 }
 
-/* Date demonstrative deterministe (fără random) — câteva zile marcate ocupate. */
-function mockAvailability(startDate, endDate) {
-  const out = {};
+/* Date demonstrative deterministe (fără random) — disponibilitate + preț per noapte. */
+function mockData(startDate, endDate) {
+  const availability = {};
+  const prices = {};
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
-  if (isNaN(start) || isNaN(end)) return out;
+  if (isNaN(start) || isNaN(end)) return { availability, prices };
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().slice(0, 10);
     const day = d.getDate();
-    out[key] = day % 7 === 3 || day % 7 === 4 || day % 11 === 0 ? 0 : 1;
+    const dow = d.getDay(); // 0=Dum, 5=Vin, 6=Sâm
+    availability[key] = day % 7 === 3 || day % 7 === 4 || day % 11 === 0 ? 0 : 1;
+    prices[key] = dow === 5 || dow === 6 ? 1600 : 1200; // weekend mai scump (demonstrativ)
   }
-  return out;
+  return { availability, prices };
 }
