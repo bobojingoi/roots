@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { t } from "./i18n.js";
 
 /* ============================================================
    Widget de rezervare — calendar cu selecție de interval,
@@ -94,7 +95,7 @@ function Stepper({ label, value, set, min, max }) {
 
 export default function AvailabilityCalendar({
   apartmentId, villaName = "vila", contact = {}, capacity = 10, depositPct = 30, currency = "lei",
-  title = "Verifică disponibilitatea și rezervă",
+  title,
 }) {
   const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -176,9 +177,9 @@ export default function AvailabilityCalendar({
       <div className="bk-row"><span>{checkIn} → {checkOut}</span><span>{nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</span></div>
       {priceKnown ? (
         <>
-          <div className="bk-row"><span>Total sejur</span><b>{lei(total)} {currency}</b></div>
-          <div className="bk-row hi"><span>Avans ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>
-          <div className="bk-row muted"><span>Rest la check-in</span><span>{lei(rest)} {currency}</span></div>
+          <div className="bk-row"><span>{t("total_stay")}</span><b>{lei(total)} {currency}</b></div>
+          <div className="bk-row hi"><span>{t("deposit_now")} ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>
+          <div className="bk-row muted"><span>{t("rest_checkin")}</span><span>{lei(rest)} {currency}</span></div>
         </>
       ) : <div className="bk-row muted"><span>Preț</span><span>la cerere</span></div>}
     </div>
@@ -187,7 +188,7 @@ export default function AvailabilityCalendar({
   return (
     <div className="cal-card">
       <div className="cal-head">
-        <h3>{title}</h3>
+        <h3>{title || t("cal_title")}</h3>
         <div className="cal-nav">
           <button onClick={() => shift(-1)} disabled={atStart} aria-label="Luna anterioară">‹</button>
           <button onClick={() => shift(1)} aria-label="Luna următoare">›</button>
@@ -195,8 +196,8 @@ export default function AvailabilityCalendar({
       </div>
 
       <div className="cal-hint">
-        {!checkIn ? "Alege data de check-in." : !checkOut ? "Alege data de check-out." : `${nights.length} ${nights.length === 1 ? "noapte" : "nopți"} selectate.`}
-        {(checkIn || checkOut) && <button className="cal-clear" onClick={clearSel}>Golește selecția</button>}
+        {!checkIn ? t("pick_checkin") : !checkOut ? t("pick_checkout") : `${nights.length} ${t("nights_sel")}`}
+        {(checkIn || checkOut) && <button className="cal-clear" onClick={clearSel}>{t("clear_sel")}</button>}
       </div>
 
       <div className="cal-months">
@@ -206,9 +207,9 @@ export default function AvailabilityCalendar({
 
       <div className="cal-foot">
         <div className="cal-legend">
-          <span><i className="lg free" /> Liber</span>
-          <span><i className="lg busy" /> Ocupat</span>
-          <span><i className="lg sel" /> Selectat</span>
+          <span><i className="lg free" /> {t("cal_free")}</span>
+          <span><i className="lg busy" /> {t("cal_busy")}</span>
+          <span><i className="lg sel" /> {t("cal_sel")}</span>
         </div>
         {status === "loading" && <span className="cal-note">Se încarcă…</span>}
         {status === "mock" && <span className="cal-note">Date demonstrative.</span>}
@@ -220,13 +221,13 @@ export default function AvailabilityCalendar({
         {step === "select" && (
           <>
             <div className="bk-guests">
-              <Stepper label="Adulți" value={adults} set={setAdults} min={1} max={capacity} />
-              <Stepper label="Copii" value={children} set={setChildren} min={0} max={Math.max(0, capacity - adults)} />
-              <div className="bk-cap">Maxim {capacity} persoane</div>
+              <Stepper label={t("adults")} value={adults} set={setAdults} min={1} max={capacity} />
+              <Stepper label={t("children")} value={children} set={setChildren} min={0} max={Math.max(0, capacity - adults)} />
+              <div className="bk-cap">{t("max_persons", { n: capacity })}</div>
             </div>
             {hasRange && <Recap />}
             <button className="bk-cta" disabled={!hasRange} onClick={() => setStep("form")}>
-              {hasRange ? "Continuă spre rezervare" : "Alege perioada pentru a rezerva"}
+              {hasRange ? t("continue_book") : t("choose_period")}
             </button>
             {hasRange && <p className="bk-soon">Sau <a href={waHref} target="_blank" rel="noreferrer">scrie-ne pe WhatsApp</a>.</p>}
           </>
@@ -236,14 +237,14 @@ export default function AvailabilityCalendar({
           <div className="bk-form">
             <Recap />
             <div className="bk-fields">
-              <input className="bk-input" placeholder="Prenume" value={form.firstName} onChange={setF("firstName")} />
-              <input className="bk-input" placeholder="Nume" value={form.lastName} onChange={setF("lastName")} />
-              <input className="bk-input" type="email" placeholder="Email" value={form.email} onChange={setF("email")} />
-              <input className="bk-input" type="tel" placeholder="Telefon" value={form.phone} onChange={setF("phone")} />
+              <input className="bk-input" placeholder={t("first_name")} value={form.firstName} onChange={setF("firstName")} />
+              <input className="bk-input" placeholder={t("last_name")} value={form.lastName} onChange={setF("lastName")} />
+              <input className="bk-input" type="email" placeholder={t("email")} value={form.email} onChange={setF("email")} />
+              <input className="bk-input" type="tel" placeholder={t("phone")} value={form.phone} onChange={setF("phone")} />
             </div>
             <div className="bk-actions">
-              <button className="bk-back" onClick={() => setStep("select")}>← Înapoi</button>
-              <button className="bk-cta grow" disabled={!formValid} onClick={submit}>Trimite rezervarea</button>
+              <button className="bk-back" onClick={() => setStep("select")}>{t("back")}</button>
+              <button className="bk-cta grow" disabled={!formValid} onClick={submit}>{t("send_booking")}</button>
             </div>
             <p className="bk-soon">Fără plată online acum — confirmăm rezervarea și detaliile avansului pe email/telefon.</p>
           </div>

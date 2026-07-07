@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Link } from "react-router-dom";
 import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 import { CSS_AURORA, applyTheme } from "./theme2030.js";
+import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
 
 /* ============================================================
    ROOTS VILLAS — site + CMS
@@ -429,7 +430,18 @@ export async function loadHubRaw() {
   }
   const r = await fetch(HUB_URL + "/api/v1/site-content");
   const j = await r.json();
-  return j.content || {};
+  return mergeLang(j.content || {});
+}
+
+/* pentru limbile non-RO, secțiunile traduse (cheie@limbă) înlocuiesc originalul */
+function mergeLang(content) {
+  if (LANG === "ro") return content;
+  const out = {};
+  for (const [k, v] of Object.entries(content)) {
+    if (k.includes("@")) continue;
+    out[k] = content[k + "@" + LANG] || v;
+  }
+  return out;
 }
 
 /* ---------- ICONS (inline, un singur stil de linie) ---------- */
@@ -510,6 +522,15 @@ section{position:relative}
 .nav .cta{color:#fff;background:var(--ember);padding:10px 20px;border-radius:100px;box-shadow:0 6px 18px rgba(232,114,44,.35)}
 .nav .cta:hover{color:#fff;background:var(--ember-2);transform:translateY(-1px)}
 @media(max-width:760px){.nav a:not(.cta){display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
+.langs{display:flex;gap:3px;align-items:center}
+.lang{border:1.5px solid rgba(255,255,255,.3);background:none;color:rgba(255,255,255,.75);border-radius:8px;padding:5px 8px;font:700 11.5px 'Manrope',sans-serif;cursor:pointer;letter-spacing:.04em}
+.hdr.solid .lang{border-color:var(--line);color:var(--ink-soft)}
+.lang.on{background:var(--ember);border-color:var(--ember);color:#fff}
+.hdr.solid .lang.on{color:#fff}
+.mnav .langs{gap:8px}
+.mnav .lang{font-size:14px;padding:9px 14px}
+[dir="rtl"] .hero h1,[dir="rtl"] .sec h2,[dir="rtl"] .lede{text-align:right}
+[dir="rtl"] .eyebrow::before{display:none}
 .burger{display:none;width:42px;height:42px;border-radius:10px;border:1.5px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:19px;cursor:pointer;flex-shrink:0}
 .hdr.solid .burger{border-color:var(--line);color:var(--pine)}
 @media(max-width:760px){.burger{display:grid;place-items:center}}
@@ -834,10 +855,23 @@ export function useSiteContent() {
   return { content, loaded };
 }
 
+/* Selector de limbă (RO / EN / HE / FR) */
+export function LangSwitcher() {
+  return (
+    <div className="langs">
+      {LANGS.map((l) => (
+        <button key={l.code} type="button" className={`lang ${l.code === LANG ? "on" : ""}`} onClick={() => setLang(l.code)} aria-label={l.name}>
+          {l.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* Tema activă a site-ului (Versiuni UI din admin): classic | aurora */
 export function ThemeStyle({ content }) {
   const theme = (content && content.ui && content.ui.theme) || "aurora";
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  useEffect(() => { applyTheme(theme); applyLangDir(); }, [theme]);
   return theme !== "classic" ? <style>{CSS_AURORA}</style> : null;
 }
 
@@ -907,26 +941,28 @@ export function Header({ content }) {
           <span className="logo-ring">R</span>ROOTS
         </a>
         <nav className="nav">
-          <a href="#vile">Vilele</a>
-          <a href="#spatii">Spații comune</a>
-          <a href="#reguli">Regulile casei</a>
-          <a href="#faq">Întrebări</a>
-          <a href="#locatie">Locație</a>
-          <Link to="/blog">Blog</Link>
-          <Link to="/rezervare" className="cta">Rezervă acum</Link>
-          <button className="burger" onClick={() => setMenu(true)} aria-label="Deschide meniul">☰</button>
+          <a href="#vile">{t("nav_villas")}</a>
+          <a href="#spatii">{t("nav_common")}</a>
+          <a href="#reguli">{t("nav_rules")}</a>
+          <a href="#faq">{t("nav_faq")}</a>
+          <a href="#locatie">{t("nav_location")}</a>
+          <Link to="/blog">{t("nav_blog")}</Link>
+          <LangSwitcher />
+          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
+          <button className="burger" onClick={() => setMenu(true)} aria-label="Meniu">☰</button>
         </nav>
       </div>
       {menu && (
         <div className="mnav" onClick={() => setMenu(false)}>
           <button className="close" aria-label="Închide meniul">×</button>
-          <a href="#vile">Vilele</a>
-          <a href="#spatii">Spații comune</a>
-          <a href="#reguli">Regulile casei</a>
-          <a href="#faq">Întrebări</a>
-          <a href="#locatie">Locație</a>
-          <Link to="/blog">Blog</Link>
-          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+          <a href="#vile">{t("nav_villas")}</a>
+          <a href="#spatii">{t("nav_common")}</a>
+          <a href="#reguli">{t("nav_rules")}</a>
+          <a href="#faq">{t("nav_faq")}</a>
+          <a href="#locatie">{t("nav_location")}</a>
+          <Link to="/blog">{t("nav_blog")}</Link>
+          <LangSwitcher />
+          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
         </div>
       )}
     </header>
@@ -967,17 +1003,17 @@ function About({ about }) {
     <section className="sec">
       <div className="wrap about-grid">
         <div className="rv">
-          <div className="eyebrow">Despre Roots</div>
+          <div className="eyebrow">{t("about_eyebrow")}</div>
           <h2 data-edit="about.title">{about.title}</h2>
         </div>
         <div className="rv rv-d1">
           <p className="lede" style={{ marginTop: 0 }} data-edit="about.p1">{about.text1}</p>
           <p className="lede" data-edit="about.p2">{about.text2}</p>
           <div className="stat-row">
-            <div className="stat"><b>2</b><span>vile private</span></div>
-            <div className="stat"><b>8–10</b><span>persoane / vilă</span></div>
-            <div className="stat"><b>4</b><span>dormitoare cu baie</span></div>
-            <div className="stat"><b>10'</b><span>de centrul Brașovului</span></div>
+            <div className="stat"><b>2</b><span>{t("stat_villas")}</span></div>
+            <div className="stat"><b>8–10</b><span>{t("stat_persons")}</span></div>
+            <div className="stat"><b>4</b><span>{t("stat_rooms")}</span></div>
+            <div className="stat"><b>10'</b><span>{t("stat_center")}</span></div>
           </div>
         </div>
       </div>
@@ -1014,8 +1050,8 @@ function VillaCard({ villa, delay, contact, idx }) {
           ))}
         </div>
         <div className="vcard-ctas">
-          <Link to={`/rezervare?vila=${villa.id}`} className="btn btn-ember">Rezervă acum</Link>
-          <Link to={`/vila-${villa.id}`} className="btn btn-outline-ivory">Vezi detalii</Link>
+          <Link to={`/rezervare?vila=${villa.id}`} className="btn btn-ember">{t("book_now")}</Link>
+          <Link to={`/vila-${villa.id}`} className="btn btn-outline-ivory">{t("see_details")}</Link>
         </div>
       </div>
     </article>
@@ -1028,9 +1064,9 @@ function Villas({ villas, contact }) {
       <div className="villas-band">
         <div className="wrap">
           <div className="rv">
-            <div className="eyebrow">Alege-ți vila</div>
-            <h2>Două vile, aceeași căldură</h2>
-            <p className="lede">Capacitate și confort identice — diferă doar felul în care îți place să petreci serile.</p>
+            <div className="eyebrow">{t("villas_eyebrow")}</div>
+            <h2>{t("villas_title")}</h2>
+            <p className="lede">{t("villas_lede")}</p>
           </div>
           <div className="villa-grid">
             {villas.map((v, i) => (
@@ -1064,7 +1100,7 @@ function Common({ common }) {
       <div className="common">
         <div className="wrap common-grid">
           <div className="rv">
-            <div className="eyebrow">Între vile</div>
+            <div className="eyebrow">{t("common_eyebrow")}</div>
             <h2 data-edit="common.title">{common.title}</h2>
             <p className="lede" data-edit="common.text">{common.text}</p>
             <div className="pill-list">
@@ -1093,7 +1129,7 @@ function Rules({ rules }) {
     <section className="sec" id="reguli">
       <div className="wrap">
         <div className="rv" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
-          <div className="eyebrow" style={{ justifyContent: "center" }}>Sejur fără griji</div>
+          <div className="eyebrow" style={{ justifyContent: "center" }}>{t("rules_eyebrow")}</div>
           <h2 data-edit="rules.title">{rules.title}</h2>
           <p className="lede" style={{ margin: "20px auto 0" }} data-edit="rules.intro">{rules.intro}</p>
         </div>
@@ -1110,7 +1146,7 @@ function Rules({ rules }) {
   );
 }
 
-function Testimonials({ t }) {
+function Testimonials({ t: T }) {
   const [g, setG] = useState(null);
   useEffect(() => {
     fetch(HUB_URL + "/api/v1/google-reviews")
@@ -1121,23 +1157,23 @@ function Testimonials({ t }) {
   // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
   const items = !EDIT_MODE && g
     ? g.reviews.filter((rv) => (rv.rating || 0) >= 4).slice(0, 3).map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
-    : t.items;
-  const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : t.rating;
+    : T.items;
+  const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
   return (
     <section>
       <div className="testi-band">
         <div className="wrap">
           <div className="testi-head rv">
             <div>
-              <div className="eyebrow">Oaspeții Roots</div>
-              <h2 data-edit="testimonials.title">{t.title}</h2>
-              <p className="lede" data-edit="testimonials.intro">{t.intro}</p>
+              <div className="eyebrow">{t("testi_eyebrow")}</div>
+              <h2 data-edit="testimonials.title">{T.title}</h2>
+              <p className="lede" data-edit="testimonials.intro">{T.intro}</p>
             </div>
             <div className="rating-badge">
               <b data-edit="testimonials.rating">{rating}</b>
               <div>
                 <div className="stars">{[0,1,2,3,4].map((i) => <span key={i}>{ICONS.star}</span>)}</div>
-                <span>rating mediu Google</span>
+                <span>{t("testi_rating")}</span>
               </div>
             </div>
           </div>
@@ -1161,7 +1197,7 @@ function Video({ video }) {
     <section className="sec">
       <div className="wrap">
         <div className="rv">
-          <div className="eyebrow">Atmosfera Roots</div>
+          <div className="eyebrow">{t("video_eyebrow")}</div>
           <h2 data-edit="video.title">{video.title}</h2>
           <p className="lede" data-edit="video.text">{video.text}</p>
         </div>
@@ -1184,8 +1220,8 @@ function FAQ({ faq }) {
     <section className="sec" id="faq" style={{ paddingTop: 60 }}>
       <div className="wrap">
         <div className="rv" style={{ textAlign: "center" }}>
-          <div className="eyebrow" style={{ justifyContent: "center" }}>Bine de știut</div>
-          <h2>Întrebări frecvente</h2>
+          <div className="eyebrow" style={{ justifyContent: "center" }}>{t("faq_eyebrow")}</div>
+          <h2>{t("faq_title")}</h2>
         </div>
         <div className="faq-wrap rv rv-d1">
           {cats.map((cat) => (
@@ -1250,11 +1286,11 @@ function FinalCta({ contact }) {
       <div className="final">
         <Embers />
         <div className="wrap" style={{ position: "relative", zIndex: 2 }}>
-          <div className="eyebrow rv" style={{ justifyContent: "center" }}>Următorul vostru weekend</div>
-          <h2 className="rv">Locul e pregătit. Focul așteaptă.</h2>
-          <p className="lede rv rv-d1">Scrie-ne pe WhatsApp sau sună-ne — îți răspundem rapid cu disponibilitatea și toate detaliile.</p>
+          <div className="eyebrow rv" style={{ justifyContent: "center" }}>{t("final_eyebrow")}</div>
+          <h2 className="rv">{t("final_title")}</h2>
+          <p className="lede rv rv-d1">{t("final_lede")}</p>
           <div className="hero-ctas rv rv-d2">
-            <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} Scrie-ne pe WhatsApp</a>
+            <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
             <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="btn btn-ghost">{ICONS.phone} {contact.phone}</a>
           </div>
         </div>
@@ -1273,27 +1309,27 @@ export function Footer({ contact }) {
             <p style={{ maxWidth: "30ch" }}>Două vile private în Stupini, Brașov — pentru serile care merită ținute minte.</p>
           </div>
           <div>
-            <h5>Contact</h5>
+            <h5>{t("foot_contact")}</h5>
             <a href={`tel:${contact.phone.replace(/\s/g, "")}`}>{ICONS.phone} {contact.phone}</a>
             <a href={`mailto:${contact.email}`}>{ICONS.mail} {contact.email}</a>
           </div>
           <div>
-            <h5>Social media</h5>
+            <h5>{t("foot_social")}</h5>
             <a href={contact.instagram} target="_blank" rel="noreferrer">{ICONS.ig} Instagram</a>
             <a href={contact.tiktok} target="_blank" rel="noreferrer">{ICONS.play} TikTok</a>
           </div>
           <div>
-            <h5>Politici</h5>
-            <Link to="/despre-noi">Despre noi</Link>
-            <Link to="/politica-de-confidentialitate">Politica de confidențialitate</Link>
-            <Link to="/politica-cookies">Politica cookies</Link>
-            <Link to="/termeni-si-conditii">Termeni și condiții</Link>
+            <h5>{t("foot_policies")}</h5>
+            <Link to="/despre-noi">{t("foot_about")}</Link>
+            <Link to="/politica-de-confidentialitate">{t("foot_privacy")}</Link>
+            <Link to="/politica-cookies">{t("foot_cookies")}</Link>
+            <Link to="/termeni-si-conditii">{t("foot_terms")}</Link>
             <a href="https://anpc.ro" target="_blank" rel="noreferrer">ANPC — protecția consumatorului</a>
             <a href="https://anpc.ro/ce-este-sal/" target="_blank" rel="noreferrer">SAL — soluționarea litigiilor</a>
           </div>
         </div>
         <div className="foot-bottom">
-          <span>© {new Date().getFullYear()} ROOTS Villas Brașov. Toate drepturile rezervate.</span>
+          <span>© {new Date().getFullYear()} ROOTS Villas Brașov. {t("foot_rights")}</span>
           <span>
             Stupini · Brașov · România ·{" "}
             <a href="https://roots-hub-dun.vercel.app/login" style={{ display: "inline", margin: 0 }}>Administrare</a>
