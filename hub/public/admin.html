@@ -343,14 +343,16 @@ async function renderMedia() {
   drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('on'); uploadFiles(e.dataTransfer.files); };
   file.onchange = () => uploadFiles(file.files);
 }
-/* optimizare în browser: redimensionare canvas + JPEG (main 1920px, thumb 480px) */
-function resizeToJpeg(img, maxW, quality) {
+/* optimizare în browser: redimensionare canvas + WebP (fallback JPEG unde nu e suportat) */
+function resizeImage(img, maxW, quality) {
   const scale = Math.min(1, maxW / img.naturalWidth);
   const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   c.getContext('2d').drawImage(img, 0, 0, w, h);
-  return c.toDataURL('image/jpeg', quality).split(',')[1];
+  const webp = c.toDataURL('image/webp', quality);
+  if (webp.startsWith('data:image/webp')) return { b64: webp.split(',')[1], mime: 'image/webp' };
+  return { b64: c.toDataURL('image/jpeg', quality).split(',')[1], mime: 'image/jpeg' };
 }
 async function uploadFiles(files) {
   for (const f of files) {
@@ -363,12 +365,12 @@ async function uploadFiles(files) {
         i.onerror = () => rej(new Error('Fișierul nu e o imagine validă'));
         i.src = url;
       });
-      const mainBase64 = resizeToJpeg(img, 1920, 0.82);
-      const thumbBase64 = resizeToJpeg(img, 480, 0.75);
+      const main = resizeImage(img, 1920, 0.8);
+      const thumb = resizeImage(img, 480, 0.72);
       await api('/api/v1/media', {
         method: 'POST',
         body: JSON.stringify({
-          filename: f.name, mainBase64, thumbBase64,
+          filename: f.name, mainBase64: main.b64, thumbBase64: thumb.b64, mime: main.mime,
           width: Math.min(img.naturalWidth, 1920),
           height: Math.round(img.naturalHeight * Math.min(1, 1920 / img.naturalWidth)),
         }),

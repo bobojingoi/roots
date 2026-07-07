@@ -193,22 +193,24 @@ app.get('/api/v1/media', requireAuth, async (_req, res) => {
   res.json({ media: r.rows });
 });
 
-/* Optimizarea imaginii se face în BROWSER (canvas → JPEG 1920px + thumb 480px),
+/* Optimizarea imaginii se face în BROWSER (canvas → WebP/JPEG 1920px + thumb 480px),
    ca payload-ul să încapă în limita serverless Vercel (4,5MB/request). */
 app.post('/api/v1/media', requireAuth, async (req, res) => {
   try {
-    const { filename, mainBase64, thumbBase64, width, height, alt } = req.body || {};
+    const { filename, mainBase64, thumbBase64, width, height, alt, mime } = req.body || {};
     if (!mainBase64) return res.status(400).json({ error: 'mainBase64 obligatoriu' });
+    const contentType = mime === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const ext = contentType === 'image/webp' ? 'webp' : 'jpg';
     const main = Buffer.from(mainBase64, 'base64');
     const thumb = thumbBase64 ? Buffer.from(thumbBase64, 'base64') : null;
 
     const id = crypto.randomUUID();
-    const safe = String(filename || 'imagine.jpg').toLowerCase().replace(/[^a-z0-9.]+/g, '-').slice(0, 60);
-    const key = `hub/${id}-${safe.replace(/\.[a-z0-9]+$/, '')}.jpg`;
-    const thumbKey = `hub/${id}-thumb.jpg`;
+    const safe = String(filename || 'imagine').toLowerCase().replace(/[^a-z0-9.]+/g, '-').slice(0, 60);
+    const key = `hub/${id}-${safe.replace(/\.[a-z0-9]+$/, '')}.${ext}`;
+    const thumbKey = `hub/${id}-thumb.${ext}`;
 
-    const url = await storage.putObject(key, main, 'image/jpeg');
-    const thumbUrl = thumb ? await storage.putObject(thumbKey, thumb, 'image/jpeg') : null;
+    const url = await storage.putObject(key, main, contentType);
+    const thumbUrl = thumb ? await storage.putObject(thumbKey, thumb, contentType) : null;
 
     const r = await pool.query(
       `INSERT INTO media (id, storage_key, url, thumb_url, alt, width, height, bytes, created_by)
