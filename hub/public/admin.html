@@ -106,19 +106,30 @@
 let ME = null, SECTIONS = [], MEDIA = [], TAB = 'panou', CUR = null;
 
 const SECTION_META = {
-  seo:          ['SEO global', 'Meta title, description, keywords, imagine OG'],
-  hero:         ['Hero', 'Prima secțiune a site-ului'],
-  about:        ['Despre', 'Titlu, paragrafe, statistici'],
-  villas:       ['Vile', 'Redwood și Sequoia — texte, facilități, galerii'],
-  editorial:    ['Blocuri editoriale', 'Blocuri titlu + paragrafe'],
-  common:       ['Spații comune', 'Text, facilități, imagine'],
-  rules:        ['Regulile casei', 'Intro + listă reguli'],
-  testimonials: ['Testimoniale', 'Rating + recenzii'],
-  video:        ['Video', 'Titlu, descriere, URL YouTube'],
-  faq:          ['FAQ', 'Întrebări pe categorii'],
-  location:     ['Locație', 'Descriere, hartă, repere'],
-  contact:      ['Contact & Social', 'Telefon, WhatsApp, email, social'],
+  seo:             ['SEO global', 'Meta title, description, keywords, imagine OG'],
+  hero:            ['Hero', 'Prima secțiune a site-ului'],
+  about:           ['Despre', 'Titlu, paragrafe, statistici'],
+  villas:          ['Cardurile vilelor', 'Redwood și Sequoia pe pagina principală'],
+  editorial:       ['Blocuri editoriale', 'Blocuri titlu + paragrafe'],
+  common:          ['Spații comune', 'Text, facilități, imagine'],
+  rules:           ['Regulile casei', 'Intro + listă reguli'],
+  testimonials:    ['Testimoniale', 'Rating + recenzii'],
+  video:           ['Video', 'Titlu, descriere, URL YouTube'],
+  faq:             ['FAQ', 'Întrebări pe categorii'],
+  location:        ['Locație', 'Descriere, hartă, repere'],
+  contact:         ['Contact & Social', 'Telefon, WhatsApp, email, social'],
+  villa_redwood:   ['Pagina vilei', 'Hero, galerii, facilități, politici, Smoobu'],
+  villa_sequoia:   ['Pagina vilei', 'Hero, galerii, facilități, politici, Smoobu'],
+  welcome_redwood: ['Instrucțiuni oaspeți', 'Cod chei, WiFi, reguli, recomandări'],
+  welcome_sequoia: ['Instrucțiuni oaspeți', 'Cod chei, WiFi, reguli, recomandări'],
 };
+
+/* meniul e organizat pe PAGINI — fiecare pagină se configurează separat */
+const PAGES_NAV = [
+  { cap: 'Pagina principală', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
+  { cap: 'Vila Redwood', keys: ['villa_redwood', 'welcome_redwood'] },
+  { cap: 'Vila Sequoia', keys: ['villa_sequoia', 'welcome_sequoia'] },
+];
 
 const ICONS = {
   panou: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
@@ -140,11 +151,26 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 /* ============ nav ============ */
 function renderNav() {
+  const have = new Set(SECTIONS.map((s) => s.section_key));
   let h = `<button class="nav-i ${TAB === 'panou' ? 'on' : ''}" onclick="go('panou')">${ICONS.panou} Panou</button>`;
-  h += `<div class="nav-cap">Conținut site</div>`;
-  for (const s of SECTIONS) {
-    const [label] = SECTION_META[s.section_key] || [s.section_key];
-    h += `<button class="nav-i ${TAB === 'sec:' + s.section_key ? 'on' : ''}" onclick="go('sec:${s.section_key}')">${ICONS.sec} ${esc(label)}</button>`;
+  for (const page of PAGES_NAV) {
+    const keys = page.keys.filter((k) => have.has(k));
+    if (!keys.length) continue;
+    h += `<div class="nav-cap">${esc(page.cap)}</div>`;
+    for (const k of keys) {
+      const [label] = SECTION_META[k] || [k];
+      h += `<button class="nav-i ${TAB === 'sec:' + k ? 'on' : ''}" onclick="go('sec:${k}')">${ICONS.sec} ${esc(label)}</button>`;
+    }
+  }
+  // secțiuni noi necunoscute meniului (adăugate ulterior în DB) — să nu dispară
+  const known = new Set(PAGES_NAV.flatMap((p) => p.keys));
+  const extra = SECTIONS.filter((s) => !known.has(s.section_key));
+  if (extra.length) {
+    h += `<div class="nav-cap">Alte secțiuni</div>`;
+    for (const s of extra) {
+      const [label] = SECTION_META[s.section_key] || [s.section_key];
+      h += `<button class="nav-i ${TAB === 'sec:' + s.section_key ? 'on' : ''}" onclick="go('sec:${s.section_key}')">${ICONS.sec} ${esc(label)}</button>`;
+    }
   }
   h += `<div class="nav-cap">Bibliotecă</div>`;
   h += `<button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
