@@ -62,11 +62,20 @@ Direcția: „Seară la Stupini" — apus cald, creste de brazi, jar de firepit.
      interval, preț live din Smoobu (proxy întoarce `availability` + `prices`), avans
      `depositPct` (default 30%, prop din VillaPage), selecție oaspeți, CTA „Trimite cererea"
      pe WhatsApp. Fără plată/rezervare falsă (site live).
-   - **Etapa 2 (TODO):** `/api/book` = creare rezervare reală în Smoobu
+   - **Etapa 2 (DONE):** `api/book.js` creează rezervarea reală în Smoobu
      (`POST /api/reservations`, `channelId:70`, semnare HMAC POST cu body-hash = SHA256 al
-     JSON-ului; câmpuri `prepayment`/`deposit` pt avans). Întâi dry-run, apoi live.
-   - **Etapa 3 (TODO):** înlocuiește CTA-ul WhatsApp cu plată reală (Stripe/alt procesator);
-     pe succes → creare rezervare Smoobu; la dublă-rezervare → refund.
+     JSON-ului). Re-verifică disponibilitatea + recalculează prețul server-side.
+     Câmp `country` obligatoriu (default „Romania"). Gate `BOOKING_LIVE` (env): fără el =
+     dry-run; cu `true` = rezervări reale. Formularul din widget (nume/email/telefon) e
+     conectat; pe dry-run cade pe WhatsApp, pe succes confirmă, pe eroare arată detaliul
+     Smoobu (diagnostic temporar — de înlocuit cu mesaj prietenos). `api/_smoobu.js` =
+     semnare HMAC partajată (signedGet/signedPost).
+   - **Vizual calendar:** zile de turnover semi-hașurate (check-in/check-out în aceeași zi);
+     selecția desenată tot pe jumătăți (check-in după-amiaza, check-out dimineața).
+   - **⚠️ Risc cunoscut:** cu `BOOKING_LIVE=true`, formularul public creează rezervări
+     confirmate FĂRĂ plată → posibile rezervări false. Se dezactivează cu `BOOKING_LIVE=false`.
+   - **Etapa 3 (TODO):** înlocuiește CTA-ul cu plată reală (Stripe/Netopia/mobilPay);
+     pe succes → creare rezervare Smoobu; la dublă-rezervare → refund. Abia atunci riscul dispare.
 4. Spargerea `RootsVillas.jsx` în componente separate (`components/`, `admin/`).
 5. Backend real pentru CMS (înlocuirea shim-ului localStorage): API + DB. Autentificare
    pentru Admin (acum butonul e public, doar pe `/`).
