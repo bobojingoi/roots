@@ -112,7 +112,12 @@ const VILLA_CSS = `
 .bk-done.err h4{color:#C24}
 .bk-done p{font-size:14.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:6px}
 .bk-done .bk-total{color:var(--ink);font-weight:600}
-.bk-detail{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink-soft);background:var(--sand);border-radius:8px;padding:8px 10px;word-break:break-word;text-align:left}
+.bk-badge{width:46px;height:46px;border-radius:50%;background:#2E7D4F;color:#fff;font-size:24px;line-height:46px;text-align:center;margin:0 auto 12px}
+.bk-conf{background:var(--sand);border-radius:16px;padding:4px 18px;margin:8px 0 4px;text-align:left}
+.bk-crow{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px;padding:9px 0;border-bottom:1px solid var(--line)}
+.bk-crow:last-child{border-bottom:none}
+.bk-crow span{color:var(--ink-soft)}
+.bk-crow b{color:var(--ink);font-weight:700}
 .bk-done .bk-cta,.bk-done .bk-actions{margin-top:16px}
 
 /* ---- gallery / carusel ---- */

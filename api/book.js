@@ -1,4 +1,5 @@
 import { clean, signedGet, signedPost } from "./_smoobu.js";
+import { sendBookingEmail, bookingEmailHtml } from "./_email.js";
 
 /* ============================================================
    Creare rezervare Smoobu (POST /api/reservations).
@@ -95,7 +96,30 @@ export default async function handler(req, res) {
     const { status, text } = await signedPost(RESERVATIONS_PATH, reservation, apiKey, apiSecret);
     if (status < 200 || status >= 300) throw new Error("reservations HTTP " + status + " " + text.slice(0, 200));
     const json = JSON.parse(text);
-    return res.status(200).json({ ok: true, dryRun: false, reservationId: json.id || json.reservationId || null, price: total });
+    const reservationId = json.id || json.reservationId || null;
+
+    // email de confirmare (oaspete + proprietar) — nu blochează rezervarea dacă eșuează
+    const depositPct = Number(b.depositPct) || 30;
+    const villaName = (b.villaName && String(b.villaName)) || "Vila ROOTS";
+    const deposit = Math.round(total * depositPct / 100);
+    const html = bookingEmailHtml({
+      villaName,
+      firstName: reservation.firstName || "oaspete",
+      arrivalDate,
+      departureDate,
+      nights,
+      guests: reservation.adults + reservation.children,
+      total,
+      deposit,
+      reservationId,
+    });
+    const emailed = await sendBookingEmail({
+      to: [reservation.email, clean(process.env.EMAIL_TO)],
+      subject: `Confirmare rezervare — ${villaName}`,
+      html,
+    });
+
+    return res.status(200).json({ ok: true, dryRun: false, reservationId, price: total, emailed });
   } catch (e) {
     return res.status(502).json({ ok: false, error: "Rezervarea nu a putut fi creată.", detail: String((e && e.message) || e) });
   }

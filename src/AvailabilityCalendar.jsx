@@ -156,12 +156,15 @@ export default function AvailabilityCalendar({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apartmentId, arrivalDate: checkIn, departureDate: checkOut, adults, children,
+          apartmentId, villaName, depositPct,
+          arrivalDate: checkIn, departureDate: checkOut, adults, children,
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),
       });
-      setResult(await r.json());
+      const json = await r.json();
+      if (json && json.detail) console.warn("[rezervare] detaliu server:", json.detail);
+      setResult(json);
     } catch (e) {
       setResult({ ok: false, error: "Eroare de rețea. Încearcă din nou sau scrie-ne pe WhatsApp." });
     }
@@ -251,10 +254,22 @@ export default function AvailabilityCalendar({
         {step === "done" && (
           result && result.ok && !result.dryRun ? (
             <div className="bk-done ok">
-              <h4>Rezervare înregistrată ✓</h4>
-              <p>{checkIn} → {checkOut} · {nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</p>
-              {priceKnown && <p className="bk-total">Total {lei(total)} {currency} · avans {lei(deposit)} {currency}</p>}
-              <p className="bk-soon">Te contactăm în scurt timp pentru confirmarea detaliilor și a avansului. Mulțumim!</p>
+              <div className="bk-badge">✓</div>
+              <h4>Rezervare înregistrată</h4>
+              <div className="bk-conf">
+                <div className="bk-crow"><span>Vila</span><b>{villaName}</b></div>
+                <div className="bk-crow"><span>Oaspete</span><b>{form.firstName} {form.lastName}</b></div>
+                <div className="bk-crow"><span>Check-in</span><b>{checkIn}</b></div>
+                <div className="bk-crow"><span>Check-out</span><b>{checkOut}</b></div>
+                <div className="bk-crow"><span>Nopți · oaspeți</span><b>{nights.length} · {adults + children}</b></div>
+                {priceKnown && <div className="bk-crow"><span>Total sejur</span><b>{lei(total)} {currency}</b></div>}
+                {priceKnown && <div className="bk-crow"><span>Avans ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>}
+                {result.reservationId && <div className="bk-crow"><span>Referință</span><b>#{result.reservationId}</b></div>}
+              </div>
+              <p className="bk-soon">
+                {result.emailed ? `Ți-am trimis detaliile pe email la ${form.email}. ` : ""}
+                Te contactăm în scurt timp pentru confirmarea avansului. Mulțumim!
+              </p>
             </div>
           ) : result && result.dryRun ? (
             <div className="bk-done">
@@ -264,9 +279,8 @@ export default function AvailabilityCalendar({
             </div>
           ) : (
             <div className="bk-done err">
-              <h4>Nu am putut finaliza</h4>
-              <p>{(result && result.error) || "A apărut o eroare."}</p>
-              {result && result.detail && <p className="bk-detail">{result.detail}</p>}
+              <h4>Nu am putut finaliza rezervarea</h4>
+              <p>{(result && result.error) || "A apărut o problemă."} Te rugăm încearcă din nou sau scrie-ne pe WhatsApp — răspundem rapid.</p>
               <div className="bk-actions">
                 <button className="bk-back" onClick={clearSel}>Alege alte date</button>
                 <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">Scrie-ne pe WhatsApp</a>
