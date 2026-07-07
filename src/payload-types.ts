@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    villas: Villa;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -78,6 +79,7 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    villas: VillasSelect<false> | VillasSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -92,8 +94,14 @@ export interface Config {
     | null
     | ('ro' | 'en' | 'he' | 'de' | 'it')
     | ('ro' | 'en' | 'he' | 'de' | 'it')[];
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    home: Home;
+    'site-settings': SiteSetting;
+  };
+  globalsSelect: {
+    home: HomeSelect<false> | HomeSelect<true>;
+    'site-settings': SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+  };
   locale: 'ro' | 'en' | 'he' | 'de' | 'it';
   widgets: {
     collections: CollectionsWidget;
@@ -170,6 +178,127 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    hero?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "villas".
+ */
+export interface Villa {
+  id: number;
+  name: string;
+  /**
+   * ex: redwood, sequoia (folosit în URL)
+   */
+  slug: string;
+  smoobuId?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  features?:
+    | {
+        text?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  cardImage?: (number | null) | Media;
+  heroSubtitle?: string | null;
+  heroImage?: (number | null) | Media;
+  phoneLabel?: string | null;
+  galleryExterior?:
+    | {
+        image?: (number | null) | Media;
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  galleryInterior?:
+    | {
+        image?: (number | null) | Media;
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  facilities?:
+    | {
+        category?: string | null;
+        items?:
+          | {
+              title?: string | null;
+              subtitle?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  policies?:
+    | {
+        title?: string | null;
+        items?:
+          | {
+              text?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  mapEmbed?: string | null;
+  welcomeAddress?: string | null;
+  welcomeMapsUrl?: string | null;
+  wifiName?: string | null;
+  wifiPassword?: string | null;
+  keybox?: string | null;
+  welcomeHeroImage?: (number | null) | Media;
+  welcomeSections?:
+    | {
+        title?: string | null;
+        lines?:
+          | {
+              text?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  directions?:
+    | {
+        label?: string | null;
+        url?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  ogImage?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -202,6 +331,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'villas';
+        value: number | Villa;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -286,6 +419,131 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        hero?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "villas_select".
+ */
+export interface VillasSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  smoobuId?: T;
+  tagline?: T;
+  description?: T;
+  features?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  cardImage?: T;
+  heroSubtitle?: T;
+  heroImage?: T;
+  phoneLabel?: T;
+  galleryExterior?:
+    | T
+    | {
+        image?: T;
+        caption?: T;
+        id?: T;
+      };
+  galleryInterior?:
+    | T
+    | {
+        image?: T;
+        caption?: T;
+        id?: T;
+      };
+  facilities?:
+    | T
+    | {
+        category?: T;
+        items?:
+          | T
+          | {
+              title?: T;
+              subtitle?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  policies?:
+    | T
+    | {
+        title?: T;
+        items?:
+          | T
+          | {
+              text?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  mapEmbed?: T;
+  welcomeAddress?: T;
+  welcomeMapsUrl?: T;
+  wifiName?: T;
+  wifiPassword?: T;
+  keybox?: T;
+  welcomeHeroImage?: T;
+  welcomeSections?:
+    | T
+    | {
+        title?: T;
+        lines?:
+          | T
+          | {
+              text?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  directions?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  seoTitle?: T;
+  seoDescription?: T;
+  ogImage?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -326,6 +584,236 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "home".
+ */
+export interface Home {
+  id: number;
+  heroEyebrow?: string | null;
+  heroTitleA?: string | null;
+  heroTitleB?: string | null;
+  heroSubtitle?: string | null;
+  heroCtaPrimary?: string | null;
+  heroCtaSecondary?: string | null;
+  heroImage?: (number | null) | Media;
+  aboutTitle?: string | null;
+  aboutText1?: string | null;
+  aboutText2?: string | null;
+  editorial?:
+    | {
+        title?: string | null;
+        paragraphs?:
+          | {
+              text?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  commonTitle?: string | null;
+  commonText?: string | null;
+  commonFeatures?:
+    | {
+        text?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  commonImage?: (number | null) | Media;
+  rulesTitle?: string | null;
+  rulesIntro?: string | null;
+  rules?:
+    | {
+        text?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  testimonialsTitle?: string | null;
+  testimonialsIntro?: string | null;
+  rating?: string | null;
+  testimonials?:
+    | {
+        name?: string | null;
+        text?: string | null;
+        stay?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  videoTitle?: string | null;
+  videoText?: string | null;
+  videoLabel?: string | null;
+  youtubeUrl?: string | null;
+  faq?:
+    | {
+        category?: string | null;
+        question?: string | null;
+        answer?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  locationTitle?: string | null;
+  locationText?: string | null;
+  mapsUrl?: string | null;
+  locationPoints?:
+    | {
+        label?: string | null;
+        value?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  recommendations?:
+    | {
+        category?: string | null;
+        items?:
+          | {
+              name?: string | null;
+              wazeUrl?: string | null;
+              phone?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string | null;
+  ogImage?: (number | null) | Media;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings".
+ */
+export interface SiteSetting {
+  id: number;
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  depositPct?: number | null;
+  capacity?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "home_select".
+ */
+export interface HomeSelect<T extends boolean = true> {
+  heroEyebrow?: T;
+  heroTitleA?: T;
+  heroTitleB?: T;
+  heroSubtitle?: T;
+  heroCtaPrimary?: T;
+  heroCtaSecondary?: T;
+  heroImage?: T;
+  aboutTitle?: T;
+  aboutText1?: T;
+  aboutText2?: T;
+  editorial?:
+    | T
+    | {
+        title?: T;
+        paragraphs?:
+          | T
+          | {
+              text?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  commonTitle?: T;
+  commonText?: T;
+  commonFeatures?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  commonImage?: T;
+  rulesTitle?: T;
+  rulesIntro?: T;
+  rules?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  testimonialsTitle?: T;
+  testimonialsIntro?: T;
+  rating?: T;
+  testimonials?:
+    | T
+    | {
+        name?: T;
+        text?: T;
+        stay?: T;
+        id?: T;
+      };
+  videoTitle?: T;
+  videoText?: T;
+  videoLabel?: T;
+  youtubeUrl?: T;
+  faq?:
+    | T
+    | {
+        category?: T;
+        question?: T;
+        answer?: T;
+        id?: T;
+      };
+  locationTitle?: T;
+  locationText?: T;
+  mapsUrl?: T;
+  locationPoints?:
+    | T
+    | {
+        label?: T;
+        value?: T;
+        id?: T;
+      };
+  recommendations?:
+    | T
+    | {
+        category?: T;
+        items?:
+          | T
+          | {
+              name?: T;
+              wazeUrl?: T;
+              phone?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  seoTitle?: T;
+  seoDescription?: T;
+  seoKeywords?: T;
+  ogImage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings_select".
+ */
+export interface SiteSettingsSelect<T extends boolean = true> {
+  phone?: T;
+  whatsapp?: T;
+  email?: T;
+  instagram?: T;
+  tiktok?: T;
+  depositPct?: T;
+  capacity?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
