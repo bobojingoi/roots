@@ -2,37 +2,48 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 /*
- * Plugin de dev: servește /api/availability local (în `npm run dev`),
- * folosind exact aceeași funcție ca pe Vercel (api/availability.js).
- * Astfel calendarul merge și local, fără `vercel dev`.
- * Cheia se citește din .env (SMOOBU_API_KEY).
+ * Plugin de dev: servește orice /api/<name> local (în `npm run dev`),
+ * folosind exact aceleași funcții ca pe Vercel (api/<name>.js).
+ * Astfel calendarul + rezervarea merg și local, fără `vercel dev`.
+ * Credențialele se citesc din .env (SMOOBU_API_KEY, SMOOBU_API_SECRET, BOOKING_LIVE).
  */
 function smoobuApiDev(env) {
   return {
     name: "smoobu-api-dev",
     configureServer(server) {
-      server.middlewares.use("/api/availability", async (req, res) => {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url || !req.url.startsWith("/api/")) return next();
         try {
-          if (env.SMOOBU_API_KEY) process.env.SMOOBU_API_KEY = env.SMOOBU_API_KEY;
-          if (env.SMOOBU_API_SECRET) process.env.SMOOBU_API_SECRET = env.SMOOBU_API_SECRET;
-          const mod = await server.ssrLoadModule("/api/availability.js");
-          const handler = mod.default;
+          for (const k of ["SMOOBU_API_KEY", "SMOOBU_API_SECRET", "BOOKING_LIVE"]) {
+            if (env[k]) process.env[k] = env[k];
+          }
           const parsed = new URL(req.url, "http://localhost");
+          const name = parsed.pathname.replace(/^\/api\//, "").split("/")[0];
+          const mod = await server.ssrLoadModule(`/api/${name}.js`);
+          const handler = mod.default;
+          if (!handler) return next();
+
           const query = Object.fromEntries(parsed.searchParams.entries());
+          let body;
+          if (req.method === "POST" || req.method === "PUT") {
+            body = await new Promise((resolve) => {
+              let data = "";
+              req.on("data", (c) => (data += c));
+              req.on("end", () => { try { resolve(JSON.parse(data || "{}")); } catch { resolve({}); } });
+            });
+          }
+
           const resShim = {
             statusCode: 200,
             setHeader: (k, v) => res.setHeader(k, v),
-            status(code) {
-              this.statusCode = code;
-              return this;
-            },
+            status(code) { this.statusCode = code; return this; },
             json(obj) {
               res.statusCode = this.statusCode;
               res.setHeader("Content-Type", "application/json; charset=utf-8");
               res.end(JSON.stringify(obj));
             },
           };
-          await handler({ query, method: req.method }, resShim);
+          await handler({ query, method: req.method, body }, resShim);
         } catch (e) {
           res.statusCode = 500;
           res.setHeader("Content-Type", "application/json; charset=utf-8");
