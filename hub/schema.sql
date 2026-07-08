@@ -111,4 +111,16 @@ CREATE INDEX IF NOT EXISTS idx_posts_pub ON posts(published_at DESC);
 -- roluri flexibile (admin/client/orice)
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 
+-- heatmap: click-uri anonime de pe site (fără date personale)
+CREATE TABLE IF NOT EXISTS page_events (
+  id BIGSERIAL PRIMARY KEY,
+  path TEXT NOT NULL,
+  device TEXT NOT NULL DEFAULT 'desktop',
+  x REAL NOT NULL,          -- fracție 0..1 din lățimea viewportului
+  y INT NOT NULL,           -- px absolut în document
+  doc_h INT,                -- înălțimea documentului la momentul clickului
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_page_events ON page_events(path, device, created_at DESC);
+
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS channel TEXT;

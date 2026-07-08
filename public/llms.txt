@@ -1,0 +1,28 @@
+# ROOTS Villas Brașov
+
+> Două vile private de închiriat integral în Stupini, Brașov, România — Vila Redwood și
+> Vila Sequoia — pentru grupuri de 8–10 persoane. Fiecare vilă are 4 dormitoare cu baie
+> proprie, ciubăr (hot tub) încălzit pe gaz, saună finlandeză, firepit și curte privată.
+> La 10 minute de centrul Brașovului, într-un cartier liniștit de case.
+
+## Esențial
+- Capacitate: 8 persoane standard (max 10 la cerere) per vilă
+- Facilități: ciubăr încălzit pe gaz, saună, firepit, bucătărie complet echipată,
+  parcare privată, Wi-Fi, Smart TV
+- Check-in 16:00 · Check-out 11:00
+- Anulare gratuită cu până la 15 zile înainte de sosire
+- Rezervare directă online cu calendar de disponibilitate live: /rezervare
+- Limbi: română, engleză, ebraică, franceză
+
+## Pagini
+- [Vila Redwood](/vila-redwood): galerie foto, facilități pe camere, calendar
+- [Vila Sequoia](/vila-sequoia): galerie foto, facilități pe camere, calendar
+- [Rezervare](/rezervare): disponibilitate live și prețuri pentru ambele vile
+- [Despre noi](/despre-noi): povestea Roots (2020–2022)
+- [Blog](/blog): recomandări locale și noutăți
+- [Termeni și condiții](/termeni-si-conditii)
+
+## Contact
+- Locație: Stupini, Brașov, România
+- Operator: PANOCUBE SRL (CUI 37334344) & KRONPERFORMANCE SRL (CUI 41375849)
+- Site: https://roots-opal.vercel.app

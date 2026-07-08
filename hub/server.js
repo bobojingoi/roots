@@ -156,6 +156,36 @@ app.get('/api/v1/editor-token', requireAuth, (req, res) => {
   });
 });
 
+/* ============ LOGIN DE PE SITE (Bearer, cross-origin) ============ */
+app.post('/api/v1/site-login', async (req, res) => {
+  const { email, password } = req.body || {};
+  const r = await pool.query('SELECT * FROM users WHERE lower(email) = lower($1)', [String(email || '')]);
+  const user = r.rows[0];
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
+    return res.status(401).json({ error: 'Email sau parolă greșite' });
+  }
+  const { signToken } = require('./auth');
+  emit('SiteLogin', { email: user.email });
+  res.json({
+    ok: true,
+    token: signToken({ id: user.id, role: user.role, email: user.email }, 30 * 24 * 60 * 60),
+    user: { name: user.name, email: user.email, role: user.role },
+  });
+});
+
+/* contul clientului: datele lui + rezervările legate de emailul lui */
+app.get('/api/v1/my-account', requireAuth, async (req, res) => {
+  const u = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [req.user.id]);
+  const b = await pool.query(
+    `SELECT b.villa, b.arrival, b.departure, b.guests_count, b.status
+     FROM bookings b JOIN guests g ON g.id = b.guest_id
+     WHERE lower(g.email) = lower($1) AND b.status <> 'blocked'
+     ORDER BY b.arrival DESC LIMIT 50`,
+    [req.user.email]
+  );
+  res.json({ user: u.rows[0] || null, bookings: b.rows });
+});
+
 app.get('/api/v1/auth/me', requireAuth, async (req, res) => {
   const r = await pool.query('SELECT id, email, name, role FROM users WHERE id = $1', [req.user.id]);
   res.json({ user: r.rows[0] || null });
@@ -537,6 +567,134 @@ app.patch('/api/v1/admin/guests/:id', requireAuth, async (req, res) => {
   if (!r.rows.length) return res.status(404).json({ error: 'Client inexistent' });
   emit('GuestUpdated', { id: req.params.id, by: req.user.email });
   res.json({ ok: true, guest: r.rows[0] });
+});
+
+/* ============ HEATMAP: tracking public + agregare admin ============ */
+app.post('/api/v1/track', async (req, res) => {
+  try {
+    const { path: p, device, x, y, dh } = req.body || {};
+    const cleanPath = String(p || '').slice(0, 200);
+    const fx = Number(x), fy = Math.round(Number(y));
+    if (!cleanPath.startsWith('/') || !(fx >= 0 && fx <= 1) || !(fy >= 0 && fy < 200000)) {
+      return res.status(400).json({ error: 'payload invalid' });
+    }
+    await pool.query(
+      'INSERT INTO page_events (path, device, x, y, doc_h) VALUES ($1, $2, $3, $4, $5)',
+      [cleanPath, device === 'mobile' ? 'mobile' : 'desktop', fx, fy, Math.round(Number(dh)) || null]
+    );
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/v1/admin/heatmap', requireAuth, async (req, res) => {
+  const p = String(req.query.path || '/');
+  const device = req.query.device === 'mobile' ? 'mobile' : 'desktop';
+  const days = Math.min(365, parseInt(req.query.days, 10) || 90);
+  const pts = await pool.query(
+    `SELECT x, y FROM page_events
+     WHERE path = $1 AND device = $2 AND created_at > now() - ($3 || ' days')::interval
+     ORDER BY created_at DESC LIMIT 20000`,
+    [p, device, days]
+  );
+  const meta = await pool.query(
+    `SELECT count(*)::int AS total, COALESCE(percentile_cont(0.9) WITHIN GROUP (ORDER BY doc_h), 4000)::int AS doc_h
+     FROM page_events
+     WHERE path = $1 AND device = $2 AND created_at > now() - ($3 || ' days')::interval AND doc_h IS NOT NULL`,
+    [p, device, days]
+  );
+  res.json({ points: pts.rows, total: meta.rows[0].total, docH: meta.rows[0].doc_h });
+});
+
+/* ============ AUDIT SEO (Google + LLM) ============ */
+const SITE_URL = (process.env.SITE_URL || 'https://roots-opal.vercel.app').replace(/\/$/, '');
+
+async function fetchText(url) {
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'RootsHub-SEO-Audit/1.0' }, redirect: 'follow' });
+    return { status: r.status, text: r.ok ? await r.text() : '' };
+  } catch (e) {
+    return { status: 0, text: '', error: e.message };
+  }
+}
+
+function auditHtml(html, path) {
+  const checks = [];
+  const add = (level, title, advice) => checks.push({ level, title, advice });
+  const pick = (re) => { const m = html.match(re); return m ? m[1].trim() : null; };
+
+  const title = pick(/<title[^>]*>([^<]*)<\/title>/i);
+  if (!title) add('fail', 'Lipsește <title>', 'Adaugă un titlu unic pe pagină (50–60 caractere, cu „Brașov" și numele vilei).');
+  else if (title.length < 25 || title.length > 65) add('warn', `Titlul are ${title.length} caractere: „${title.slice(0, 60)}"`, 'Ideal 50–60 caractere, cu cuvintele cheie la început.');
+  else add('ok', `Titlu: „${title.slice(0, 60)}"`, 'Lungime bună.');
+
+  const desc = pick(/<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i) || pick(/<meta\s+content=["']([^"']*)["']\s+name=["']description["']/i);
+  if (!desc) add('fail', 'Lipsește meta description', 'Adaugă o descriere de 140–160 caractere — apare în rezultatele Google și influențează rata de click.');
+  else if (desc.length < 70 || desc.length > 170) add('warn', `Meta description are ${desc.length} caractere`, 'Ideal 140–160 caractere.');
+  else add('ok', 'Meta description prezentă', `${desc.length} caractere.`);
+
+  if (!/<link[^>]+rel=["']canonical["']/i.test(html)) add('warn', 'Lipsește link canonical', 'Adaugă <link rel="canonical"> ca Google să știe URL-ul principal al paginii (evită conținut duplicat, mai ales cu ?lang=).');
+  else add('ok', 'Canonical prezent', '');
+
+  if (!/<meta\s+property=["']og:title["']/i.test(html)) add('warn', 'Lipsesc tagurile Open Graph', 'og:title, og:description, og:image — controlează cum arată linkul pe WhatsApp/Facebook, unde vin mulți oaspeți.');
+  else add('ok', 'Open Graph prezent', '');
+
+  const h1s = (html.match(/<h1[\s>]/gi) || []).length;
+  if (h1s === 0) add('fail', 'Niciun <h1> în HTML-ul livrat', 'Google și LLM-urile citesc HTML-ul inițial — dacă h1 vine doar din JavaScript, multe crawlere nu îl văd.');
+  else if (h1s > 1) add('warn', `${h1s} taguri <h1>`, 'Păstrează un singur h1 pe pagină.');
+  else add('ok', 'Un singur <h1>', '');
+
+  const imgs = html.match(/<img[^>]*>/gi) || [];
+  const noAlt = imgs.filter((i) => !/alt=["'][^"']+["']/i.test(i)).length;
+  if (imgs.length && noAlt) add('warn', `${noAlt}/${imgs.length} imagini fără alt`, 'Textul alternativ ajută Google Images și cititoarele de ecran.');
+  else if (imgs.length) add('ok', 'Toate imaginile au alt', '');
+
+  if (!/hreflang/i.test(html)) add('warn', 'Lipsesc tagurile hreflang', 'Site-ul e în RO/EN/HE/FR — adaugă <link rel="alternate" hreflang="…"> ca Google să servească limba corectă.');
+  else add('ok', 'hreflang prezent', '');
+
+  if (!/application\/ld\+json/i.test(html)) add('warn', 'Lipsește schema.org (JSON-LD)', 'Adaugă LodgingBusiness / VacationRental cu adresă, rating, prețuri — apare în rezultate îmbogățite și e citit de LLM-uri.');
+  else add('ok', 'JSON-LD prezent', '');
+
+  if (!/<html[^>]+lang=/i.test(html)) add('warn', 'Lipsește atributul lang pe <html>', 'Setează lang="ro" (și schimbă-l dinamic pe alte limbi).');
+  else add('ok', 'Atribut lang prezent', '');
+
+  // detecție SPA: conținutul e randat din JavaScript?
+  const bodyText = (html.split(/<body[^>]*>/i)[1] || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (bodyText.length < 300) {
+    add('fail', `Conținut vizibil în HTML: doar ~${bodyText.length} caractere`, 'Pagina e o aplicație JavaScript (SPA) — Google o poate randa, dar ChatGPT, Claude, Perplexity și alte LLM-uri văd o pagină goală. Soluția: pre-randare / SSR (ex. prerender la build sau migrare pe Next.js/Astro). Este cea mai importantă îmbunătățire pentru vizibilitate în AI.');
+  } else {
+    add('ok', `~${bodyText.length} caractere de conținut în HTML`, 'Crawlerele văd conținutul fără să execute JavaScript.');
+  }
+  return checks;
+}
+
+app.get('/api/v1/admin/seo-audit', requireAuth, async (req, res) => {
+  const p = String(req.query.path || '/');
+  const page = await fetchText(SITE_URL + p);
+  if (!page.status || page.status >= 400) {
+    return res.json({ path: p, status: page.status, checks: [{ level: 'fail', title: `Pagina nu răspunde (HTTP ${page.status})`, advice: page.error || 'Verifică URL-ul.' }] });
+  }
+  const checks = auditHtml(page.text, p);
+  if (p === '/') {
+    const [robots, sitemap, llms] = await Promise.all([
+      fetchText(SITE_URL + '/robots.txt'),
+      fetchText(SITE_URL + '/sitemap.xml'),
+      fetchText(SITE_URL + '/llms.txt'),
+    ]);
+    // SPA-ul răspunde 200 cu HTML la orice cale — validăm conținutul, nu doar statusul
+    const robotsOk = robots.status === 200 && /user-agent/i.test(robots.text);
+    checks.push(robotsOk && /sitemap/i.test(robots.text)
+      ? { level: 'ok', title: 'robots.txt cu sitemap', advice: '' }
+      : { level: robotsOk ? 'warn' : 'fail', title: robotsOk ? 'robots.txt fără link către sitemap' : 'Lipsește robots.txt', advice: 'Spune-le crawlerelor ce pot indexa și unde e sitemap-ul.' });
+    checks.push(sitemap.status === 200 && /<urlset/i.test(sitemap.text)
+      ? { level: 'ok', title: 'sitemap.xml prezent', advice: '' }
+      : { level: 'fail', title: 'Lipsește sitemap.xml', advice: 'Lista tuturor paginilor — Google le descoperă și indexează mai repede.' });
+    checks.push(llms.status === 200 && !/<!doctype/i.test(llms.text) && llms.text.length > 100
+      ? { level: 'ok', title: 'llms.txt prezent', advice: '' }
+      : { level: 'warn', title: 'Lipsește llms.txt', advice: 'Standard nou citit de ChatGPT, Claude, Perplexity: un rezumat al site-ului în text simplu, la /llms.txt. Crește șansa ca AI-ul să recomande corect vilele.' });
+  }
+  res.json({ path: p, status: page.status, checks });
 });
 
 /* ============ pagini ============ */

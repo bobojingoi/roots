@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://roots-opal.vercel.app/sitemap.xml

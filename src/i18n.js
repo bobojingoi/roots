@@ -110,6 +110,16 @@ const D = {
   vp_loc_title: { ro: "Localizată în Brașov, într-un cartier de case liniștit, la 10 minute de centru.", en: "Located in Brașov, in a quiet residential neighbourhood, 10 minutes from the center.", he: "ממוקמת בברשוב, בשכונת מגורים שקטה, 10 דקות מהמרכז.", fr: "Située à Brașov, dans un quartier résidentiel calme, à 10 minutes du centre." },
   vp_more_info: { ro: "Alte informații utile", en: "Other useful information", he: "מידע שימושי נוסף", fr: "Autres informations utiles" },
   vp_open_maps: { ro: "Deschide locația în Google Maps", en: "Open location in Google Maps", he: "פתחו את המיקום ב-Google Maps", fr: "Ouvrir dans Google Maps" },
+  acc_title:    { ro: "Contul meu", en: "My account", he: "החשבון שלי", fr: "Mon compte" },
+  acc_login:    { ro: "Autentificare", en: "Sign in", he: "התחברות", fr: "Connexion" },
+  acc_email:    { ro: "Email", en: "Email", he: "אימייל", fr: "E-mail" },
+  acc_pass:     { ro: "Parolă", en: "Password", he: "סיסמה", fr: "Mot de passe" },
+  acc_hello:    { ro: "Bună, {n}!", en: "Hello, {n}!", he: "שלום, {n}!", fr: "Bonjour {n} !" },
+  acc_bookings: { ro: "Sejururile tale", en: "Your stays", he: "השהיות שלך", fr: "Vos séjours" },
+  acc_none:     { ro: "Nu am găsit sejururi pe acest email încă.", en: "No stays found for this email yet.", he: "לא נמצאו שהיות לאימייל זה עדיין.", fr: "Aucun séjour trouvé pour cet e-mail." },
+  acc_logout:   { ro: "Deconectare", en: "Sign out", he: "התנתקות", fr: "Déconnexion" },
+  acc_admin:    { ro: "Deschide panoul de administrare", en: "Open the admin panel", he: "פתח את פאנל הניהול", fr: "Ouvrir le panneau d'administration" },
+  acc_help:     { ro: "Nu ai cont? Primești unul la prima rezervare — sau scrie-ne pe WhatsApp.", en: "No account? You get one with your first booking — or message us on WhatsApp.", he: "אין חשבון? תקבלו אחד בהזמנה הראשונה — או כתבו לנו בוואטסאפ.", fr: "Pas de compte ? Vous en recevez un à la première réservation — ou écrivez-nous sur WhatsApp." },
 };
 
 export function t(key, vars) {

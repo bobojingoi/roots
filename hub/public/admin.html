@@ -181,6 +181,8 @@ const ICONS = {
   user: SV('<circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.7-3.6 3.3-5.5 6.5-5.5s5.8 1.9 6.5 5.5"/>'),
   clock: SV('<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>'),
   palette: SV('<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-.8 2-1.8 0-.9-.6-1.4-.6-2.2 0-1 .8-1.8 2-1.8h1.8c1.9 0 3.3-1.4 3.3-3.2C20.5 7 16.7 3.5 12 3.5Z"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="10" r="1"/>'),
+  seo: SV('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>'),
+  heat: SV('<path d="M12 3c1 3.5-3.5 5-3.5 9a3.5 3.5 0 0 0 7 0c0-1.6-.8-2.8-1.5-4"/><path d="M12 21a6.5 6.5 0 0 1-6.5-6.5C5.5 10 9 7.5 9.5 5c2 1.5 1 4 2.5 5.5C13.5 12 15 11 15 8.5c2 1.7 3.5 3.7 3.5 6A6.5 6.5 0 0 1 12 21Z"/>'),
   panou: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
   sec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h16M4 19h10"/></svg>',
   media: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 3 3 4-4 4 4"/></svg>',
@@ -199,6 +201,18 @@ async function api(path, opts = {}) {
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ============ nav ============ */
+const SITE = location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://roots-opal.vercel.app';
+const SECTION_PATHS = {
+  villa_redwood: '/vila-redwood', villa_sequoia: '/vila-sequoia',
+  welcome_redwood: '/welcome-redwood', welcome_sequoia: '/welcome-sequoia',
+  about_page: '/despre-noi', legal_privacy: '/politica-de-confidentialitate',
+  legal_cookies: '/politica-cookies', legal_terms: '/termeni-si-conditii',
+};
+function livePageUrl(key) {
+  const [base, lang] = key.split('@');
+  const path = SECTION_PATHS[base] || '/';
+  return SITE + path + (lang ? '?lang=' + lang : '');
+}
 let NAVOPEN = new Set();
 function toggleGroup(key) { NAVOPEN.has(key) ? NAVOPEN.delete(key) : NAVOPEN.add(key); renderNav(); }
 function renderNav() {
@@ -238,6 +252,9 @@ function renderNav() {
   h += `<button class="nav-i ${TAB === 'bookings' ? 'on' : ''}" onclick="go('bookings')">${ICONS.cal} Rezervări</button>`;
   h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
+  h += `<div class="nav-cap">Analiză</div>`;
+  h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
+  h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
   h += `<div class="nav-cap">Blog</div>`;
   h += `<button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
   h += `<div class="nav-cap">Bibliotecă</div>`;
@@ -330,6 +347,8 @@ async function renderMain() {
   if (TAB === 'media') { renderMedia(); return; }
   if (TAB === 'blog') { renderBlog(); return; }
   if (TAB === 'greviews') { renderGReviews(); return; }
+  if (TAB === 'seo') { renderSeo(); return; }
+  if (TAB === 'heatmap') { renderHeatmap(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
   if (TAB === 'themes') { renderThemes(); return; }
@@ -343,7 +362,10 @@ async function renderMain() {
     m.innerHTML = `
       <div class="sec-head">
         <div><h1>${esc(label)}</h1><div class="lead">${esc(sub)}</div></div>
-        <span class="badge ${modified ? 'mod' : 'pub'}">${modified ? 'Modificări nepublicate' : 'Publicat'}</span>
+        <div style="display:flex;gap:10px;align-items:center">
+          <a class="btn s" href="${livePageUrl(key)}" target="_blank" rel="noopener" style="text-decoration:none">Vezi pagina live ↗</a>
+          <span class="badge ${modified ? 'mod' : 'pub'}">${modified ? 'Modificări nepublicate' : 'Publicat'}</span>
+        </div>
       </div>
       <div class="card" id="form">${objHtml('root', CUR.draft)}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -439,6 +461,112 @@ async function saveGReviews(btn) {
   btn.disabled = false;
 }
 
+/* ============ Audit SEO ============ */
+const SEO_PAGES = [
+  ['/', 'Pagina principală'], ['/vila-redwood', 'Vila Redwood'], ['/vila-sequoia', 'Vila Sequoia'],
+  ['/rezervare', 'Rezervare'], ['/blog', 'Blog'], ['/despre-noi', 'Despre noi'],
+  ['/termeni-si-conditii', 'Termeni'], ['/politica-de-confidentialitate', 'Confidențialitate'],
+];
+let SEO_RES = {};
+async function renderSeo() {
+  $('main').innerHTML = `
+    <h1>Audit SEO</h1>
+    <div class="lead">Analizează HTML-ul livrat de site — exact ce văd Google și LLM-urile (ChatGPT, Claude, Perplexity) înainte să ruleze JavaScript.</div>
+    <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn p" onclick="runSeoAll(this)">Rulează auditul pe toate paginile</button>
+      <span class="hint">Auditează pagina live (${esc(SITE)}). Durează câteva secunde.</span>
+    </div>
+    <div id="seoOut">${seoResultsHtml()}</div>`;
+}
+function seoBadge(l) {
+  const map = { ok: ['#157a55', 'OK'], warn: ['#c98a06', 'De îmbunătățit'], fail: ['#c0392b', 'Problemă'] };
+  const [c, t] = map[l] || map.warn;
+  return `<span style="display:inline-block;min-width:96px;text-align:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;color:#fff;background:${c}">${t}</span>`;
+}
+function seoResultsHtml() {
+  const keys = Object.keys(SEO_RES);
+  if (!keys.length) return '<div class="card"><div class="hint">Niciun audit rulat încă.</div></div>';
+  let score = { ok: 0, warn: 0, fail: 0 };
+  keys.forEach((k) => SEO_RES[k].checks.forEach((c) => score[c.level] = (score[c.level] || 0) + 1));
+  let h = `<div class="card"><b>Rezumat:</b> <span style="color:#157a55;font-weight:700">${score.ok} OK</span> ·
+    <span style="color:#c98a06;font-weight:700">${score.warn} de îmbunătățit</span> ·
+    <span style="color:#c0392b;font-weight:700">${score.fail} probleme</span>
+    <div class="hint" style="margin-top:6px">Prioritate: rezolvă întâi „Problemă", apoi „De îmbunătățit". Recomandările pentru LLM-uri (llms.txt, conținut în HTML, JSON-LD) contează tot mai mult — asistenții AI recomandă cazări direct.</div></div>`;
+  for (const k of keys) {
+    const r = SEO_RES[k];
+    const label = (SEO_PAGES.find((x) => x[0] === k) || [k, k])[1];
+    h += `<div class="card"><b>${esc(label)}</b> <span class="hint">${esc(k)}</span>
+      <div style="margin-top:10px;display:grid;gap:8px">` +
+      r.checks.map((c) => `<div style="display:flex;gap:10px;align-items:flex-start">
+        ${seoBadge(c.level)}
+        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(c.title)}</b>
+        ${c.advice ? `<div class="hint" style="white-space:normal;margin-top:2px">${esc(c.advice)}</div>` : ''}</div></div>`).join('') +
+      `</div></div>`;
+  }
+  return h;
+}
+async function runSeoAll(btn) {
+  btn.disabled = true; btn.textContent = 'Analizez…';
+  for (const [p] of SEO_PAGES) {
+    try { SEO_RES[p] = await api('/api/v1/admin/seo-audit?path=' + encodeURIComponent(p)); }
+    catch (e) { SEO_RES[p] = { checks: [{ level: 'fail', title: 'Eroare: ' + e.message, advice: '' }] }; }
+    const out = $('seoOut'); if (out) out.innerHTML = seoResultsHtml();
+  }
+  btn.disabled = false; btn.textContent = 'Rulează auditul pe toate paginile';
+}
+
+/* ============ Heatmap ============ */
+let HM = { path: '/', device: 'desktop' };
+async function renderHeatmap() {
+  $('main').innerHTML = `
+    <h1>Heatmap</h1>
+    <div class="lead">Unde dau click vizitatorii — colectat anonim de pe site (ultimele 90 de zile).</div>
+    <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <select class="f" style="width:auto" onchange="HM.path=this.value;loadHeatmap()">
+        ${SEO_PAGES.map(([p, n]) => `<option value="${p}" ${HM.path === p ? 'selected' : ''}>${n}</option>`).join('')}
+      </select>
+      <select class="f" style="width:auto" onchange="HM.device=this.value;loadHeatmap()">
+        <option value="desktop" ${HM.device === 'desktop' ? 'selected' : ''}>Desktop</option>
+        <option value="mobile" ${HM.device === 'mobile' ? 'selected' : ''}>Mobil</option>
+      </select>
+      <span class="hint" id="hmInfo"></span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="hmWrap" style="position:relative;height:70vh;overflow:auto;background:#fff">
+        <iframe id="hmFrame" style="border:0;display:block;pointer-events:none" scrolling="no"></iframe>
+        <canvas id="hmCanvas" style="position:absolute;left:0;top:0;pointer-events:none"></canvas>
+      </div>
+    </div>`;
+  loadHeatmap();
+}
+async function loadHeatmap() {
+  const info = $('hmInfo');
+  info.textContent = 'Se încarcă…';
+  let j;
+  try { j = await api(`/api/v1/admin/heatmap?path=${encodeURIComponent(HM.path)}&device=${HM.device}`); }
+  catch (e) { info.textContent = e.message; return; }
+  const W = HM.device === 'mobile' ? 390 : 1280;
+  const H = Math.max(1200, Math.min(20000, j.docH || 4000));
+  const frame = $('hmFrame'), cv = $('hmCanvas');
+  frame.width = W; frame.style.width = W + 'px'; frame.style.height = H + 'px';
+  frame.src = SITE + HM.path;
+  cv.width = W; cv.height = H; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  for (const pt of j.points) {
+    const gx = pt.x * W, gy = pt.y;
+    const g = ctx.createRadialGradient(gx, gy, 2, gx, gy, 34);
+    g.addColorStop(0, 'rgba(255,60,30,.35)');
+    g.addColorStop(.5, 'rgba(255,140,0,.16)');
+    g.addColorStop(1, 'rgba(255,200,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(gx - 34, gy - 34, 68, 68);
+  }
+  info.textContent = j.total
+    ? `${j.total} click-uri înregistrate (${HM.device}). Roșu intens = multe click-uri.`
+    : 'Niciun click înregistrat încă pe această pagină/dispozitiv — datele apar după ce vizitatorii folosesc site-ul.';
+}
+
 /* ============ dashboard statistici ============ */
 const DPAL = ['#157a55', '#e8722c', '#378add', '#e9b872', '#d4537e', '#7f77dd', '#5f5e5a'];
 let DASH_Y = String(new Date().getFullYear()), DASH_M = '';
@@ -508,7 +636,6 @@ async function renderDash() {
       <div class="kpi anim" style="animation-delay:.12s"><span>nopți</span><b data-cnt="${nights}" data-fmt="int">0</b></div>
       <div class="kpi anim" style="animation-delay:.18s"><span>anulări</span><b data-cnt="${nC}" data-fmt="int">0</b></div>
       <div class="kpi anim" style="animation-delay:.24s"><span>grad de ocupare (2 vile)</span><b data-cnt="${occupancy.toFixed(1)}" data-fmt="pct">0</b></div>
-      <div class="kpi anim" style="animation-delay:.3s"><span>secțiuni publicate</span><b>${pub} / ${SECTIONS.length}</b></div>
     </div>
     ${st.byChannel.length === 0 ? `<div class="card" style="margin-top:16px"><b>Fără date încă</b><div class="hint">Apasă „Sincronizează din Smoobu" în CRM → Rezervări. Sync-ul aduce acum întregul istoric (din 2019) și anulările.</div></div>` : `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:16px">

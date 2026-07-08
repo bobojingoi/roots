@@ -1339,6 +1339,7 @@ export function Footer({ contact }) {
           <span>© {new Date().getFullYear()} ROOTS Villas Brașov. {t("foot_rights")}</span>
           <span>
             Stupini · Brașov · România ·{" "}
+            <Link to="/cont" style={{ display: "inline", margin: 0 }}>{t("acc_title")}</Link> ·{" "}
             <a href="https://roots-hub-dun.vercel.app/login" style={{ display: "inline", margin: 0 }}>Administrare</a>
           </span>
         </div>
