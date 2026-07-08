@@ -98,16 +98,18 @@ app.get('/api/v1/health', async (_req, res) => {
 });
 
 /* ============ Google Reviews (public, cache 6h) ============ */
-let gReviewsCache = null; // { at, data }
-app.get('/api/v1/google-reviews', async (_req, res) => {
+const gReviewsCache = {}; // per limbă: { at, data }
+app.get('/api/v1/google-reviews', async (req, res) => {
   const key = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
   const placeId = (process.env.GOOGLE_PLACE_ID || '').trim();
   if (!key || !placeId) return res.json({ configured: false, rating: null, reviews: [] });
-  if (gReviewsCache && Date.now() - gReviewsCache.at < 6 * 3600e3) return res.json(gReviewsCache.data);
+  const lang = ['ro', 'en', 'he', 'fr'].includes(req.query.lang) ? req.query.lang : 'ro';
+  const cached = gReviewsCache[lang];
+  if (cached && Date.now() - cached.at < 6 * 3600e3) return res.json(cached.data);
   try {
     const r = await fetch(
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}` +
-        `&fields=rating,user_ratings_total,reviews&language=ro&key=${key}`
+        `&fields=rating,user_ratings_total,reviews&language=${lang === 'he' ? 'iw' : lang}&key=${key}`
     );
     const j = await r.json();
     const out = {
@@ -122,7 +124,7 @@ app.get('/api/v1/google-reviews', async (_req, res) => {
         photo: rv.profile_photo_url,
       })),
     };
-    gReviewsCache = { at: Date.now(), data: out };
+    gReviewsCache[lang] = { at: Date.now(), data: out };
     res.json(out);
   } catch (e) {
     res.json({ configured: true, rating: null, reviews: [], error: e.message });

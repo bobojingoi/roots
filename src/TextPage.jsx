@@ -53,11 +53,11 @@ export default function TextPage({ sectionKey }) {
       <TextHeader />
       <main className="txt-main">
         {!loaded ? (
-          <p className="txt-intro">Se încarcă…</p>
+          <p className="txt-intro">{t("loading")}</p>
         ) : !page ? (
           <>
-            <h1>Pagina nu a fost găsită</h1>
-            <p className="txt-intro"><Link to="/">Înapoi la pagina principală</Link></p>
+            <h1>{t("page_missing")}</h1>
+            <p className="txt-intro"><Link to="/">{t("back_home")}</Link></p>
           </>
         ) : (
           <>

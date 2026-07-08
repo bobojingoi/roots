@@ -522,13 +522,19 @@ section{position:relative}
 .nav .cta{color:#fff;background:var(--ember);padding:10px 20px;border-radius:100px;box-shadow:0 6px 18px rgba(232,114,44,.35)}
 .nav .cta:hover{color:#fff;background:var(--ember-2);transform:translateY(-1px)}
 @media(max-width:760px){.nav a:not(.cta){display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
-.langs{display:flex;gap:3px;align-items:center}
+.langs{display:flex;gap:6px;align-items:center}
 .lang{border:1.5px solid rgba(255,255,255,.3);background:none;color:rgba(255,255,255,.75);border-radius:8px;padding:5px 8px;font:700 11.5px 'Manrope',sans-serif;cursor:pointer;letter-spacing:.04em}
 .hdr.solid .lang{border-color:var(--line);color:var(--ink-soft)}
+.lang.flag{width:30px;height:22px;padding:0;border-radius:5px;overflow:hidden;display:grid;place-items:center;opacity:.55;transition:opacity .25s, transform .25s, box-shadow .25s}
+.lang.flag svg{width:100%;height:100%;display:block;object-fit:cover}
+.lang.flag:hover{opacity:1;transform:translateY(-1px)}
+.lang.flag.on{opacity:1;border-color:var(--ember);box-shadow:0 0 0 2px rgba(232,114,44,.35)}
+@media(max-width:760px){.hdr .nav:has(.burger) .langs{display:none}}
 .lang.on{background:var(--ember);border-color:var(--ember);color:#fff}
 .hdr.solid .lang.on{color:#fff}
-.mnav .langs{gap:8px}
+.mnav .langs{gap:12px}
 .mnav .lang{font-size:14px;padding:9px 14px}
+.mnav .lang.flag{width:46px;height:33px;border-radius:7px}
 [dir="rtl"] .hero h1,[dir="rtl"] .sec h2,[dir="rtl"] .lede{text-align:right}
 [dir="rtl"] .eyebrow::before{display:none}
 .burger{display:none;width:42px;height:42px;border-radius:10px;border:1.5px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:19px;cursor:pointer;flex-shrink:0}
@@ -548,7 +554,7 @@ section{position:relative}
 .ridge svg{display:block;width:100%;height:auto}
 .ridge-far{bottom:120px;opacity:.5}
 .ridge-near{bottom:0}
-.hero-inner{position:relative;z-index:3;width:100%;padding:0 0 96px}
+.hero-inner{position:relative;z-index:3;width:100%;padding:0 22px 96px}
 .hero-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:22px}
 .hero-eyebrow::before{content:"";width:34px;height:1px;background:var(--gold)}
 .hero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(42px,7.2vw,84px);line-height:1.04;letter-spacing:-.015em;max-width:13ch}
@@ -856,12 +862,20 @@ export function useSiteContent() {
 }
 
 /* Selector de limbă (RO / EN / HE / FR) */
+/* steaguri SVG (emoji-urile de steag nu se randează pe Windows) */
+const FLAGS = {
+  ro: <svg viewBox="0 0 3 2"><rect width="1" height="2" fill="#002B7F"/><rect x="1" width="1" height="2" fill="#FCD116"/><rect x="2" width="1" height="2" fill="#CE1126"/></svg>,
+  en: <svg viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0,0 60,40M60,0 0,40" stroke="#fff" strokeWidth="7"/><path d="M0,0 60,40M60,0 0,40" stroke="#C8102E" strokeWidth="4"/><path d="M30,0V40M0,20H60" stroke="#fff" strokeWidth="13"/><path d="M30,0V40M0,20H60" stroke="#C8102E" strokeWidth="7"/></svg>,
+  he: <svg viewBox="0 0 60 44"><rect width="60" height="44" fill="#fff"/><rect y="5" width="60" height="6" fill="#0038B8"/><rect y="33" width="60" height="6" fill="#0038B8"/><path d="M30 13.5 36.5 25 23.5 25Z M30 30.5 23.5 19 36.5 19Z" fill="none" stroke="#0038B8" strokeWidth="2.4"/></svg>,
+  fr: <svg viewBox="0 0 3 2"><rect width="1" height="2" fill="#002395"/><rect x="1" width="1" height="2" fill="#fff"/><rect x="2" width="1" height="2" fill="#ED2939"/></svg>,
+};
+
 export function LangSwitcher() {
   return (
     <div className="langs">
       {LANGS.map((l) => (
-        <button key={l.code} type="button" className={`lang ${l.code === LANG ? "on" : ""}`} onClick={() => setLang(l.code)} aria-label={l.name}>
-          {l.label}
+        <button key={l.code} type="button" className={`lang flag ${l.code === LANG ? "on" : ""}`} onClick={() => setLang(l.code)} aria-label={l.name} title={l.name}>
+          {FLAGS[l.code] || l.label}
         </button>
       ))}
     </div>
@@ -1036,15 +1050,15 @@ function VillaCard({ villa, delay, contact, idx }) {
             <div className="glow" />
           </>
         )}
-        <span className="vcard-tag">{villa.id === "redwood" ? "Vila 01" : "Vila 02"}</span>
+        <span className="vcard-tag">{t("villa_tag", { n: villa.id === "redwood" ? "01" : "02" })}</span>
       </div>
       <div className="vcard-body">
         <h3 data-edit={`villas.items.${idx}.name`}>{villa.name}</h3>
         <div className="tagline" data-edit={`villas.items.${idx}.tagline`}>{villa.tagline}</div>
         <p className="desc" data-edit={`villas.items.${idx}.description`}>{villa.description}</p>
-        <div className="feat-list">
+        <div className="feat-list" data-edit-list={`villas.items.${idx}.features`}>
           {villa.features.map((f, i) => (
-            <div className="feat" key={i}>
+            <div className="feat" key={i} data-edit-idx={i}>
               {ICONS[FEATURE_ICON_ORDER[i % FEATURE_ICON_ORDER.length]]}
               <span data-edit={`villas.items.${idx}.features.${i}`}>{f}</span>
             </div>
@@ -1083,11 +1097,13 @@ function Villas({ villas, contact }) {
 function Editorial({ editorial }) {
   return (
     <section className="sec">
-      <div className="wrap edit-grid">
+      <div className="wrap edit-grid" data-edit-list="editorial.blocks">
         {editorial.map((b, i) => (
-          <div className={`edit-block rv ${i === 1 ? "rv-d1" : ""}`} key={i}>
+          <div className={`edit-block rv ${i === 1 ? "rv-d1" : ""}`} key={i} data-edit-idx={i}>
             <h3 data-edit={`editorial.blocks.${i}.title`}>{b.title}</h3>
-            {b.paragraphs.map((p, j) => <p key={j} data-edit={`editorial.blocks.${i}.paragraphs.${j}`}>{p}</p>)}
+            <div data-edit-list={`editorial.blocks.${i}.paragraphs`}>
+              {b.paragraphs.map((p, j) => <p key={j} data-edit={`editorial.blocks.${i}.paragraphs.${j}`} data-edit-idx={j}>{p}</p>)}
+            </div>
           </div>
         ))}
       </div>
@@ -1104,9 +1120,9 @@ function Common({ common }) {
             <div className="eyebrow">{t("common_eyebrow")}</div>
             <h2 data-edit="common.title">{common.title}</h2>
             <p className="lede" data-edit="common.text">{common.text}</p>
-            <div className="pill-list">
+            <div className="pill-list" data-edit-list="common.features">
               {common.features.map((f, i) => (
-                <div className="pill" key={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span data-edit={`common.features.${i}`}>{f}</span></div>
+                <div className="pill" key={i} data-edit-idx={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span data-edit={`common.features.${i}`}>{f}</span></div>
               ))}
             </div>
           </div>
@@ -1134,9 +1150,9 @@ function Rules({ rules }) {
           <h2 data-edit="rules.title">{rules.title}</h2>
           <p className="lede" style={{ margin: "20px auto 0" }} data-edit="rules.intro">{rules.intro}</p>
         </div>
-        <div className="rules-grid">
+        <div className="rules-grid" data-edit-list="rules.items">
           {rules.items.map((r, i) => (
-            <div className={`rule rv ${i % 3 === 1 ? "rv-d1" : i % 3 === 2 ? "rv-d2" : ""}`} key={i}>
+            <div className={`rule rv ${i % 3 === 1 ? "rv-d1" : i % 3 === 2 ? "rv-d2" : ""}`} key={i} data-edit-idx={i}>
               <div className="icon">{ICONS[r.icon] || ICONS.people}</div>
               <p data-edit={`rules.items.${i}.text`}>{r.text}</p>
             </div>
@@ -1150,7 +1166,7 @@ function Rules({ rules }) {
 function Testimonials({ t: T, cfg }) {
   const [g, setG] = useState(null);
   useEffect(() => {
-    fetch(HUB_URL + "/api/v1/google-reviews")
+    fetch(HUB_URL + "/api/v1/google-reviews?lang=" + LANG)
       .then((r) => r.json())
       .then((j) => { if (j && j.reviews && j.reviews.length) setG(j); })
       .catch(() => {});
@@ -1184,9 +1200,9 @@ function Testimonials({ t: T, cfg }) {
               </div>
             </div>
           </div>
-          <div className="testi-grid">
+          <div className="testi-grid" data-edit-list={EDIT_MODE ? "testimonials.items" : undefined}>
             {items.map((item, i) => (
-              <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i}>
+              <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i} data-edit-idx={EDIT_MODE ? i : undefined}>
                 <div className="q">"</div>
                 <p data-edit={`testimonials.items.${i}.text`}>{item.text}</p>
                 <div className="who"><b data-edit={`testimonials.items.${i}.name`}>{item.name}</b><span data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span></div>
@@ -1230,13 +1246,13 @@ function FAQ({ faq }) {
           <div className="eyebrow" style={{ justifyContent: "center" }}>{t("faq_eyebrow")}</div>
           <h2>{t("faq_title")}</h2>
         </div>
-        <div className="faq-wrap rv rv-d1">
+        <div className="faq-wrap rv rv-d1" data-edit-list="faq.items">
           {cats.map((cat) => (
             <div key={cat}>
               <div className="faq-cat">{cat}</div>
               {faq.map((f, i) =>
                 f.cat !== cat ? null : (
-                  <div className={`faq-item ${open === i ? "open" : ""}`} key={i}>
+                  <div className={`faq-item ${open === i ? "open" : ""}`} key={i} data-edit-idx={i}>
                     <button className="faq-q" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
                       <span data-edit={`faq.items.${i}.q`}>{f.q}</span>
                       {ICONS.chev}
@@ -1263,9 +1279,9 @@ function LocationSec({ location }) {
           <div className="eyebrow">Stupini · Brașov</div>
           <h2 data-edit="location.title">{location.title}</h2>
           <p className="lede" data-edit="location.text">{location.text}</p>
-          <div className="loc-points">
+          <div className="loc-points" data-edit-list="location.points">
             {location.points.map((p, i) => (
-              <div className="loc-point" key={i}><span data-edit={`location.points.${i}.label`}>{p.label}</span><b data-edit={`location.points.${i}.value`}>{p.value}</b></div>
+              <div className="loc-point" key={i} data-edit-idx={i}><span data-edit={`location.points.${i}.label`}>{p.label}</span><b data-edit={`location.points.${i}.value`}>{p.value}</b></div>
             ))}
           </div>
         </div>
@@ -1279,7 +1295,7 @@ function LocationSec({ location }) {
           <div className="map-pin">
             <div className="pindrop"><span>R</span></div>
             <b>ROOTS Villas · Stupini</b>
-            <small>Deschide în Google Maps →</small>
+            <small>{t("open_maps")}</small>
           </div>
         </a>
       </div>
@@ -1313,7 +1329,7 @@ export function Footer({ contact }) {
         <div className="foot-grid">
           <div>
             <a href="#top" className="logo"><span className="logo-ring">R</span>ROOTS</a>
-            <p style={{ maxWidth: "30ch" }}>Două vile private în Stupini, Brașov — pentru serile care merită ținute minte.</p>
+            <p style={{ maxWidth: "30ch" }}>{t("foot_tagline")}</p>
           </div>
           <div>
             <h5>{t("foot_contact")}</h5>
@@ -1331,8 +1347,8 @@ export function Footer({ contact }) {
             <Link to="/politica-de-confidentialitate">{t("foot_privacy")}</Link>
             <Link to="/politica-cookies">{t("foot_cookies")}</Link>
             <Link to="/termeni-si-conditii">{t("foot_terms")}</Link>
-            <a href="https://anpc.ro" target="_blank" rel="noreferrer">ANPC — protecția consumatorului</a>
-            <a href="https://anpc.ro/ce-este-sal/" target="_blank" rel="noreferrer">SAL — soluționarea litigiilor</a>
+            <a href="https://anpc.ro" target="_blank" rel="noreferrer">{t("foot_anpc")}</a>
+            <a href="https://anpc.ro/ce-este-sal/" target="_blank" rel="noreferrer">{t("foot_sal")}</a>
           </div>
         </div>
         <div className="foot-bottom">

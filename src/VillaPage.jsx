@@ -190,7 +190,7 @@ function VHeader({ contact }) {
           <a href="#facilitati">{t("vp_details")}</a>
           <a href="#locatie">{t("nav_location")}</a>
           <LangSwitcher />
-          <Link to="/rezervare" className="cta">Rezervă acum</Link>
+          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
         </nav>
       </div>
     </header>
@@ -209,9 +209,9 @@ function Gallery({ title, items, basePath }) {
         <h2 className="vg-title rv">{title}</h2>
         <div className="vg-wrap rv rv-d1">
           <button className="vg-arrow left" onClick={() => scroll(-1)} aria-label="Înapoi">‹</button>
-          <div className="vg-track" ref={ref}>
+          <div className="vg-track" ref={ref} data-edit-list={basePath || undefined}>
             {items.map((it, i) => (
-              <figure className="vg-card" key={i}>
+              <figure className="vg-card" key={i} data-edit-idx={basePath ? i : undefined}>
                 {it.img ? (
                   <img src={it.img} alt={it.caption} loading="lazy" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined} />
                 ) : (
@@ -311,22 +311,24 @@ export default function VillaPage({ villaId }) {
             <div className="eyebrow" style={{ justifyContent: "center" }}>{t("vp_details")}</div>
             <h2>{t("vp_facilities")}</h2>
           </div>
-          {page.facilities.map((group, gi) => (
-            <div className="fac-group rv" key={group.cat}>
-              <h4 className="fac-cat" data-edit={`${sk}.facilities.${gi}.cat`}>{group.cat}</h4>
-              <div className="fac-grid">
-                {group.items.map((it, i) => (
-                  <div className="fac-item" key={i}>
-                    <span className="fac-ico">{ICONS[FAC_ICON[group.cat]] || ICONS.people}</span>
-                    <div>
-                      <b data-edit={`${sk}.facilities.${gi}.items.${i}.t`}>{it.t}</b>
-                      {it.s && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}
+          <div data-edit-list={`${sk}.facilities`}>
+            {page.facilities.map((group, gi) => (
+              <div className="fac-group rv" key={gi} data-edit-idx={gi}>
+                <h4 className="fac-cat" data-edit={`${sk}.facilities.${gi}.cat`}>{group.cat}</h4>
+                <div className="fac-grid" data-edit-list={`${sk}.facilities.${gi}.items`}>
+                  {group.items.map((it, i) => (
+                    <div className="fac-item" key={i} data-edit-idx={i}>
+                      <span className="fac-ico">{ICONS[FAC_ICON[group.cat]] || ICONS.people}</span>
+                      <div>
+                        <b data-edit={`${sk}.facilities.${gi}.items.${i}.t`}>{it.t}</b>
+                        {it.s && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
@@ -350,16 +352,18 @@ export default function VillaPage({ villaId }) {
       <section className="sec" style={{ paddingTop: 40 }}>
         <div className="wrap">
           <h3 className="vpol-h rv">{t("vp_more_info")}</h3>
-          <div className="vpol-grid rv rv-d1">
+          <div className="vpol-grid rv rv-d1" data-edit-list={`${sk}.policies`}>
             {page.policies.map((p, pi) => (
-              <div className="vpol-col" key={p.title}>
+              <div className="vpol-col" key={pi} data-edit-idx={pi}>
                 <h4 data-edit={`${sk}.policies.${pi}.title`}>{p.title}</h4>
-                <ul>{p.items.map((it, i) => <li key={i} data-edit={`${sk}.policies.${pi}.items.${i}`}>{it}</li>)}</ul>
+                <ul data-edit-list={`${sk}.policies.${pi}.items`}>
+                  {p.items.map((it, i) => <li key={i} data-edit={`${sk}.policies.${pi}.items.${i}`} data-edit-idx={i}>{it}</li>)}
+                </ul>
               </div>
             ))}
           </div>
           <div className="vpol-cta">
-            <Link className="btn btn-ember" to={`/rezervare?vila=${villaId}`}>Rezervă acum {ICONS.arrow}</Link>
+            <Link className="btn btn-ember" to={`/rezervare?vila=${villaId}`}>{t("book_now")} {ICONS.arrow}</Link>
           </div>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 /* ============================================================
    Editor vizual pe site (stil Framer-lite):
@@ -39,6 +40,13 @@ body.hub-edit [data-edit-img]:hover{outline-style:solid;outline-color:#157a55}
 .hub-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .hub-picker-grid img{width:100%;height:96px;object-fit:cover;border-radius:10px;cursor:pointer;border:3px solid transparent}
 .hub-picker-grid img:hover{border-color:#157a55}
+body.hub-edit [data-edit-idx]{position:relative}
+.hub-delbtn{position:absolute;top:-10px;right:-10px;z-index:50;width:26px;height:26px;border-radius:50%;border:none;
+  background:#c0392b;color:#fff;font:700 15px/1 'Manrope',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.hub-delbtn:hover{background:#e74c3c;transform:scale(1.1)}
+.hub-addbtn{border:2px dashed rgba(21,122,85,.6);background:rgba(21,122,85,.06);color:#157a55;border-radius:12px;
+  padding:12px 18px;font:700 13.5px 'Manrope',sans-serif;cursor:pointer;min-height:54px;width:100%}
+.hub-addbtn:hover{background:rgba(21,122,85,.14);border-style:solid}
 `;
 
 export default function HubEditor({ hubRaw, setHubRaw }) {
@@ -115,6 +123,53 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     [setHubRaw]
   );
 
+  /* liste editabile: containerele cu data-edit-list primesc „+ Adaugă",
+     elementele cu data-edit-idx primesc „×" — prin portals, ca React să nu se încurce */
+  const [listEls, setListEls] = useState([]);
+  useEffect(() => {
+    const scan = () => {
+      const found = [];
+      document.querySelectorAll("[data-edit-list]").forEach((el) => {
+        const items = [...el.querySelectorAll("[data-edit-idx]")].filter(
+          (it) => it.closest("[data-edit-list]") === el
+        );
+        found.push({ el, path: el.getAttribute("data-edit-list"), items });
+      });
+      setListEls((prev) => {
+        if (
+          prev.length === found.length &&
+          prev.every((p, i) => p.el === found[i].el && p.items.length === found[i].items.length)
+        )
+          return prev;
+        return found;
+      });
+    };
+    scan();
+    const iv = setInterval(scan, 700);
+    return () => clearInterval(iv);
+  }, []);
+
+  const arrayOp = useCallback(
+    (path, op, idx) => {
+      setHubRaw((prev) => {
+        const next = JSON.parse(JSON.stringify(prev || {}));
+        const keys = path.split(".");
+        let o = next[keys[0]];
+        for (let i = 1; i < keys.length; i++) o = o == null ? null : o[keys[i]];
+        if (!Array.isArray(o)) return prev;
+        if (op === "add") {
+          const tpl = o.length ? JSON.parse(JSON.stringify(o[o.length - 1])) : "";
+          o.push(tpl);
+        } else {
+          o.splice(idx, 1);
+        }
+        setDirty((d) => new Set(d).add(keys[0]));
+        return next;
+      });
+    },
+    [setHubRaw]
+  );
+
   // la ieșirea din câmp, textul intră în draft
   useEffect(() => {
     const onBlur = (e) => {
@@ -155,6 +210,31 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
 
   return (
     <>
+    {listEls.map(({ el, path, items }, li) => (
+      <React.Fragment key={path + ":" + li}>
+        {createPortal(
+          <button type="button" className="hub-addbtn" onClick={() => arrayOp(path, "add")}>
+            ＋ Adaugă element
+          </button>,
+          el
+        )}
+        {items.map((it, i) =>
+          createPortal(
+            <button
+              type="button"
+              className="hub-delbtn"
+              title="Șterge blocul"
+              onClick={() => {
+                if (window.confirm("Ștergi acest bloc?")) arrayOp(path, "remove", Number(it.getAttribute("data-edit-idx")));
+              }}
+            >
+              ×
+            </button>,
+            it
+          )
+        )}
+      </React.Fragment>
+    ))}
     {picker && (
       <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setPicker(null); }}>
         <div className="hub-picker-box">

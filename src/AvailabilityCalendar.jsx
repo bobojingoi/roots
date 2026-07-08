@@ -246,45 +246,45 @@ export default function AvailabilityCalendar({
               <button className="bk-back" onClick={() => setStep("select")}>{t("back")}</button>
               <button className="bk-cta grow" disabled={!formValid} onClick={submit}>{t("send_booking")}</button>
             </div>
-            <p className="bk-soon">Fără plată online acum — confirmăm rezervarea și detaliile avansului pe email/telefon.</p>
+            <p className="bk-soon">{t("bk_nopay")}</p>
           </div>
         )}
 
-        {step === "sending" && <div className="bk-done"><p>Se trimite rezervarea…</p></div>}
+        {step === "sending" && <div className="bk-done"><p>{t("bk_sending")}</p></div>}
 
         {step === "done" && (
           result && result.ok && !result.dryRun ? (
             <div className="bk-done ok">
               <div className="bk-badge">✓</div>
-              <h4>Rezervare înregistrată</h4>
+              <h4>{t("bk_booked")}</h4>
               <div className="bk-conf">
-                <div className="bk-crow"><span>Vila</span><b>{villaName}</b></div>
-                <div className="bk-crow"><span>Oaspete</span><b>{form.firstName} {form.lastName}</b></div>
+                <div className="bk-crow"><span>{t("bk_villa")}</span><b>{villaName}</b></div>
+                <div className="bk-crow"><span>{t("bk_guest")}</span><b>{form.firstName} {form.lastName}</b></div>
                 <div className="bk-crow"><span>Check-in</span><b>{checkIn}</b></div>
                 <div className="bk-crow"><span>Check-out</span><b>{checkOut}</b></div>
-                <div className="bk-crow"><span>Nopți · oaspeți</span><b>{nights.length} · {adults + children}</b></div>
-                {priceKnown && <div className="bk-crow"><span>Total sejur</span><b>{lei(total)} {currency}</b></div>}
-                {priceKnown && <div className="bk-crow"><span>Avans ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>}
-                {result.reservationId && <div className="bk-crow"><span>Referință</span><b>#{result.reservationId}</b></div>}
+                <div className="bk-crow"><span>{t("bk_nights_g")}</span><b>{nights.length} · {adults + children}</b></div>
+                {priceKnown && <div className="bk-crow"><span>{t("bk_total")}</span><b>{lei(total)} {currency}</b></div>}
+                {priceKnown && <div className="bk-crow"><span>{t("bk_deposit", { p: depositPct })}</span><b>{lei(deposit)} {currency}</b></div>}
+                {result.reservationId && <div className="bk-crow"><span>{t("bk_ref")}</span><b>#{result.reservationId}</b></div>}
               </div>
               <p className="bk-soon">
-                {result.emailed ? `Ți-am trimis detaliile pe email la ${form.email}. ` : ""}
-                Te contactăm în scurt timp pentru confirmarea avansului. Mulțumim!
+                {result.emailed ? t("bk_emailed", { e: form.email }) : ""}
+                {t("bk_soon")}
               </p>
             </div>
           ) : result && result.dryRun ? (
             <div className="bk-done">
-              <h4>Aproape gata</h4>
-              <p>Rezervarea online se activează în curând. Trimite cererea pe WhatsApp și îți confirmăm imediat.</p>
-              <a className="bk-cta" href={waHref} target="_blank" rel="noreferrer">Trimite pe WhatsApp</a>
+              <h4>{t("bk_almost")}</h4>
+              <p>{t("bk_dry")}</p>
+              <a className="bk-cta" href={waHref} target="_blank" rel="noreferrer">{t("bk_send_wa")}</a>
             </div>
           ) : (
             <div className="bk-done err">
-              <h4>Nu am putut finaliza rezervarea</h4>
-              <p>{(result && result.error) || "A apărut o problemă."} Te rugăm încearcă din nou sau scrie-ne pe WhatsApp — răspundem rapid.</p>
+              <h4>{t("bk_fail")}</h4>
+              <p>{(result && result.error) || ""} {t("bk_fail_p")}</p>
               <div className="bk-actions">
-                <button className="bk-back" onClick={clearSel}>Alege alte date</button>
-                <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">Scrie-ne pe WhatsApp</a>
+                <button className="bk-back" onClick={clearSel}>{t("bk_other_dates")}</button>
+                <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">{t("write_wa")}</a>
               </div>
             </div>
           )

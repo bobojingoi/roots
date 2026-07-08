@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import HubEditor, { EDIT_MODE } from "./HubEditor.jsx";
 import { CSS, ICONS, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { t } from "./i18n.js";
 
 /* Pagină de instrucțiuni pentru oaspeți (/welcome-redwood, /welcome-sequoia).
    Conținut din DEFAULT_CONTENT.welcome[villaId]. Mobile-first. */
@@ -62,7 +63,7 @@ export default function WelcomePage({ villaId }) {
   const sk = `welcome_${villaId}`; // cheia secțiunii în Hub
   useEffect(() => { window.scrollTo(0, 0); }, [villaId]);
 
-  if (!loaded) return <div className="wel-load">Se încarcă…</div>;
+  if (!loaded) return <div className="wel-load">{t("loading")}</div>;
 
   const villa = (content.villas || []).find((v) => v.id === villaId);
   const w = (content.welcome || {})[villaId];
@@ -73,8 +74,8 @@ export default function WelcomePage({ villaId }) {
       <div className="roots wel-page" style={{ display: "grid", placeItems: "center" }}>
         <style>{CSS}</style>
         <div style={{ textAlign: "center", padding: 40 }}>
-          <p style={{ marginBottom: 16 }}>Pagina nu a fost găsită.</p>
-          <Link to="/" className="btn btn-ember">Înapoi la pagina principală</Link>
+          <p style={{ marginBottom: 16 }}>{t("page_missing")}</p>
+          <Link to="/" className="btn btn-ember">{t("back_home")}</Link>
         </div>
       </div>
     );
@@ -97,7 +98,7 @@ export default function WelcomePage({ villaId }) {
       <main className="wel">
         {(w.heroImage || EDIT_MODE) && <div className="wel-heroimg" data-edit-img={`${sk}.heroImage`} style={{ backgroundImage: w.heroImage ? `url(${w.heroImage})` : "none", ...(w.heroImage ? {} : { background: "#e3e8e5" }) }} role="img" aria-label={villa.name} />}
         <section className="wel-hero">
-          <div className="wel-eyebrow">Bine ai venit</div>
+          <div className="wel-eyebrow">{t("wel_welcome")}</div>
           <h1>{villa.name}</h1>
           {w.address && (
             <a className="wel-addr" href={w.mapsUrl || "#"} target="_blank" rel="noreferrer">{ICONS.pin} <span data-edit={`${sk}.address`}>{w.address}</span></a>
@@ -105,21 +106,22 @@ export default function WelcomePage({ villaId }) {
         </section>
 
         <div className="wel-chips">
-          {(w.keybox || EDIT_MODE) && <div className="wel-chip"><span>Cod cutie chei</span><b data-edit={`${sk}.keybox`}>{w.keybox}</b></div>}
-          {((w.wifi && w.wifi.name) || EDIT_MODE) && <div className="wel-chip"><span>Rețea WiFi</span><b data-edit={`${sk}.wifiName`}>{w.wifi && w.wifi.name}</b></div>}
-          {((w.wifi && w.wifi.password) || EDIT_MODE) && <div className="wel-chip"><span>Parolă WiFi</span><b data-edit={`${sk}.wifiPassword`}>{w.wifi && w.wifi.password}</b></div>}
+          {(w.keybox || EDIT_MODE) && <div className="wel-chip"><span>{t("wel_keybox")}</span><b data-edit={`${sk}.keybox`}>{w.keybox}</b></div>}
+          {((w.wifi && w.wifi.name) || EDIT_MODE) && <div className="wel-chip"><span>{t("wel_wifi")}</span><b data-edit={`${sk}.wifiName`}>{w.wifi && w.wifi.name}</b></div>}
+          {((w.wifi && w.wifi.password) || EDIT_MODE) && <div className="wel-chip"><span>{t("wel_wifipass")}</span><b data-edit={`${sk}.wifiPassword`}>{w.wifi && w.wifi.password}</b></div>}
         </div>
 
         {w.directions && w.directions.length > 0 && (
-          <div className="wel-dirs">
+          <div className="wel-dirs" data-edit-list={`${sk}.directions`}>
             {w.directions.map((d, i) => (
-              <a className="wel-dir" key={i} href={d.waze} target="_blank" rel="noreferrer">{ICONS.pin} <span data-edit={`${sk}.directions.${i}.label`}>{d.label}</span></a>
+              <a className="wel-dir" key={i} data-edit-idx={i} href={d.waze} target="_blank" rel="noreferrer">{ICONS.pin} <span data-edit={`${sk}.directions.${i}.label`}>{d.label}</span></a>
             ))}
           </div>
         )}
 
+        <div data-edit-list={`${sk}.sections`}>
         {(w.sections || []).map((s, i) => (
-          <section className="wel-card" key={i}>
+          <section className="wel-card" key={i} data-edit-idx={i}>
             <div className="wel-card-h">
               <span className="wel-ico">{ICONS[s.icon] || ICONS.key}</span>
               <h3 data-edit={`${sk}.sections.${i}.title`}>{s.title}</h3>
@@ -133,12 +135,14 @@ export default function WelcomePage({ villaId }) {
               />
             )}
             {(s.lines || []).length > 0 && (
-              <ul>{s.lines.map((l, j) => <li key={j} data-edit={`${sk}.sections.${i}.lines.${j}`}>{l}</li>)}</ul>
+              <ul data-edit-list={`${sk}.sections.${i}.lines`}>
+                {s.lines.map((l, j) => <li key={j} data-edit={`${sk}.sections.${i}.lines.${j}`} data-edit-idx={j}>{l}</li>)}
+              </ul>
             )}
             {(s.steps || []).length > 0 && (
-              <div className="wel-steps">
+              <div className="wel-steps" data-edit-list={`${sk}.sections.${i}.steps`}>
                 {s.steps.map((st, j) => (
-                  <div className="wel-step" key={j}>
+                  <div className="wel-step" key={j} data-edit-idx={j}>
                     <span className="wel-step-n">{j + 1}</span>
                     <div className="wel-step-body">
                       <p data-edit={`${sk}.sections.${i}.steps.${j}.text`}>{st.text}</p>
@@ -157,13 +161,14 @@ export default function WelcomePage({ villaId }) {
             )}
           </section>
         ))}
+        </div>
 
         <section className="wel-card wel-help">
           <div className="wel-card-h">
             <span className="wel-ico">{ICONS.phone}</span>
-            <h3>Ai nevoie de ajutor?</h3>
+            <h3>{t("wel_help")}</h3>
           </div>
-          <p>Suntem la un mesaj distanță — sună-ne sau scrie-ne pe WhatsApp și îți răspundem rapid.</p>
+          <p>{t("wel_help_p")}</p>
           <div className="wel-actions">
             {contact.phone && <a className="btn btn-ember" href={`tel:${phone}`}>{ICONS.phone} {contact.phone}</a>}
             {wa && <a className="btn btn-pine" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">{ICONS.wa} WhatsApp</a>}
@@ -172,16 +177,18 @@ export default function WelcomePage({ villaId }) {
 
         {w.recommendations && w.recommendations.length > 0 && (
           <section className="wel-recs">
-            <h2>Recomandările noastre</h2>
-            <p>Locurile noastre preferate din Brașov și împrejurimi — apasă pentru navigare.</p>
+            <h2>{t("wel_recs")}</h2>
+            <p>{t("wel_recs_p")}</p>
+            <div data-edit-list={`${sk}.recommendations`}>
             {w.recommendations.map((g, i) => (
-              <div className="wel-recgrp" key={i}>
+              <div className="wel-recgrp" key={i} data-edit-idx={i}>
                 <h4 data-edit={`${sk}.recommendations.${i}.cat`}>{g.cat}</h4>
-                <div className="wel-reclist">
+                <div className="wel-reclist" data-edit-list={`${sk}.recommendations.${i}.items`}>
                   {g.items.map((it, j) => (
                     <a
                       className="wel-rec"
                       key={j}
+                      data-edit-idx={j}
                       href={it.tel ? `tel:${it.tel}` : it.waze || "#"}
                       target={it.tel ? undefined : "_blank"}
                       rel="noreferrer"
@@ -192,10 +199,11 @@ export default function WelcomePage({ villaId }) {
                 </div>
               </div>
             ))}
+            </div>
           </section>
         )}
 
-        <p className="wel-foot">Sejur plăcut la ROOTS! · Stupini, Brașov</p>
+        <p className="wel-foot">{t("wel_foot")}</p>
       </main>
       {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>

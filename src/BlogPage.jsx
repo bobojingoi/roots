@@ -93,14 +93,14 @@ export function BlogList() {
       <BlogHeader />
       <main className="blog-main">
         <div className="blog-head">
-          <div className="eyebrow" style={{ justifyContent: "center" }}>Jurnal Roots</div>
+          <div className="eyebrow" style={{ justifyContent: "center" }}>{t("blog_eyebrow")}</div>
           <h2 className="serif" style={{ fontSize: "clamp(34px,5vw,52px)", fontWeight: 500, color: "var(--pine)" }}>Blog</h2>
-          <p className="lede" style={{ margin: "16px auto 0" }}>Povești, idei de vacanță și noutăți de la Roots Villas Brașov.</p>
+          <p className="lede" style={{ margin: "16px auto 0" }}>{t("blog_lede")}</p>
         </div>
         {posts === null ? (
-          <div className="blog-empty">Se încarcă…</div>
+          <div className="blog-empty">{t("loading")}</div>
         ) : posts.length === 0 ? (
-          <div className="blog-empty">În curând — primele articole sunt pe drum. 🌲</div>
+          <div className="blog-empty">{t("blog_empty")}</div>
         ) : (
           <div className="blog-grid">
             {posts.map((p) => (
@@ -110,7 +110,7 @@ export function BlogList() {
                   <span className="bpost-date">{fmtDate(p.published_at)}</span>
                   <h3>{p.title}</h3>
                   {p.excerpt && <p>{p.excerpt}</p>}
-                  <span className="bpost-more">Citește articolul →</span>
+                  <span className="bpost-more">{t("blog_read")}</span>
                 </div>
               </Link>
             ))}
@@ -147,16 +147,16 @@ export function BlogPost() {
       <BlogHeader />
       <main className="post-main">
         {missing ? (
-          <div className="blog-empty">Articolul nu există. <Link to="/blog">Înapoi la blog</Link></div>
+          <div className="blog-empty">{t("blog_missing")} <Link to="/blog">{t("blog_back")}</Link></div>
         ) : !post ? (
-          <div className="blog-empty">Se încarcă…</div>
+          <div className="blog-empty">{t("loading")}</div>
         ) : (
           <article>
             {post.cover && <div className="post-hero" style={{ backgroundImage: `url(${post.cover})` }} />}
             <h1>{post.title}</h1>
             <div className="post-meta">{fmtDate(post.published_at)} · Roots Villas</div>
             <div className="post-body" dangerouslySetInnerHTML={{ __html: mdToHtml(post.body) }} />
-            <Link className="post-back" to="/blog">← Toate articolele</Link>
+            <Link className="post-back" to="/blog">{t("blog_all")}</Link>
           </article>
         )}
       </main>
