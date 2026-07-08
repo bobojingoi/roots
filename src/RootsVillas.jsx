@@ -521,20 +521,24 @@ section{position:relative}
 .nav a:hover{color:var(--ember-2)}
 .nav .cta{color:#fff;background:var(--ember);padding:10px 20px;border-radius:100px;box-shadow:0 6px 18px rgba(232,114,44,.35)}
 .nav .cta:hover{color:#fff;background:var(--ember-2);transform:translateY(-1px)}
-@media(max-width:760px){.nav a:not(.cta){display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
-.langs{display:flex;gap:6px;align-items:center}
-.lang{border:1.5px solid rgba(255,255,255,.3);background:none;color:rgba(255,255,255,.75);border-radius:8px;padding:5px 8px;font:700 11.5px 'Manrope',sans-serif;cursor:pointer;letter-spacing:.04em}
-.hdr.solid .lang{border-color:var(--line);color:var(--ink-soft)}
-.lang.flag{width:30px;height:22px;padding:0;border-radius:5px;overflow:hidden;display:grid;place-items:center;opacity:.55;transition:opacity .25s, transform .25s, box-shadow .25s}
-.lang.flag svg{width:100%;height:100%;display:block;object-fit:cover}
-.lang.flag:hover{opacity:1;transform:translateY(-1px)}
-.lang.flag.on{opacity:1;border-color:var(--ember);box-shadow:0 0 0 2px rgba(232,114,44,.35)}
-@media(max-width:760px){.hdr .nav:has(.burger) .langs{display:none}}
-.lang.on{background:var(--ember);border-color:var(--ember);color:#fff}
-.hdr.solid .lang.on{color:#fff}
-.mnav .langs{gap:12px}
-.mnav .lang{font-size:14px;padding:9px 14px}
-.mnav .lang.flag{width:46px;height:33px;border-radius:7px}
+@media(max-width:760px){.nav a:not(.cta){display:none}.nav:has(.burger) .cta{display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
+/* language dropdown (flag) */
+.langdd{position:relative}
+.langdd-btn{display:flex;align-items:center;gap:6px;border:1.5px solid rgba(255,255,255,.3);background:none;color:rgba(255,255,255,.9);border-radius:9px;padding:6px 9px;cursor:pointer;transition:border-color .25s,background .25s}
+.hdr.solid .langdd-btn{border-color:var(--line);color:var(--ink)}
+.langdd-btn:hover{border-color:var(--ember)}
+.langdd-flag{width:24px;height:17px;border-radius:4px;overflow:hidden;display:grid;place-items:center;flex-shrink:0}
+.langdd-flag svg{width:100%;height:100%;display:block;object-fit:cover}
+.langdd-chev{opacity:.7;transition:transform .25s}
+.langdd.open .langdd-chev{transform:rotate(180deg)}
+.langdd-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:158px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(12,31,25,.18);padding:6px;z-index:90;animation:langpop .18s ease}
+[dir="rtl"] .langdd-menu{right:auto;left:0}
+@keyframes langpop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.langdd-item{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font:600 14px 'Manrope',sans-serif;color:var(--ink);text-align:left;transition:background .2s}
+.langdd-item:hover{background:var(--sand)}
+.langdd-item.on{background:rgba(232,114,44,.12);color:var(--ember)}
+.langdd-item .langdd-flag{width:26px;height:19px}
+.langdd-name{white-space:nowrap}
 [dir="rtl"] .hero h1,[dir="rtl"] .sec h2,[dir="rtl"] .lede{text-align:right}
 [dir="rtl"] .eyebrow::before{display:none}
 .burger{display:none;width:42px;height:42px;border-radius:10px;border:1.5px solid rgba(255,255,255,.4);background:none;color:#fff;font-size:19px;cursor:pointer;flex-shrink:0}
@@ -598,7 +602,8 @@ section{position:relative}
 .btn:hover svg{transform:translateX(3px)}
 
 /* section scaffolding */
-.sec{padding:110px 0}
+.sec{padding:72px 0}
+@media(max-width:760px){.sec{padding:50px 0}}
 .eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:12.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);margin-bottom:16px}
 .eyebrow::before{content:"";width:28px;height:1px;background:var(--ember)}
 .sec h2{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(30px,4.4vw,50px);line-height:1.12;letter-spacing:-.01em;color:var(--pine)}
@@ -618,7 +623,8 @@ section{position:relative}
 .stat span{font-size:13px;font-weight:600;color:var(--ink-soft);letter-spacing:.04em}
 
 /* villa cards */
-.villas-band{background:var(--pine);color:var(--ivory);border-radius:44px;margin:0 14px;padding:110px 0}
+.villas-band{background:var(--pine);color:var(--ivory);border-radius:44px;margin:0 14px;padding:74px 0}
+@media(max-width:760px){.villas-band{padding:52px 0;border-radius:30px}}
 .villas-band .eyebrow{color:var(--gold)}.villas-band .eyebrow::before{background:var(--gold)}
 .villas-band h2{color:var(--ivory)}
 .villas-band .lede{color:rgba(251,247,239,.72)}
@@ -651,7 +657,8 @@ section{position:relative}
 .edit-block p+p{margin-top:14px}
 
 /* common spaces */
-.common{background:var(--sand);border-radius:44px;margin:0 14px;padding:96px 0}
+.common{background:var(--sand);border-radius:44px;margin:0 14px;padding:70px 0}
+@media(max-width:760px){.common{padding:50px 0;border-radius:30px}}
 .common-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
 @media(max-width:860px){.common-grid{grid-template-columns:1fr;gap:36px}}
 .pill-list{margin-top:30px;display:grid;gap:14px}
@@ -672,7 +679,8 @@ section{position:relative}
 .rule p{font-size:14.5px;font-weight:600;line-height:1.55;color:var(--ink)}
 
 /* testimonials */
-.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:100px 0;overflow:hidden;position:relative}
+.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:74px 0;overflow:hidden;position:relative}
+@media(max-width:760px){.testi-band{padding:52px 0;border-radius:30px}}
 .testi-band .eyebrow{color:var(--gold)}.testi-band .eyebrow::before{background:var(--gold)}
 .testi-band h2{color:#fff}
 .testi-band .lede{color:rgba(255,255,255,.65)}
@@ -725,17 +733,15 @@ body.t-al .testi-more a{color:rgba(255,255,255,.6)}
 .loc-point{display:flex;justify-content:space-between;align-items:center;padding:17px 4px;border-bottom:1px solid var(--line);font-size:15px}
 .loc-point span{font-weight:600;color:var(--ink-soft)}
 .loc-point b{font-family:'Fraunces',serif;font-weight:500;font-size:19px;color:var(--pine)}
-.map-card{border-radius:var(--r);overflow:hidden;aspect-ratio:4/4;position:relative;background:linear-gradient(150deg,#E8EFE4,#D7E4D2);display:grid;place-items:center;text-decoration:none}
-.map-card .roads{position:absolute;inset:0;opacity:.5}
-.map-pin{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--pine)}
-.map-pin .pindrop{width:58px;height:58px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--ember);display:grid;place-items:center;box-shadow:0 14px 30px rgba(232,114,44,.4);animation:bob 2.6s ease-in-out infinite}
-.map-pin .pindrop span{transform:rotate(45deg);color:#fff;font-weight:800;font-size:13px;letter-spacing:.06em}
-@keyframes bob{0%,100%{transform:rotate(-45deg) translate(0,0)}50%{transform:rotate(-45deg) translate(-5px,-5px)}}
-.map-pin b{font-weight:800;font-size:15px}
-.map-pin small{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+.loc-map{border-radius:var(--r);overflow:hidden;aspect-ratio:4/4;border:1px solid var(--line);background:linear-gradient(150deg,#E8EFE4,#D7E4D2)}
+.loc-map iframe{width:100%;height:100%;border:0;display:block}
+.loc-map-link{display:inline-flex;align-items:center;gap:9px;margin-top:16px;color:var(--pine);font-weight:700;font-size:14.5px;text-decoration:none}
+.loc-map-link:hover{color:var(--ember)}
+.loc-map-link svg{color:var(--ember)}
 
 /* final CTA */
-.final{background:linear-gradient(180deg,var(--pine) 0%,var(--pine-3) 100%);color:var(--ivory);border-radius:44px;margin:0 14px;padding:120px 0;text-align:center;position:relative;overflow:hidden}
+.final{background:linear-gradient(180deg,var(--pine) 0%,var(--pine-3) 100%);color:var(--ivory);border-radius:44px;margin:0 14px;padding:88px 0;text-align:center;position:relative;overflow:hidden}
+@media(max-width:760px){.final{padding:60px 0;border-radius:30px}}
 .final h2{color:var(--ivory);max-width:18ch;margin:0 auto}
 .final .lede{margin-left:auto;margin-right:auto;color:rgba(251,247,239,.7)}
 .final .hero-ctas{justify-content:center}
@@ -879,13 +885,31 @@ const FLAGS = {
 };
 
 export function LangSwitcher() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", h);
+    return () => document.removeEventListener("pointerdown", h);
+  }, [open]);
+  const cur = LANGS.find((l) => l.code === LANG) || LANGS[0];
   return (
-    <div className="langs">
-      {LANGS.map((l) => (
-        <button key={l.code} type="button" className={`lang flag ${l.code === LANG ? "on" : ""}`} onClick={() => setLang(l.code)} aria-label={l.name} title={l.name}>
-          {FLAGS[l.code] || l.label}
-        </button>
-      ))}
+    <div className={`langdd ${open ? "open" : ""}`} ref={ref}>
+      <button type="button" className="langdd-btn" onClick={() => setOpen((o) => !o)} aria-label={cur.name} aria-expanded={open}>
+        <span className="langdd-flag">{FLAGS[cur.code] || cur.label}</span>
+        <svg className="langdd-chev" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && (
+        <div className="langdd-menu">
+          {LANGS.map((l) => (
+            <button key={l.code} type="button" className={`langdd-item ${l.code === LANG ? "on" : ""}`} onClick={() => { setLang(l.code); setOpen(false); }}>
+              <span className="langdd-flag">{FLAGS[l.code] || l.label}</span>
+              <span className="langdd-name">{l.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -984,7 +1008,6 @@ export function Header({ content }) {
           <a href="#faq">{t("nav_faq")}</a>
           <a href="#locatie">{t("nav_location")}</a>
           <Link to="/blog">{t("nav_blog")}</Link>
-          <LangSwitcher />
           <Link to="/rezervare" className="cta">{t("book_now")}</Link>
         </div>
       )}
@@ -1189,8 +1212,8 @@ function Testimonials({ t: T, cfg }) {
         .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
         .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
     : null;
-  const items = allReviews ? (showAll ? allReviews : allReviews.slice(0, C.count || 3)) : T.items;
-  const hasMore = allReviews && !showAll && allReviews.length > (C.count || 3);
+  const items = allReviews ? (showAll ? allReviews : allReviews.slice(0, C.count || 6)) : T.items;
+  const hasMore = allReviews && !showAll && allReviews.length > (C.count || 6);
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
   return (
     <section>
@@ -1312,19 +1335,12 @@ function LocationSec({ location }) {
             ))}
           </div>
         </div>
-        <a className="map-card rv rv-d1" href={location.mapsUrl} target="_blank" rel="noreferrer">
-          <svg className="roads" viewBox="0 0 400 400" preserveAspectRatio="none">
-            <path d="M60,0 C80,120 40,240 90,400" stroke="#B9CDB3" strokeWidth="14" fill="none" />
-            <path d="M0,150 C140,130 260,190 400,160" stroke="#C8D9C2" strokeWidth="9" fill="none" />
-            <path d="M320,0 C300,140 340,260 310,400" stroke="#C8D9C2" strokeWidth="7" fill="none" />
-            <path d="M0,300 C120,290 300,320 400,300" stroke="#D4E2CE" strokeWidth="6" fill="none" />
-          </svg>
-          <div className="map-pin">
-            <div className="pindrop"><span>R</span></div>
-            <b>ROOTS Villas · Stupini</b>
-            <small>{t("open_maps")}</small>
+        <div className="loc-map-col rv rv-d1">
+          <div className="loc-map">
+            <iframe src={VILLA_MAP_EMBED} title="Hartă ROOTS Villas · Stupini, Brașov" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
           </div>
-        </a>
+          <a className="loc-map-link" href={location.mapsUrl} target="_blank" rel="noreferrer">{ICONS.pin} {t("open_maps")}</a>
+        </div>
       </div>
     </section>
   );

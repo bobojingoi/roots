@@ -125,7 +125,7 @@ body.t-aurora .faq-item{border-bottom-color:var(--line)}
 body.t-aurora .faq-cat{color:var(--ember-2)}
 body.t-aurora .loc-point{border-bottom-color:var(--line)}
 body.t-aurora .loc-point b{color:var(--ink)}
-body.t-aurora .map-card{background:linear-gradient(150deg,#12241C,#0B1712)}
+body.t-aurora .loc-map{background:linear-gradient(150deg,#12241C,#0B1712);border-color:rgba(255,255,255,.1)}
 body.t-aurora .video-card{box-shadow:0 30px 80px rgba(0,0,0,.4)}
 body.t-aurora .stat b{color:transparent;background:linear-gradient(120deg,#EAF6EF,#9FE0BF);-webkit-background-clip:text;background-clip:text;font-size:40px}
 body.t-aurora .stat{border-left-color:var(--line)}
