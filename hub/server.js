@@ -109,13 +109,14 @@ app.get('/api/v1/google-reviews', async (req, res) => {
   try {
     const r = await fetch(
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}` +
-        `&fields=rating,user_ratings_total,reviews&language=${lang === 'he' ? 'iw' : lang}&key=${key}`
+        `&fields=rating,user_ratings_total,reviews,url&language=${lang === 'he' ? 'iw' : lang}&key=${key}`
     );
     const j = await r.json();
     const out = {
       configured: true,
       rating: (j.result && j.result.rating) || null,
       total: (j.result && j.result.user_ratings_total) || 0,
+      url: (j.result && j.result.url) || null,
       reviews: ((j.result && j.result.reviews) || []).map((rv) => ({
         name: rv.author_name,
         rating: rv.rating,

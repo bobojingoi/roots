@@ -161,6 +161,8 @@ const D = {
   wel_recs:     { ro: "Recomandările noastre", en: "Our recommendations", he: "ההמלצות שלנו", fr: "Nos recommandations" },
   wel_recs_p:   { ro: "Locurile noastre preferate din Brașov și împrejurimi — apasă pentru navigare.", en: "Our favourite places in and around Brașov — tap to navigate.", he: "המקומות האהובים עלינו בברשוב ובסביבה — הקישו לניווט.", fr: "Nos endroits préférés à Brașov et alentours — touchez pour naviguer." },
   wel_foot:     { ro: "Sejur plăcut la ROOTS! · Stupini, Brașov", en: "Enjoy your stay at ROOTS! · Stupini, Brașov", he: "שהות נעימה ב-ROOTS! · סטופיני, ברשוב", fr: "Bon séjour chez ROOTS ! · Stupini, Brașov" },
+  more_reviews: { ro: "Vezi mai multe recenzii", en: "See more reviews", he: "עוד ביקורות", fr: "Voir plus d'avis" },
+  all_reviews_g:{ ro: "Toate cele {n} recenzii pe Google →", en: "All {n} reviews on Google →", he: "← כל {n} הביקורות בגוגל", fr: "Les {n} avis sur Google →" },
 };
 
 export function t(key, vars) {

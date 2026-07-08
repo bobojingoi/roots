@@ -687,8 +687,16 @@ section{position:relative}
 .tcard:hover{transform:translateY(-6px);border-color:rgba(233,184,114,.4)}
 .tcard .q{font-family:'Fraunces',serif;font-size:40px;line-height:0;color:var(--gold);height:14px}
 .tcard p{font-size:15px;line-height:1.7;color:rgba(255,255,255,.85);flex:1}
+.tcard .who{display:flex;align-items:center;gap:11px}
 .tcard .who b{display:block;font-size:14.5px}
 .tcard .who span{font-size:12.5px;color:rgba(255,255,255,.5);font-weight:600}
+.t-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;object-fit:cover}
+.t-ava-ph{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;background:rgba(233,184,114,.25);color:var(--gold);font-weight:800;font-size:16px}
+.testi-more{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:28px}
+.testi-more .btn-more{border:1.5px solid rgba(233,184,114,.5);background:none;color:var(--gold);border-radius:100px;padding:12px 26px;font:700 14px 'Manrope',sans-serif;cursor:pointer;transition:background .3s}
+.testi-more .btn-more:hover{background:rgba(233,184,114,.12)}
+.testi-more a{color:rgba(255,255,255,.6);font-size:13px;font-weight:600}
+body.t-al .testi-more a{color:rgba(255,255,255,.6)}
 
 /* video */
 .video-card{margin-top:48px;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:16/8.2;background:linear-gradient(160deg,#152B3D,#0C1F19);display:grid;place-items:center;cursor:pointer;text-decoration:none}
@@ -1172,15 +1180,17 @@ function Testimonials({ t: T, cfg }) {
       .catch(() => {});
   }, []);
   // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
+  const [showAll, setShowAll] = useState(false);
   const C = cfg || {};
-  const items = !EDIT_MODE && g
+  const allReviews = !EDIT_MODE && g
     ? g.reviews
         .filter((rv) => (rv.rating || 0) >= (C.minRating ?? 4))
         .filter((rv) => !(C.hidden || []).includes(rv.name))
         .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
-        .slice(0, C.count || 3)
-        .map((rv) => ({ name: rv.name, text: rv.text, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
-    : T.items;
+        .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
+    : null;
+  const items = allReviews ? (showAll ? allReviews : allReviews.slice(0, C.count || 3)) : T.items;
+  const hasMore = allReviews && !showAll && allReviews.length > (C.count || 3);
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
   return (
     <section>
@@ -1205,10 +1215,27 @@ function Testimonials({ t: T, cfg }) {
               <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i} data-edit-idx={EDIT_MODE ? i : undefined}>
                 <div className="q">"</div>
                 <p data-edit={`testimonials.items.${i}.text`}>{item.text}</p>
-                <div className="who"><b data-edit={`testimonials.items.${i}.name`}>{item.name}</b><span data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span></div>
+                <div className="who">
+                  {item.photo ? (
+                    <img className="t-ava" src={item.photo} alt="" referrerPolicy="no-referrer" loading="lazy" />
+                  ) : (
+                    <span className="t-ava-ph">{(item.name || "?").trim()[0]}</span>
+                  )}
+                  <div><b data-edit={`testimonials.items.${i}.name`}>{item.name}</b><span data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span></div>
+                </div>
               </div>
             ))}
           </div>
+          {!EDIT_MODE && (hasMore || (g && g.url)) && (
+            <div className="testi-more rv">
+              {hasMore && (
+                <button type="button" className="btn-more" onClick={() => setShowAll(true)}>{t("more_reviews")}</button>
+              )}
+              {g && g.url && (
+                <a href={g.url} target="_blank" rel="noreferrer">{t("all_reviews_g", { n: g.total || "" })}</a>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>
