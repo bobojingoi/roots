@@ -706,6 +706,7 @@ section{position:relative}
 .vs-dots span{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);transition:background .2s}
 .vs-dots span.on{background:var(--gold)}
 .vs-add{position:absolute;bottom:12px;right:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
+.vs-add.multi{bottom:52px;background:#0e5e40}
 .pic-mob-btn{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
 .vcard-media .glow{position:absolute;bottom:-70px;left:50%;transform:translateX(-50%);width:320px;height:170px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.55),transparent 70%)}
 .vcard-tag{position:absolute;top:16px;left:16px;background:rgba(12,31,25,.6);backdrop-filter:blur(8px);border:1px solid rgba(233,184,114,.35);color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:100px}
@@ -1231,7 +1232,6 @@ function Hero({ hero, brand }) {
       {hero.image && <div className="hero-photo pic-desk" style={{ backgroundImage: `url(${hero.image})` }} />}
       {(hero.imageMobile || hero.image) && <div className="hero-photo pic-mob" style={{ backgroundImage: `url(${hero.imageMobile || hero.image})` }} />}
       <div className="hero-veil" style={overlayStyle(brand)} />
-      <div className="fireglow" />
       <div className="hero-inner wrap">
         <h1 style={{ fontSize: { s: "clamp(30px,4.8vw,52px)", m: "clamp(36px,6vw,68px)", l: "clamp(42px,7.2vw,84px)", xl: "clamp(46px,8.4vw,104px)" }[hero.titleSize] || "clamp(36px,6vw,68px)" }}>
           <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
@@ -1343,7 +1343,10 @@ function VillaCard({ villa, delay, contact, idx }) {
         )}
         <span className="vcard-tag">{t("villa_tag", { n: villa.id === "redwood" ? "01" : "02" })}</span>
         {EDIT_MODE && slides.length > 0 && (
-          <button type="button" className="vs-add" data-edit-img={`villas.items.${idx}.gallery.${(villa.gallery || []).length}`}>＋ foto</button>
+          <>
+            <button type="button" className="vs-add" data-edit-img={`villas.items.${idx}.gallery.${(villa.gallery || []).length}`}>＋ foto</button>
+            <button type="button" className="vs-add multi" data-edit-imgs={`villas.items.${idx}.gallery`}>⬆ mai multe poze</button>
+          </>
         )}
       </div>
       <div className="vcard-body">

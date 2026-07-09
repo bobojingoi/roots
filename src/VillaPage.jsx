@@ -148,6 +148,7 @@ export const VILLA_CSS = `
 .vg-track::-webkit-scrollbar{display:none}
 .vg-card{flex:0 0 clamp(320px,58%,580px);scroll-snap-align:start;position:relative}
 .vg-card .pic-mob-btn{top:12px;bottom:auto} /* nu peste figcaption-ul editabil */
+.vg-multi{margin:0 0 16px;border:none;border-radius:100px;padding:10px 18px;background:#157a55;color:#fff;font:700 13px 'Manrope',sans-serif;cursor:pointer}
 .vg-card img,.vg-ph{width:100%;height:400px;object-fit:cover;border-radius:20px;display:block}
 @media(max-width:600px){.vg-card{flex-basis:86%}.vg-card img,.vg-ph{height:300px}}
 /* în editor, butonul „+ Adaugă element" (portalul HubEditor) devine un card vizibil la capătul galeriei */
@@ -232,6 +233,9 @@ function Gallery({ title, items: rawItems, basePath }) {
     <section className="sec" style={{ paddingBottom: 40 }}>
       <div className="wrap">
         <h2 className="vg-title rv">{title}</h2>
+        {EDIT_MODE && basePath ? (
+          <button type="button" className="vg-multi" data-edit-imgs={basePath} data-edit-imgs-field="img">⬆ Adaugă mai multe poze deodată</button>
+        ) : null}
         <div className="vg-wrap rv rv-d1">
           <button className="vg-arrow left" onClick={() => scroll(-1)} aria-label="Înapoi">‹</button>
           <div className="vg-track" ref={ref} data-edit-list={basePath || undefined}>

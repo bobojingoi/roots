@@ -103,6 +103,14 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
   // link-urile editabile nu trebuie să navigheze; zonele de imagine deschid pickerul
   useEffect(() => {
     const onClick = (e) => {
+      const multi = e.target.closest && e.target.closest("[data-edit-imgs]");
+      if (multi) {
+        e.preventDefault();
+        e.stopPropagation();
+        setMultiTarget({ path: multi.getAttribute("data-edit-imgs"), field: multi.getAttribute("data-edit-imgs-field") || "" });
+        if (multiRef.current) multiRef.current.click();
+        return;
+      }
       const img = e.target.closest && e.target.closest("[data-edit-img]");
       if (img) {
         e.preventDefault();
@@ -250,11 +258,8 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     return j;
   };
 
-  /* upload direct din picker: redimensionează în browser → POST /api/v1/media →
-     imaginea nouă se aplică imediat pe zona în editare */
-  const uploadFile = async (f) => {
-    if (!f) return;
-    setUploading(true);
+  /* urcă UN fișier: redimensionare în browser → POST /api/v1/media → întoarce URL-ul */
+  const uploadOne = async (f) => {
     const blobUrl = URL.createObjectURL(f);
     try {
       const img = await new Promise((resolve, reject) => {
@@ -271,22 +276,67 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         height: Math.round(img.naturalHeight * Math.min(1, 1920 / img.naturalWidth)),
       });
       setMedia((m) => [j.media, ...(m || [])]);
+      return j.media.url;
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  };
+
+  /* upload din picker (un fișier): imaginea nouă se aplică imediat pe zona în editare */
+  const uploadFile = async (f) => {
+    if (!f) return;
+    setUploading(true);
+    try {
+      const url = await uploadOne(f);
       if (picker) {
         const sect = picker.split(".")[0];
         if (hubRaw && hubRaw[sect]) {
-          commit(picker, j.media.url);
+          commit(picker, url);
           setPicker(null);
         } else {
-          // secțiunea nu e în draft — imaginea e urcată în galerie, dar n-o putem aplica aici
-          alert("Imaginea e încărcată în Galerie media, dar secțiunea '" + sect + "' nu poate fi editată de aici. URL: " + j.media.url);
+          alert("Imaginea e încărcată în Galerie media, dar secțiunea '" + sect + "' nu poate fi editată de aici. URL: " + url);
         }
       }
     } catch (e) {
       alert("Eroare la încărcare: " + e.message);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-      setUploading(false);
     }
+    setUploading(false);
+  };
+
+  /* upload MULTIPLU: zonele cu data-edit-imgs primesc mai multe poze deodată,
+     adăugate la finalul array-ului (stringuri sau obiecte {câmp: url}) */
+  const [multiTarget, setMultiTarget] = useState(null); // { path, field }
+  const multiRef = useRef(null);
+  const uploadMany = async (files, target) => {
+    if (!target || !files.length) return;
+    setUploading(true);
+    const urls = [];
+    for (let i = 0; i < files.length; i++) {
+      setStatus(`Se încarcă poza ${i + 1} din ${files.length}…`);
+      try { urls.push(await uploadOne(files[i])); }
+      catch (e) { alert(`Eroare la „${files[i].name}": ${e.message}`); }
+    }
+    setStatus(urls.length ? `${urls.length} poze adăugate ✓ — nu uita să publici` : "");
+    if (urls.length) {
+      const { path, field } = target;
+      setHubRaw((prev) => {
+        const next = JSON.parse(JSON.stringify(prev || {}));
+        const keys = path.split(".");
+        let o = next[keys[0]];
+        if (o == null) return prev;
+        for (let i = 1; i < keys.length; i++) {
+          const k = keys[i];
+          if (o[k] == null) o[k] = i === keys.length - 1 ? [] : /^\d+$/.test(keys[i + 1]) ? [] : {};
+          o = o[k];
+        }
+        if (!Array.isArray(o)) return prev;
+        for (const u of urls) o.push(field ? { [field]: u } : u);
+        setDirty((d) => new Set(d).add(keys[0]));
+        return next;
+      });
+    }
+    setTimeout(() => setStatus(""), 3500);
+    setUploading(false);
   };
 
   const save = async (publish) => {
@@ -377,6 +427,14 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         ×
       </button>
     )}
+    <input
+      ref={multiRef}
+      type="file"
+      accept="image/*"
+      multiple
+      style={{ display: "none" }}
+      onChange={(e) => { const files = [...e.target.files]; const target = multiTarget; e.target.value = ""; uploadMany(files, target); }}
+    />
     <div className="hub-editbar">
       ✏️ Mod editare — click pe textele conturate
       <b>{dirty.size} {dirty.size === 1 ? "secțiune modificată" : "secțiuni modificate"}</b>
