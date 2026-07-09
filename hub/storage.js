@@ -6,7 +6,14 @@ require('dotenv').config();
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const BUCKET = process.env.S3_BUCKET || 'media';
-const ENDPOINT = (process.env.S3_ENDPOINT || '').trim();
+// Endpoint-ul NU trebuie să conțină numele bucket-ului — SDK-ul îl adaugă singur
+// (forcePathStyle). Cloudflare afișează în „S3 API" URL-ul CU bucket la coadă și e
+// ușor de copiat greșit: dacă apare, îl tăiem — altfel obiectele ajung la cheia
+// „<bucket>/hub/…" iar URL-urile publice generate („…/hub/…") dau 404.
+const ENDPOINT = (process.env.S3_ENDPOINT || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(new RegExp('/' + BUCKET.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'), '');
 const REGION = process.env.S3_REGION || 'auto';
 const PUBLIC_BASE = (process.env.S3_PUBLIC_BASE || '').trim().replace(/\/$/, '');
 
