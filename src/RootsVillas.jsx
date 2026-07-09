@@ -632,6 +632,13 @@ section{position:relative}
 @media(max-width:860px){.about-grid{grid-template-columns:1fr;gap:36px}}
 .stat-row{display:flex;gap:0;margin-top:44px;border-top:1px solid var(--line)}
 .stat{flex:1;padding:22px 18px 0;border-left:1px solid var(--line)}
+/* pe mobil 4 coloane nu încap — trecem pe grilă 2×2 */
+@media(max-width:560px){
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;border-top:0}
+  .stat{border-top:1px solid var(--line);padding:16px 12px 0}
+  .stat:nth-child(odd){border-left:0;padding-left:0}
+  .stat b{font-size:28px!important}
+}
 .stat:first-child{border-left:none;padding-left:0}
 .stat b{display:block;font-family:'Fraunces',serif;font-weight:500;font-size:34px;color:var(--pine)}
 .stat span{font-size:13px;font-weight:600;color:var(--ink-soft);letter-spacing:.04em}
@@ -1395,20 +1402,25 @@ function ClampText({ text, dataEdit }) {
   );
 }
 
-/* Filtrul de naționalitate al recenziilor: setul Google se re-cere în limba țării
-   (Google ordonează recenziile relevante pentru limba cerută), apoi se filtrează
-   după limba textului; recenziile manuale (din Hub) se filtrează după `country`. */
+/* Filtrul pe ORIGINEA clientului: Google nu expune naționalitatea, așa că folosim
+   limba ORIGINALĂ a recenziei ca indicator (ebraică→Israel, spaniolă→Spania etc.);
+   setul Google se re-cere în limba țării (recenziile din acea limbă urcă în top),
+   iar recenziile manuale (din Hub) au câmpul `country` setat explicit de admin. */
 const COUNTRY_CHIPS = [
-  { key: "ro", flag: "🇷🇴", label: "România", glang: "ro" },
-  { key: "il", flag: "🇮🇱", label: "Israel", glang: "he" },
-  { key: "en", flag: "🇬🇧", label: "English", glang: "en" },
-  { key: "fr", flag: "🇫🇷", label: "Français", glang: "fr" },
+  { key: "ro", flag: "🇷🇴", label: "România", glang: "ro", base: true },
+  { key: "il", flag: "🇮🇱", label: "Israel", glang: "he", base: true },
+  { key: "es", flag: "🇪🇸", label: "Spania", glang: "es", base: true },
+  { key: "it", flag: "🇮🇹", label: "Italia", glang: "it", base: true },
+  { key: "us", flag: "🇺🇸", label: "SUA & UK", glang: "en", base: true },
+  { key: "fr", flag: "🇫🇷", label: "Franța", glang: "fr" },
+  { key: "de", flag: "🇩🇪", label: "Germania", glang: "de" },
 ];
 const hasHebrew = (s) => /[֐-׿]/.test(s || "");
 const matchesCountry = (rv, c) => {
   const l = (rv.lang || "").toLowerCase();
   if (c === "il") return l === "iw" || l === "he" || hasHebrew(rv.text);
   if (c === "ro") return l === "ro" || (!l && !hasHebrew(rv.text));
+  if (c === "us") return l === "en";
   return l === c;
 };
 
@@ -1437,9 +1449,9 @@ function Testimonials({ t: T, cfg, extra }) {
     ? (extra || []).filter((it) => it && it.name && (it.text || "").trim())
     : [];
 
-  // chips: „Toate" + România/Israel (când avem recenzii live) + țările din recenziile manuale
+  // chips: „Toate" + țările de bază (când avem recenzii live) + țările din recenziile manuale
   const manualCountries = [...new Set(manualAll.map((m) => (m.country || "").toLowerCase()).filter(Boolean))];
-  const chips = COUNTRY_CHIPS.filter((c) => (live && ["ro", "il"].includes(c.key)) || manualCountries.includes(c.key));
+  const chips = COUNTRY_CHIPS.filter((c) => (live && c.base) || manualCountries.includes(c.key));
   const showChips = !EDIT_MODE && chips.length > 0;
   const activeChip = COUNTRY_CHIPS.find((c) => c.key === flt) || null;
   const setForFilter = flt === "all" ? g : activeChip ? gsets[activeChip.glang] || null : null;
@@ -1670,7 +1682,7 @@ function FinalCta({ contact }) {
         <p className="lede rv rv-d1">{t("final_lede")}</p>
         <div className="hero-ctas rv rv-d2">
           <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
-          <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="btn btn-ghost">{ICONS.phone} {contact.phone}</a>
+          <Link to="/rezervare" className="btn btn-ghost">{t("book_on_site")} {ICONS.arrow}</Link>
         </div>
       </div>
     </section>

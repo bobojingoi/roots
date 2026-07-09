@@ -108,7 +108,7 @@ app.get('/api/v1/google-reviews', async (req, res) => {
   const key = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
   const placeId = (process.env.GOOGLE_PLACE_ID || '').trim();
   if (!key || !placeId) return res.json({ configured: false, rating: null, reviews: [] });
-  const lang = ['ro', 'en', 'he', 'fr'].includes(req.query.lang) ? req.query.lang : 'ro';
+  const lang = ['ro', 'en', 'he', 'fr', 'es', 'it', 'de'].includes(req.query.lang) ? req.query.lang : 'ro';
   const cached = gReviewsCache[lang];
   if (cached && Date.now() - cached.at < 6 * 3600e3) return res.json(cached.data);
   try {

@@ -188,6 +188,7 @@ const D = {
   child_ages_ph:{ ro: "ex: 3, 7, 12", en: "e.g. 3, 7, 12", he: "לדוגמה: 3, 7, 12", fr: "ex : 3, 7, 12" },
   need_cot:     { ro: "Avem nevoie de pătuț pentru bebeluș (gratuit)", en: "We need a baby cot (free)", he: "אנחנו צריכים עריסת תינוק (חינם)", fr: "Nous avons besoin d'un lit bébé (gratuit)" },
   reviews_all:  { ro: "Toate", en: "All", he: "הכל", fr: "Tous" },
+  book_on_site: { ro: "Rezervă pe site", en: "Book on the website", he: "הזמינו באתר", fr: "Réserver sur le site" },
   reviews_none: { ro: "Încă nu avem recenzii pe acest filtru.", en: "No reviews for this filter yet.", he: "אין עדיין ביקורות בסינון הזה.", fr: "Pas encore d'avis pour ce filtre." },
 };
 
