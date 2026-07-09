@@ -27,7 +27,7 @@ export const VILLA_CSS = `
   background:linear-gradient(180deg,#0B1626 0%,#152B3D 42%,#3D4A56 66%,#8A5A46 88%,#C4713C 100%)}
 .vhero-photo{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.6;mix-blend-mode:luminosity}
 .vhero-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,22,38,.35),rgba(11,22,38,.1) 40%,rgba(12,31,25,.85) 100%)}
-.vhero-inner{position:relative;z-index:3;width:100%;padding:0 0 76px}
+.vhero-inner{position:relative;z-index:3;width:100%;padding-bottom:76px} /* doar jos — lateralele vin din .wrap, aliniate cu secțiunile */
 .vhero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(40px,7vw,80px);line-height:1.02;letter-spacing:-.02em}
 .vhero-sub{margin-top:16px;max-width:48ch;font-size:clamp(15px,1.6vw,18px);line-height:1.6;color:rgba(255,255,255,.85)}
 .vhero-phone{display:inline-flex;align-items:center;gap:10px;margin-top:28px;background:#fff;color:var(--pine);font-weight:700;font-size:15px;padding:14px 26px;border-radius:100px;text-decoration:none;box-shadow:0 14px 34px rgba(0,0,0,.28);transition:transform .25s,box-shadow .25s}
