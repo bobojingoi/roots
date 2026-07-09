@@ -155,6 +155,7 @@ export const DEFAULT_CONTENT = {
     eyebrow: "Stupini · Brașov · la 10 minute de centru",
     titleA: "Tot ce îți poți imagina.",
     titleB: "Într-un singur loc.",
+    titleC: "În Brașov.",
     subtitle:
       "Două vile private pentru grupuri de 8–10 persoane — ciubăr sub cerul liber, saună, firepit și liniștea unei seri la munte.",
     ctaPrimary: "Rezervă acum",
@@ -612,15 +613,18 @@ section{position:relative}
 .ridge-far{bottom:120px;opacity:.5}
 .ridge-near{bottom:0}
 .hero-inner{position:relative;z-index:3;width:100%;padding:0 22px 96px}
+@media(max-width:760px){.hero-inner{padding-bottom:40px}} /* pe mobil textul stă mai jos, poza respiră */
 .hero-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:22px}
 .hero-eyebrow::before{content:"";width:34px;height:1px;background:var(--gold)}
 .hero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(42px,7.2vw,84px);line-height:1.04;letter-spacing:-.015em;max-width:13ch}
 .hero h1 .warm{color:var(--gold);font-style:italic}
 .hero-sub{margin-top:22px;max-width:52ch;font-size:clamp(15px,1.6vw,18px);line-height:1.65;color:rgba(255,255,255,.82)}
 .hero-ctas{margin-top:34px;display:flex;gap:14px;flex-wrap:wrap}
-.h1-line{display:block;overflow:hidden}
-.h1-line span{display:block;transform:translateY(110%);animation:rise 1.1s cubic-bezier(.2,.7,.2,1) forwards}
+/* padding-ul de jos lasă loc descenderelor (g, j) în interiorul măștii de reveal */
+.h1-line{display:block;overflow:hidden;padding-bottom:.14em;margin-bottom:-.14em}
+.h1-line span{display:inline-block;transform:translateY(110%);animation:rise 1.1s cubic-bezier(.2,.7,.2,1) forwards}
 .h1-line:nth-child(2) span{animation-delay:.14s}
+.h1-loc{color:#fff;font-style:normal}
 .fade-up{opacity:0;animation:fadeUp 1s .5s cubic-bezier(.2,.7,.2,1) forwards}
 .fade-up.d2{animation-delay:.7s}
 @keyframes rise{to{transform:none}}
@@ -1235,7 +1239,10 @@ function Hero({ hero, brand }) {
       <div className="hero-inner wrap">
         <h1 style={{ fontSize: { s: "clamp(30px,4.8vw,52px)", m: "clamp(36px,6vw,68px)", l: "clamp(42px,7.2vw,84px)", xl: "clamp(46px,8.4vw,104px)" }[hero.titleSize] || "clamp(36px,6vw,68px)" }}>
           <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
-          <span className="h1-line"><span className="warm" data-edit="hero.titleB">{hero.titleB}</span></span>
+          <span className="h1-line">
+            <span className="warm" data-edit="hero.titleB">{hero.titleB}</span>
+            {(hero.titleC || EDIT_MODE) && <> <span className="h1-loc" data-edit="hero.titleC">{hero.titleC}</span></>}
+          </span>
         </h1>
         <p className="hero-sub fade-up" data-edit="hero.subtitle">{hero.subtitle}</p>
         <div className="hero-ctas fade-up d2">
