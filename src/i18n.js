@@ -169,6 +169,10 @@ const D = {
   testi_verdict_sup:{ ro: "Superb", en: "Superb", he: "מעולה", fr: "Superbe" },
   read_more:    { ro: "Citește tot", en: "Read more", he: "קרא עוד", fr: "Lire la suite" },
   free_cancel_note: { ro: "Anulare gratuită până la 15 zile înainte de check-in", en: "Free cancellation up to 15 days before check-in", he: "ביטול חינם עד 15 יום לפני הצ'ק-אין", fr: "Annulation gratuite jusqu'à 15 jours avant l'arrivée" },
+  both_villas:  { ro: "Ambele vile", en: "Both villas", he: "שתי הווילות", fr: "Les deux villas" },
+  both_villas_name: { ro: "Ambele vile — Redwood + Sequoia", en: "Both villas — Redwood + Sequoia", he: "שתי הווילות — Redwood + Sequoia", fr: "Les deux villas — Redwood + Sequoia" },
+  both_hint:    { ro: "Calendarele celor două vile sunt suprapuse: o zi apare liberă doar dacă ambele vile sunt disponibile, iar prețul afișat le include pe amândouă (până la 20 de persoane).", en: "The two villas' calendars are combined: a day shows as free only when both villas are available, and the price shown covers both (up to 20 guests).", he: "היומנים של שתי הווילות משולבים: יום מוצג כפנוי רק כאשר שתי הווילות זמינות, והמחיר המוצג כולל את שתיהן (עד 20 אורחים).", fr: "Les calendriers des deux villas sont combinés : un jour n'apparaît libre que si les deux villas sont disponibles, et le prix affiché couvre les deux (jusqu'à 20 personnes)." },
+  want_both:    { ro: "Grup mare? Rezervă ambele vile împreună →", en: "Big group? Book both villas together →", he: "קבוצה גדולה? הזמינו את שתי הווילות יחד ←", fr: "Grand groupe ? Réservez les deux villas ensemble →" },
 };
 
 export function t(key, vars) {

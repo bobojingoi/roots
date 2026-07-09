@@ -15,20 +15,26 @@ const RES_CSS = `
 .res-tab{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:12px 26px;font:700 15px 'Manrope',sans-serif;color:var(--ink);cursor:pointer;transition:all .2s}
 .res-tab:hover{border-color:var(--ember);color:var(--ember)}
 .res-tab.on{background:var(--pine);border-color:var(--pine);color:var(--ivory)}
+.res-tab.both{border-color:rgba(232,114,44,.45)}
+.res-tab.both.on{background:var(--ember);border-color:var(--ember)}
+.res-both-hint{max-width:640px;margin:-14px auto 26px;text-align:center;font-size:13.5px;line-height:1.6;color:var(--ink-soft);background:var(--sand,#F4EDE0);border:1px solid var(--line);border-radius:14px;padding:12px 18px}
 `;
 
 export default function ReservePage() {
   const { content, loaded } = useHubContent();
   const [params] = useSearchParams();
-  const initial = params.get("vila") === "sequoia" ? "sequoia" : "redwood";
+  const p = params.get("vila");
+  const initial = p === "sequoia" ? "sequoia" : p === "ambele" || p === "both" ? "both" : "redwood";
   const [villaId, setVillaId] = useState(initial);
 
   if (!loaded) {
     return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#FBF7EF", fontFamily: "sans-serif", color: "#122B22" }}>Se încarcă…</div>;
   }
 
+  const both = villaId === "both";
+  const pages = content.pages || {};
   const villa = (content.villas || []).find((v) => v.id === villaId) || {};
-  const page = (content.pages || {})[villaId] || {};
+  const page = pages[villaId] || {};
 
   return (
     <div className="roots">
@@ -56,13 +62,16 @@ export default function ReservePage() {
         <div className="res-switch">
           <button className={`res-tab ${villaId === "redwood" ? "on" : ""}`} onClick={() => setVillaId("redwood")}>Vila Redwood</button>
           <button className={`res-tab ${villaId === "sequoia" ? "on" : ""}`} onClick={() => setVillaId("sequoia")}>Vila Sequoia</button>
+          <button className={`res-tab both ${both ? "on" : ""}`} onClick={() => setVillaId("both")}>{t("both_villas")} · 20 pers.</button>
         </div>
+        {both && <p className="res-both-hint">{t("both_hint")}</p>}
         <AvailabilityCalendar
           key={villaId}
-          apartmentId={page.smoobuId}
-          villaName={villa.name || "Vila Roots"}
+          apartmentId={both ? undefined : page.smoobuId}
+          apartmentIds={both ? [(pages.redwood || {}).smoobuId, (pages.sequoia || {}).smoobuId] : undefined}
+          villaName={both ? t("both_villas_name") : villa.name || "Vila Roots"}
           contact={content.contact}
-          capacity={10}
+          capacity={both ? 20 : 10}
           depositPct={30}
         />
       </main>

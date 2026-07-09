@@ -33,6 +33,9 @@ export const VILLA_CSS = `
 
 /* ---- calendar ---- */
 .cal-card{max-width:920px;margin:-74px auto 0;position:relative;z-index:5;background:#fff;border-radius:28px;padding:30px 32px 26px;box-shadow:0 34px 80px rgba(13,27,42,.2);border:1px solid var(--line)}
+.vp-both{text-align:center;margin-top:16px}
+.vp-both a{color:var(--ember);font-weight:700;font-size:14.5px;text-decoration:none}
+.vp-both a:hover{text-decoration:underline}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
 .cal-head h3{font-family:'Fraunces',serif;font-weight:500;font-size:23px;color:var(--pine)}
 .cal-nav{display:flex;gap:8px}
@@ -299,6 +302,9 @@ export default function VillaPage({ villaId }) {
           capacity={10}
           depositPct={30}
         />
+        <p className="vp-both">
+          <Link to="/rezervare?vila=ambele">{t("want_both")}</Link>
+        </p>
       </div>
 
       {/* GALERII */}

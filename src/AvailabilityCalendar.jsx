@@ -20,24 +20,39 @@ const addDays = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); r
 const eachNight = (ci, co) => { const out = []; let d = ci; while (d < co) { out.push(d); d = addDays(d, 1); } return out; };
 const lei = (n) => new Intl.NumberFormat("ro-RO").format(Math.round(n));
 
-function useAvailability(apartmentId, startDate, endDate) {
+/* aptKey = unul sau mai multe ID-uri Smoobu, separate prin virgulă (string stabil —
+   evită refetch-ul pe referințe noi de array). Pentru mai multe apartamente,
+   calendarele se SUPRAPUN: o zi e liberă doar dacă e liberă la toate,
+   iar prețul nopții devine suma prețurilor. */
+function useAvailability(aptKey, startDate, endDate) {
   const [data, setData] = useState({ availability: {}, prices: {} });
   const [status, setStatus] = useState("idle");
   useEffect(() => {
     if (!startDate || !endDate) return;
     let cancelled = false;
     setStatus("loading");
-    const url = `/api/availability?apartmentId=${encodeURIComponent(apartmentId || "")}&startDate=${startDate}&endDate=${endDate}`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))))
-      .then((json) => {
+    const ids = String(aptKey || "").split(",").filter(Boolean);
+    const one = (id) =>
+      fetch(`/api/availability?apartmentId=${encodeURIComponent(id)}&startDate=${startDate}&endDate=${endDate}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))));
+    Promise.all((ids.length ? ids : [""]).map(one))
+      .then((results) => {
         if (cancelled) return;
-        setData({ availability: json.availability || {}, prices: json.prices || {} });
-        setStatus(json.mock ? "mock" : "ok");
+        const availability = {};
+        const prices = {};
+        const dates = new Set();
+        results.forEach((j) => Object.keys((j && j.availability) || {}).forEach((d) => dates.add(d)));
+        for (const d of dates) {
+          availability[d] = results.every((j) => ((j && j.availability) || {})[d] !== 0) ? 1 : 0;
+          const ps = results.map((j) => ((j && j.prices) || {})[d]);
+          if (ps.every((p) => p != null)) prices[d] = ps.reduce((s, p) => s + Number(p), 0);
+        }
+        setData({ availability, prices });
+        setStatus(results.some((j) => j && j.mock) ? "mock" : "ok");
       })
       .catch(() => { if (!cancelled) { setData({ availability: {}, prices: {} }); setStatus("error"); } });
     return () => { cancelled = true; };
-  }, [apartmentId, startDate, endDate]);
+  }, [aptKey, startDate, endDate]);
   return { ...data, status };
 }
 
@@ -94,9 +109,15 @@ function Stepper({ label, value, set, min, max }) {
 }
 
 export default function AvailabilityCalendar({
-  apartmentId, villaName = "vila", contact = {}, capacity = 10, depositPct = 30, currency = "lei",
+  apartmentId, apartmentIds, villaName = "vila", contact = {}, capacity = 10, depositPct = 30, currency = "lei",
   title,
 }) {
+  // apartmentIds (array) = rezervare combinată pe mai multe vile; altfel apartmentId simplu
+  const aptKey = useMemo(
+    () => (apartmentIds && apartmentIds.length ? apartmentIds : [apartmentId]).filter((x) => x != null && x !== "").join(","),
+    [apartmentIds, apartmentId]
+  );
+  const multi = aptKey.includes(",");
   const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [checkIn, setCheckIn] = useState(null);
@@ -111,7 +132,7 @@ export default function AvailabilityCalendar({
   const startDate = iso(cursor.getFullYear(), cursor.getMonth(), 1);
   const lastDay = new Date(m2.getFullYear(), m2.getMonth() + 1, 0).getDate();
   const endDate = iso(m2.getFullYear(), m2.getMonth(), lastDay);
-  const { availability, prices, status } = useAvailability(apartmentId, startDate, endDate);
+  const { availability, prices, status } = useAvailability(aptKey, startDate, endDate);
 
   const atStart = cursor.getFullYear() === today.getFullYear() && cursor.getMonth() === today.getMonth();
   const shift = useCallback((n) => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + n, 1)), []);
@@ -157,7 +178,9 @@ export default function AvailabilityCalendar({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apartmentId, villaName, depositPct,
+          apartmentId: aptKey.split(",")[0],
+          apartmentIds: multi ? aptKey.split(",") : undefined,
+          villaName, depositPct,
           arrivalDate: checkIn, departureDate: checkOut, adults, children,
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
