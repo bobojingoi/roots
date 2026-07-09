@@ -819,7 +819,9 @@ body.t-al .testi-more a{color:var(--gold)}
 /* final CTA — fără box: text direct pe fundalul paginii, culori închise */
 .final{padding:64px 0 72px;text-align:center}
 @media(max-width:760px){.final{padding:44px 0 52px}}
-.final h2{color:var(--pine);max-width:18ch;margin:0 auto}
+.final h2{color:var(--pine);max-width:22ch;margin:0 auto}
+.final .final-l1,.final .final-l2{display:block}
+.final .final-l2{color:var(--ember);font-style:italic}
 .final .lede{margin-left:auto;margin-right:auto}
 .final .hero-ctas{justify-content:center}
 .final .btn-ghost{background:none;color:var(--pine);border-color:rgba(18,43,34,.35);backdrop-filter:none}
@@ -1678,7 +1680,10 @@ function FinalCta({ contact }) {
     <section id="final" className="final">
       <div className="wrap">
         <div className="eyebrow rv" style={{ justifyContent: "center" }}>{t("final_eyebrow")}</div>
-        <h2 className="rv">{t("final_title")}</h2>
+        <h2 className="rv">
+          <span className="final-l1">{t("final_title")}</span>
+          <span className="final-l2">{t("final_title2")}</span>
+        </h2>
         <p className="lede rv rv-d1">{t("final_lede")}</p>
         <div className="hero-ctas rv rv-d2">
           <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
