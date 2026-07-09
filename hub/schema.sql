@@ -116,6 +116,13 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS source TEXT;
 
+-- setări generice (ex. role_permissions: ce zone din admin vede fiecare rol)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- heatmap: click-uri anonime de pe site (fără date personale)
 CREATE TABLE IF NOT EXISTS page_events (
   id BIGSERIAL PRIMARY KEY,

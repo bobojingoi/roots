@@ -159,12 +159,80 @@ app.post('/api/v1/auth/logout', (req, res) => {
 });
 
 /* token temporar (2h) pentru editorul vizual de pe site */
-app.get('/api/v1/editor-token', requireAuth, (req, res) => {
+app.get('/api/v1/editor-token', requirePerm('continut'), (req, res) => {
   const { signToken } = require('./auth');
   res.json({
     token: signToken({ id: req.user.id, role: req.user.role, email: req.user.email }, 2 * 60 * 60),
     siteUrl: process.env.SITE_URL || 'https://roots-opal.vercel.app',
   });
+});
+
+/* ============ ROLURI & PERMISIUNI (configurabile de owner) ============
+   Fiecare rol vede doar zonele bifate în admin → Sistem → Roluri & acces.
+   Owner are mereu tot; adminul pornește cu tot dar POATE fi restrâns. */
+const PERM_AREAS = [
+  ['panou', 'Panou (statistici)'],
+  ['continut', 'Conținut site + editor'],
+  ['rezervari', 'Rezervări + sync Smoobu'],
+  ['clienti', 'Clienți (CRM)'],
+  ['recenzii', 'Recenzii'],
+  ['seo', 'Audit SEO'],
+  ['heatmap', 'Heatmap'],
+  ['blog', 'Articole blog'],
+  ['media', 'Galerie media'],
+];
+const AREA_KEYS = PERM_AREAS.map(([k]) => k);
+const DEFAULT_PERMS = {
+  admin: [...AREA_KEYS],
+  curatenie: ['panou', 'rezervari'],
+  turist: [],
+};
+let permsCache = null; // { at, value }
+async function getRolePerms() {
+  if (permsCache && Date.now() - permsCache.at < 60e3) return permsCache.value;
+  let stored = {};
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'role_permissions'");
+    if (r.rows[0]) stored = r.rows[0].value || {};
+  } catch (e) { /* tabela poate lipsi la primul boot */ }
+  const value = { ...DEFAULT_PERMS, ...stored };
+  permsCache = { at: Date.now(), value };
+  return value;
+}
+function requirePerm(area) {
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Autentificare necesară' });
+    if (req.user.role === 'owner') return next();
+    const perms = await getRolePerms();
+    if ((perms[req.user.role] || []).includes(area)) return next();
+    return res.status(403).json({ error: 'Rolul tău nu are acces la această zonă.' });
+  };
+}
+const requireOwnerStrict = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ error: 'Autentificare necesară' });
+  if (req.user.role !== 'owner') return res.status(403).json({ error: 'Doar owner-ul poate administra rolurile.' });
+  next();
+};
+app.get('/api/v1/admin/permissions', requireOwnerStrict, async (_req, res) => {
+  res.json({ areas: PERM_AREAS, perms: await getRolePerms() });
+});
+app.put('/api/v1/admin/permissions', requireOwnerStrict, async (req, res) => {
+  const input = (req.body && req.body.perms) || {};
+  const clean = {};
+  for (const [role, list] of Object.entries(input)) {
+    const name = String(role).trim().toLowerCase().slice(0, 40);
+    if (!name || name === 'owner') continue; // owner nu e configurabil
+    if (!Array.isArray(list)) continue;
+    clean[name] = list.filter((a) => AREA_KEYS.includes(a));
+  }
+  await pool.query(
+    `INSERT INTO settings (key, value, updated_at) VALUES ('role_permissions', $1, now())
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
+    [JSON.stringify(clean)]
+  );
+  permsCache = null;
+  emit('PermissionsUpdated', { by: req.user.email, roles: Object.keys(clean) });
+  res.json({ ok: true, perms: await getRolePerms() });
 });
 
 /* ============ LOGIN DE PE SITE (Bearer, cross-origin) ============ */
@@ -205,7 +273,7 @@ app.post('/api/v1/site-register', async (req, res) => {
 
   const r = await pool.query(
     `INSERT INTO users (email, password_hash, name, role, phone, source)
-     VALUES ($1, $2, $3, 'client', $4, $5) RETURNING id, email, name, role`,
+     VALUES ($1, $2, $3, 'turist', $4, $5) RETURNING id, email, name, role`,
     [mail, await hashPassword(password), String(name).trim().slice(0, 120), String(phone || '').trim().slice(0, 40) || null, String(source || '').trim().slice(0, 120) || null]
   );
   const user = r.rows[0];
@@ -233,7 +301,17 @@ app.get('/api/v1/my-account', requireAuth, async (req, res) => {
 
 app.get('/api/v1/auth/me', requireAuth, async (req, res) => {
   const r = await pool.query('SELECT id, email, name, role FROM users WHERE id = $1', [req.user.id]);
-  res.json({ user: r.rows[0] || null });
+  const user = r.rows[0] || null;
+  // zonele vizibile pentru rolul curent (owner = tot + sistem; admin primește sistem)
+  let perms = [];
+  if (user) {
+    if (user.role === 'owner') perms = [...AREA_KEYS, 'sistem'];
+    else {
+      perms = [...((await getRolePerms())[user.role] || [])];
+      if (user.role === 'admin') perms.push('sistem');
+    }
+  }
+  res.json({ user, perms });
 });
 
 app.post('/api/v1/auth/change-credentials', requireAuth, async (req, res) => {
@@ -255,14 +333,14 @@ app.post('/api/v1/auth/change-credentials', requireAuth, async (req, res) => {
 });
 
 /* ============ CMS: secțiuni (draft / publicare / versiuni) ============ */
-app.get('/api/v1/sections', requireAuth, async (_req, res) => {
+app.get('/api/v1/sections', requirePerm('continut'), async (_req, res) => {
   const r = await pool.query(
     'SELECT section_key, draft, published, published_at, updated_at FROM site_content ORDER BY section_key'
   );
   res.json({ sections: r.rows });
 });
 
-app.put('/api/v1/sections/:key', requireAuth, async (req, res) => {
+app.put('/api/v1/sections/:key', requirePerm('continut'), async (req, res) => {
   const { key } = req.params;
   const draft = req.body && req.body.draft;
   if (!draft || typeof draft !== 'object') return res.status(400).json({ error: 'draft (obiect) obligatoriu' });
@@ -276,7 +354,7 @@ app.put('/api/v1/sections/:key', requireAuth, async (req, res) => {
   res.json({ ok: true, updated_at: r.rows[0].updated_at });
 });
 
-app.post('/api/v1/sections/:key/publish', requireAuth, async (req, res) => {
+app.post('/api/v1/sections/:key/publish', requirePerm('continut'), async (req, res) => {
   const { key } = req.params;
   const cur = await pool.query('SELECT draft FROM site_content WHERE section_key = $1', [key]);
   if (!cur.rows.length) return res.status(404).json({ error: 'Secțiune inexistentă' });
@@ -300,7 +378,7 @@ app.post('/api/v1/sections/:key/publish', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/v1/sections/:key/versions', requireAuth, async (req, res) => {
+app.get('/api/v1/sections/:key/versions', requirePerm('continut'), async (req, res) => {
   const r = await pool.query(
     'SELECT id, content, published_at FROM site_content_versions WHERE section_key = $1 ORDER BY published_at DESC LIMIT 10',
     [req.params.key]
@@ -308,7 +386,7 @@ app.get('/api/v1/sections/:key/versions', requireAuth, async (req, res) => {
   res.json({ versions: r.rows });
 });
 
-app.post('/api/v1/sections/:key/restore/:versionId', requireAuth, async (req, res) => {
+app.post('/api/v1/sections/:key/restore/:versionId', requirePerm('continut'), async (req, res) => {
   const { key, versionId } = req.params;
   const v = await pool.query(
     'SELECT content FROM site_content_versions WHERE id = $1 AND section_key = $2',
@@ -324,14 +402,14 @@ app.post('/api/v1/sections/:key/restore/:versionId', requireAuth, async (req, re
 });
 
 /* ============ MEDIA (bibliotecă centrală, Supabase Storage) ============ */
-app.get('/api/v1/media', requireAuth, async (_req, res) => {
+app.get('/api/v1/media', requirePerm('media'), async (_req, res) => {
   const r = await pool.query('SELECT * FROM media ORDER BY created_at DESC LIMIT 500');
   res.json({ media: r.rows });
 });
 
 /* Optimizarea imaginii se face în BROWSER (canvas → WebP/JPEG 1920px + thumb 480px),
    ca payload-ul să încapă în limita serverless Vercel (4,5MB/request). */
-app.post('/api/v1/media', requireAuth, async (req, res) => {
+app.post('/api/v1/media', requirePerm('media'), async (req, res) => {
   try {
     const { filename, mainBase64, thumbBase64, width, height, alt, mime } = req.body || {};
     if (!mainBase64) return res.status(400).json({ error: 'mainBase64 obligatoriu' });
@@ -360,7 +438,7 @@ app.post('/api/v1/media', requireAuth, async (req, res) => {
   }
 });
 
-app.patch('/api/v1/media/:id', requireAuth, async (req, res) => {
+app.patch('/api/v1/media/:id', requirePerm('media'), async (req, res) => {
   const r = await pool.query('UPDATE media SET alt = $2 WHERE id = $1 RETURNING *', [
     req.params.id,
     (req.body && req.body.alt) || null,
@@ -414,7 +492,7 @@ app.delete('/api/v1/admin/users/:id', requireOwner, async (req, res) => {
 });
 
 /* ============ ACTIVITATE (jurnal) ============ */
-app.get('/api/v1/admin/activity', requireAuth, async (_req, res) => {
+app.get('/api/v1/admin/activity', requireOwner, async (_req, res) => {
   const r = await pool.query('SELECT event, payload, created_at FROM events_log ORDER BY created_at DESC LIMIT 150');
   res.json({ activity: r.rows });
 });
@@ -435,11 +513,11 @@ app.get('/api/v1/posts/:slug', async (req, res) => {
   res.json({ post: r.rows[0] });
 });
 // admin
-app.get('/api/v1/admin/posts', requireAuth, async (_req, res) => {
+app.get('/api/v1/admin/posts', requirePerm('blog'), async (_req, res) => {
   const r = await pool.query('SELECT * FROM posts ORDER BY created_at DESC');
   res.json({ posts: r.rows });
 });
-app.post('/api/v1/admin/posts', requireAuth, async (req, res) => {
+app.post('/api/v1/admin/posts', requirePerm('blog'), async (req, res) => {
   const { title, slug, excerpt, cover, body, blocks, seo_title, seo_description } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Titlul e obligatoriu' });
   const finalSlug = (slug || title).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
@@ -454,7 +532,7 @@ app.post('/api/v1/admin/posts', requireAuth, async (req, res) => {
     res.status(400).json({ error: e.message.includes('duplicate') ? 'Slug deja folosit' : e.message });
   }
 });
-app.put('/api/v1/admin/posts/:id', requireAuth, async (req, res) => {
+app.put('/api/v1/admin/posts/:id', requirePerm('blog'), async (req, res) => {
   const { title, slug, excerpt, cover, body, blocks, seo_title, seo_description } = req.body || {};
   // blocks se trimite mereu din admin: array gol = articolul revine pe body simplu
   const blocksVal = blocks === undefined ? undefined : (Array.isArray(blocks) && blocks.length ? JSON.stringify(blocks) : null);
@@ -468,7 +546,7 @@ app.put('/api/v1/admin/posts/:id', requireAuth, async (req, res) => {
   if (!r.rows.length) return res.status(404).json({ error: 'Articol inexistent' });
   res.json({ ok: true, post: r.rows[0] });
 });
-app.post('/api/v1/admin/posts/:id/publish', requireAuth, async (req, res) => {
+app.post('/api/v1/admin/posts/:id/publish', requirePerm('blog'), async (req, res) => {
   const on = req.body && req.body.unpublish ? null : new Date();
   const r = await pool.query('UPDATE posts SET published_at=$2, updated_at=now() WHERE id=$1 RETURNING slug, published_at', [req.params.id, on]);
   if (!r.rows.length) return res.status(404).json({ error: 'Articol inexistent' });
@@ -532,7 +610,7 @@ async function runSmoobuSync(startPage = 1, maxPagesPerCall = 5) {
   return { seen, created, pages, nextPage: page <= pages ? page : null };
 }
 
-app.post('/api/v1/admin/sync-smoobu', requireAuth, async (req, res) => {
+app.post('/api/v1/admin/sync-smoobu', requirePerm('rezervari'), async (req, res) => {
   try {
     const startPage = Math.max(1, parseInt(req.body && req.body.startPage, 10) || 1);
     const out = await runSmoobuSync(startPage);
@@ -548,7 +626,7 @@ app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
   catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
-app.get('/api/v1/admin/stats', requireAuth, async (req, res) => {
+app.get('/api/v1/admin/stats', requirePerm('panou'), async (req, res) => {
   const year = parseInt(req.query.year, 10) || null;
   const month = parseInt(req.query.month, 10) || null;
   const byChannel = await pool.query(
@@ -582,7 +660,7 @@ app.get('/api/v1/admin/stats', requireAuth, async (req, res) => {
   res.json({ byChannel: byChannel.rows, monthly: monthly.rows, years: years.rows.map((x) => x.y), timeline: timeline.rows });
 });
 
-app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
+app.get('/api/v1/admin/bookings', requirePerm('rezervari'), async (_req, res) => {
   const r = await pool.query(
     `SELECT b.*, g.name AS guest_name, g.email AS guest_email, g.phone AS guest_phone
      FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
@@ -590,7 +668,7 @@ app.get('/api/v1/admin/bookings', requireAuth, async (_req, res) => {
   );
   res.json({ bookings: r.rows });
 });
-app.get('/api/v1/admin/guests', requireAuth, async (_req, res) => {
+app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
   const r = await pool.query(
     `SELECT g.*, count(b.id)::int AS stays, COALESCE(sum(b.value),0)::numeric AS total_value,
             max(b.departure) AS last_departure,
@@ -601,7 +679,7 @@ app.get('/api/v1/admin/guests', requireAuth, async (_req, res) => {
   );
   res.json({ guests: r.rows });
 });
-app.patch('/api/v1/admin/guests/:id', requireAuth, async (req, res) => {
+app.patch('/api/v1/admin/guests/:id', requirePerm('clienti'), async (req, res) => {
   const { notes, marketing_consent } = req.body || {};
   const r = await pool.query(
     `UPDATE guests SET notes = COALESCE($2, notes),
@@ -636,7 +714,7 @@ app.post('/api/v1/track', async (req, res) => {
   }
 });
 
-app.get('/api/v1/admin/heatmap', requireAuth, async (req, res) => {
+app.get('/api/v1/admin/heatmap', requirePerm('heatmap'), async (req, res) => {
   const p = String(req.query.path || '/');
   const device = req.query.device === 'mobile' ? 'mobile' : 'desktop';
   const days = Math.min(365, parseInt(req.query.days, 10) || 90);
@@ -717,7 +795,7 @@ function auditHtml(html, path) {
   return checks;
 }
 
-app.get('/api/v1/admin/seo-audit', requireAuth, async (req, res) => {
+app.get('/api/v1/admin/seo-audit', requirePerm('seo'), async (req, res) => {
   const p = String(req.query.path || '/');
   const page = await fetchText(SITE_URL + p);
   if (!page.status || page.status >= 400) {

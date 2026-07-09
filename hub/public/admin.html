@@ -136,7 +136,9 @@
 
 <script>
 /* ============ state ============ */
-let ME = null, SECTIONS = [], MEDIA = [], TAB = 'panou', CUR = null;
+let ME = null, PERMS = [], SECTIONS = [], MEDIA = [], TAB = 'panou', CUR = null;
+/* rolul curent vede o zonă doar dacă e în lista lui de permisiuni (owner le are pe toate) */
+function can(area) { return PERMS.includes(area); }
 
 const SECTION_META = {
   seo:             ['SEO global', 'Meta title, description, keywords, imagine OG'],
@@ -221,11 +223,13 @@ let NAVOPEN = new Set();
 function toggleGroup(key) { NAVOPEN.has(key) ? NAVOPEN.delete(key) : NAVOPEN.add(key); renderNav(); }
 function renderNav() {
   const have = new Set(SECTIONS.map((s) => s.section_key));
-  let h = `<button class="nav-i ${TAB === 'panou' ? 'on' : ''}" onclick="go('panou')">${ICONS.panou} Panou</button>`;
+  let h = '';
+  if (can('panou')) h += `<button class="nav-i ${TAB === 'panou' ? 'on' : ''}" onclick="go('panou')">${ICONS.panou} Panou</button>`;
   const PAGE_ICONS = ['home', 'bed', 'doc'];
   const LANG_LABELS = { en: 'Engleză', he: 'Ebraică', fr: 'Franceză' };
   const activeSec = TAB.startsWith('sec:') ? TAB.slice(4) : null;
   const rootOpen = NAVOPEN.has('root') || Boolean(activeSec);
+  if (can('continut')) {
   h += `<button class="nav-cap nav-toggle" onclick="toggleGroup('root')">${rootOpen ? '&#9662;' : '&#9656;'} Conținut site</button>`;
   if (rootOpen) {
     PAGES_NAV.forEach((page, pi) => {
@@ -252,23 +256,24 @@ function renderNav() {
       }
     }
   }
-  h += `<div class="nav-cap">CRM</div>`;
-  h += `<button class="nav-i ${TAB === 'bookings' ? 'on' : ''}" onclick="go('bookings')">${ICONS.cal} Rezervări</button>`;
-  h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
-  h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
-  h += `<div class="nav-cap">Analiză</div>`;
-  h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
-  h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
-  h += `<div class="nav-cap">Blog</div>`;
-  h += `<button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
-  h += `<div class="nav-cap">Bibliotecă</div>`;
-  h += `<button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
-  if (ME && (ME.role === 'owner' || ME.role === 'admin')) {
+  } // end can('continut')
+  if (can('rezervari') || can('clienti') || can('recenzii')) h += `<div class="nav-cap">CRM</div>`;
+  if (can('rezervari')) h += `<button class="nav-i ${TAB === 'bookings' ? 'on' : ''}" onclick="go('bookings')">${ICONS.cal} Rezervări</button>`;
+  if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
+  if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
+  if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
+  if (can('seo')) h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
+  if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
+  if (can('blog')) h += `<div class="nav-cap">Blog</div><button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
+  if (can('media')) h += `<div class="nav-cap">Bibliotecă</div><button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
+  if (can('sistem')) {
     h += `<div class="nav-cap">Sistem</div>`;
     h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.user} Utilizatori</button>`;
+    if (ME && ME.role === 'owner') h += `<button class="nav-i ${TAB === 'roles' ? 'on' : ''}" onclick="go('roles')">${ICONS.user} Roluri &amp; acces</button>`;
     h += `<button class="nav-i ${TAB === 'activity' ? 'on' : ''}" onclick="go('activity')">${ICONS.clock} Activitate</button>`;
     h += `<button class="nav-i ${TAB === 'themes' ? 'on' : ''}" onclick="go('themes')">${ICONS.palette} Versiuni UI</button>`;
   }
+  if (!h) h = `<div class="nav-cap">Fără acces</div>`;
   $('nav').innerHTML = h;
 }
 function go(tab) { TAB = tab; renderNav(); renderMain(); }
@@ -357,6 +362,11 @@ async function renderMain() {
   if (TAB === 'guests') { renderGuests(); return; }
   if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
+  if (TAB === 'roles') { renderRoles(); return; }
+  if (TAB === 'noaccess') {
+    $('main').innerHTML = '<div class="card">Contul tău nu are acces la nicio zonă din admin. Cere owner-ului să îți aloce permisiuni (Sistem → Roluri &amp; acces).</div>';
+    return;
+  }
   if (TAB === 'activity') { renderActivity(); return; }
   if (TAB.startsWith('sec:')) {
     const key = TAB.slice(4);
@@ -843,6 +853,58 @@ const EVENT_LABELS = {
   UserDeleted: 'Utilizator șters', PostCreated: 'Articol creat', PostPublished: 'Articol publicat',
   PostUnpublished: 'Articol retras', BookingSynced: 'Rezervare sincronizată',
 };
+/* ============ roluri & acces (doar owner) ============ */
+let ROLES_DATA = null; // { areas: [[cheie, etichetă]], perms: { rol: [chei] } }
+async function renderRoles() {
+  ROLES_DATA = await api('/api/v1/admin/permissions');
+  paintRoles();
+}
+function paintRoles() {
+  const roles = Object.keys(ROLES_DATA.perms).sort();
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Roluri &amp; acces</h1>
+      <div class="lead">Bifezi ce vede fiecare rol în admin. Owner-ul are mereu acces total; rolul „turist" e cel primit automat de conturile create pe site. Rolul unui utilizator îl schimbi din pagina „Utilizatori".</div></div></div>
+    <div class="card" style="overflow:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><th style="text-align:left;padding:8px 10px">Zonă</th>${roles.map((r) => `<th style="padding:8px 10px;text-transform:capitalize">${esc(r)}</th>`).join('')}</tr>
+        ${ROLES_DATA.areas.map(([k, label]) => `<tr style="border-top:1px solid #edf0ee">
+          <td style="padding:8px 10px">${esc(label)}</td>
+          ${roles.map((r) => `<td style="text-align:center;padding:8px 10px"><input type="checkbox" ${(ROLES_DATA.perms[r] || []).includes(k) ? 'checked' : ''} onchange="togglePerm('${esc(r)}','${k}',this.checked)" /></td>`).join('')}
+        </tr>`).join('')}
+      </table>
+    </div>
+    <div class="card">
+      <b>Adaugă rol nou</b>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <input class="f" id="newRole" placeholder="numele rolului (ex: receptie)" style="max-width:240px" />
+        <button class="btn s" onclick="addRole()">Adaugă</button>
+      </div>
+    </div>
+    <button class="btn p" onclick="saveRoles(this)">Salvează permisiunile</button>
+    <div class="hint">Permisiunile se aplică și pe server (API), nu doar în meniu — un rol fără „Rezervări" nu poate citi rezervările nici direct.</div>`;
+}
+function togglePerm(role, area, on) {
+  const list = new Set(ROLES_DATA.perms[role] || []);
+  if (on) list.add(area); else list.delete(area);
+  ROLES_DATA.perms[role] = [...list];
+}
+function addRole() {
+  const name = ($('newRole').value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!name || name === 'owner' || ROLES_DATA.perms[name]) { toast('Nume invalid sau deja existent'); return; }
+  ROLES_DATA.perms[name] = [];
+  paintRoles();
+}
+async function saveRoles(btn) {
+  btn.disabled = true;
+  try {
+    const j = await api('/api/v1/admin/permissions', { method: 'PUT', body: JSON.stringify({ perms: ROLES_DATA.perms }) });
+    ROLES_DATA.perms = j.perms;
+    toast('Permisiuni salvate — se aplică la următorul login al fiecărui rol');
+    paintRoles();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false;
+}
+
 async function renderUsers() {
   const j = await api('/api/v1/admin/users');
   $('main').innerHTML = `
@@ -853,8 +915,8 @@ async function renderUsers() {
         <input class="f" id="nuEmail" placeholder="email" />
         <input class="f" id="nuName" placeholder="nume" />
         <input class="f" id="nuPass" placeholder="parolă" type="text" />
-        <input class="f" id="nuRole" placeholder="rol (admin / client / alt rol)" list="roleList" value="client" />
-        <datalist id="roleList"><option value="admin"><option value="client"><option value="owner"></datalist>
+        <input class="f" id="nuRole" placeholder="rol (admin / curatenie / turist / alt rol)" list="roleList" value="turist" />
+        <datalist id="roleList"><option value="admin"><option value="curatenie"><option value="turist"><option value="owner"></datalist>
         <button class="btn p" onclick="createUser()">Creează</button>
       </div>
     </div>
@@ -1087,10 +1149,23 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
   try {
     const me = await api('/api/v1/auth/me');
     ME = me.user;
+    PERMS = me.perms || [];
     $('who').textContent = ME.email + ' · ' + ME.role;
-    const j = await api('/api/v1/sections');
-    const order = Object.keys(SECTION_META);
-    SECTIONS = j.sections.sort((a, b) => order.indexOf(a.section_key) - order.indexOf(b.section_key));
+    // rolurile fără acces la conținut nu pot citi secțiunile — nu blocăm boot-ul
+    try {
+      const j = await api('/api/v1/sections');
+      const order = Object.keys(SECTION_META);
+      SECTIONS = j.sections.sort((a, b) => order.indexOf(a.section_key) - order.indexOf(b.section_key));
+    } catch (e) { SECTIONS = []; }
+    // deschide primul tab la care rolul are acces
+    if (!can('panou')) {
+      const first = ['continut', 'rezervari', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media'].find(can);
+      TAB = first === 'continut' ? 'sec:' + (SECTIONS[0] ? SECTIONS[0].section_key : 'hero')
+        : first === 'rezervari' ? 'bookings' : first === 'clienti' ? 'guests'
+        : first === 'recenzii' ? 'greviews' : first === 'blog' ? 'blog'
+        : first === 'media' ? 'media' : first || 'panou';
+      if (!first) TAB = 'noaccess';
+    }
     renderNav();
     renderMain();
   } catch (e) { /* redirected */ }
