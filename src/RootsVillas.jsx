@@ -685,8 +685,8 @@ section{position:relative}
 .rule p{font-size:14.5px;font-weight:600;line-height:1.55;color:var(--ink)}
 
 /* testimonials */
-.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:64px 0 56px;overflow:hidden;position:relative}
-@media(max-width:760px){.testi-band{padding:48px 0 44px;border-radius:30px}}
+.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:56px 0 44px;overflow:hidden;position:relative}
+@media(max-width:760px){.testi-band{padding:44px 0 36px;border-radius:30px}}
 .testi-band .eyebrow{color:var(--gold)}.testi-band .eyebrow::before{background:var(--gold)}
 .testi-band h2{color:#fff}
 .testi-band .lede{color:rgba(255,255,255,.65)}
@@ -707,11 +707,10 @@ section{position:relative}
 .tcard .who span{font-size:12.5px;color:rgba(255,255,255,.5);font-weight:600}
 .t-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;object-fit:cover}
 .t-ava-ph{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;background:rgba(233,184,114,.25);color:var(--gold);font-weight:800;font-size:16px}
-.testi-more{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:28px}
-.testi-more .btn-more{border:1.5px solid rgba(233,184,114,.5);background:none;color:var(--gold);border-radius:100px;padding:12px 26px;font:700 14px 'Manrope',sans-serif;cursor:pointer;transition:background .3s}
-.testi-more .btn-more:hover{background:rgba(233,184,114,.12)}
-.testi-more a{color:rgba(255,255,255,.6);font-size:13px;font-weight:600}
-body.t-al .testi-more a{color:rgba(255,255,255,.6)}
+.testi-more{display:flex;justify-content:center;margin-top:26px}
+.testi-more a{display:inline-flex;align-items:center;border:1.5px solid rgba(233,184,114,.5);color:var(--gold);border-radius:100px;padding:11px 24px;font:700 14px 'Manrope',sans-serif;text-decoration:none;transition:background .3s}
+.testi-more a:hover{background:rgba(233,184,114,.12)}
+body.t-al .testi-more a{color:var(--gold)}
 
 /* video */
 .video-card{margin-top:48px;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:16/9;background:linear-gradient(160deg,#152B3D,#0C1F19);display:grid;place-items:center}
@@ -751,8 +750,8 @@ body.t-al .testi-more a{color:rgba(255,255,255,.6)}
 .loc-map-link svg{color:var(--ember)}
 
 /* final CTA */
-.final{background:linear-gradient(180deg,var(--pine) 0%,var(--pine-3) 100%);color:var(--ivory);border-radius:44px;margin:0 14px;padding:88px 0;text-align:center;position:relative;overflow:hidden}
-@media(max-width:760px){.final{padding:60px 0;border-radius:30px}}
+.final{background:linear-gradient(180deg,var(--pine) 0%,var(--pine-3) 100%);color:var(--ivory);border-radius:44px;margin:0 14px;padding:46px 0;text-align:center;position:relative;overflow:hidden}
+@media(max-width:760px){.final{padding:36px 0;border-radius:30px}}
 .final h2{color:var(--ivory);max-width:18ch;margin:0 auto}
 .final .lede{margin-left:auto;margin-right:auto;color:rgba(251,247,239,.7)}
 .final .hero-ctas{justify-content:center}
@@ -1226,7 +1225,7 @@ function Testimonials({ t: T, cfg }) {
       .catch(() => {});
   }, []);
   // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
-  const [showAll, setShowAll] = useState(false);
+  // Google Places dă max ~5 recenzii prin API — le afișăm pe toate, fără buton „mai multe"
   const C = cfg || {};
   const allReviews = !EDIT_MODE && g
     ? g.reviews
@@ -1235,8 +1234,7 @@ function Testimonials({ t: T, cfg }) {
         .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
         .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
     : null;
-  const items = allReviews ? (showAll ? allReviews : allReviews.slice(0, C.count || 6)) : T.items;
-  const hasMore = allReviews && !showAll && allReviews.length > (C.count || 6);
+  const items = allReviews || T.items;
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
   const reviewCount = !EDIT_MODE && g ? (g.total || (g.reviews ? g.reviews.length : 0)) : 0;
   return (
@@ -1274,14 +1272,9 @@ function Testimonials({ t: T, cfg }) {
               </div>
             ))}
           </div>
-          {!EDIT_MODE && (hasMore || (g && g.url)) && (
+          {!EDIT_MODE && g && g.url && (
             <div className="testi-more rv">
-              {hasMore && (
-                <button type="button" className="btn-more" onClick={() => setShowAll(true)}>{t("more_reviews")}</button>
-              )}
-              {g && g.url && (
-                <a href={g.url} target="_blank" rel="noreferrer">{t("all_reviews_g", { n: g.total || "" })}</a>
-              )}
+              <a href={g.url} target="_blank" rel="noreferrer">{t("all_reviews_g", { n: g.total || "" })}</a>
             </div>
           )}
         </div>
@@ -1409,10 +1402,7 @@ function FinalCta({ contact }) {
       <div className="final">
         <Embers />
         <div className="wrap" style={{ position: "relative", zIndex: 2 }}>
-          <div className="eyebrow rv" style={{ justifyContent: "center" }}>{t("final_eyebrow")}</div>
-          <h2 className="rv">{t("final_title")}</h2>
-          <p className="lede rv rv-d1">{t("final_lede")}</p>
-          <div className="hero-ctas rv rv-d2">
+          <div className="hero-ctas rv">
             <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
             <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="btn btn-ghost">{ICONS.phone} {contact.phone}</a>
           </div>
