@@ -146,9 +146,12 @@ export const VILLA_CSS = `
 .vg-wrap{position:relative}
 .vg-track{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px;scrollbar-width:none;-ms-overflow-style:none}
 .vg-track::-webkit-scrollbar{display:none}
-.vg-card{flex:0 0 clamp(260px,44%,430px);scroll-snap-align:start;position:relative}
+.vg-card{flex:0 0 clamp(320px,58%,580px);scroll-snap-align:start;position:relative}
 .vg-card .pic-mob-btn{top:12px;bottom:auto} /* nu peste figcaption-ul editabil */
-.vg-card img,.vg-ph{width:100%;height:290px;object-fit:cover;border-radius:20px;display:block}
+.vg-card img,.vg-ph{width:100%;height:400px;object-fit:cover;border-radius:20px;display:block}
+@media(max-width:600px){.vg-card{flex-basis:86%}.vg-card img,.vg-ph{height:300px}}
+/* în editor, butonul „+ Adaugă element" (portalul HubEditor) devine un card vizibil la capătul galeriei */
+.vg-track .hub-addbtn{flex:0 0 220px;width:auto;min-height:auto;align-self:stretch;border-radius:20px;font-size:15px}
 .vg-ph{position:relative;background:linear-gradient(160deg,#1B4033,#0C1F19);overflow:hidden}
 .vg-ph .vg-glow{position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:250px;height:130px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.5),transparent 70%)}
 .vg-ph svg{position:absolute;inset:auto 0 0 0;display:block;width:100%}
@@ -215,12 +218,16 @@ function VHeader({ contact, logo }) {
   );
 }
 
-function Gallery({ title, items, basePath }) {
+function Gallery({ title, items: rawItems, basePath }) {
   const ref = useRef(null);
+  // pe site nu afișăm cardurile complet goale (rămase din editor);
+  // în editor le păstrăm pe toate, ca indicii data-edit să corespundă draftului
+  const items = EDIT_MODE ? rawItems : rawItems.filter((it) => it && (it.img || it.caption));
   const scroll = (dir) => {
     const el = ref.current;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
   };
+  if (!items.length && !EDIT_MODE) return null;
   return (
     <section className="sec" style={{ paddingBottom: 40 }}>
       <div className="wrap">
