@@ -62,7 +62,7 @@ export default function ReservePage() {
         <div className="res-switch">
           <button className={`res-tab ${villaId === "redwood" ? "on" : ""}`} onClick={() => setVillaId("redwood")}>Vila Redwood</button>
           <button className={`res-tab ${villaId === "sequoia" ? "on" : ""}`} onClick={() => setVillaId("sequoia")}>Vila Sequoia</button>
-          <button className={`res-tab both ${both ? "on" : ""}`} onClick={() => setVillaId("both")}>{t("both_villas")} · 20 pers.</button>
+          <button className={`res-tab both ${both ? "on" : ""}`} onClick={() => setVillaId("both")}>{t("both_villas")}</button>
         </div>
         {both && <p className="res-both-hint">{t("both_hint")}</p>}
         <AvailabilityCalendar
@@ -71,7 +71,6 @@ export default function ReservePage() {
           apartmentIds={both ? [(pages.redwood || {}).smoobuId, (pages.sequoia || {}).smoobuId] : undefined}
           villaName={both ? t("both_villas_name") : villa.name || "Vila Roots"}
           contact={content.contact}
-          capacity={both ? 20 : 10}
           depositPct={30}
         />
       </main>

@@ -17,6 +17,11 @@ const RESERVATIONS_PATH = "/api/reservations";
 const RATES_PATH = "/api/rates";
 const CHANNEL_DIRECT = 70; // canalul „booking direct" din Smoobu
 
+/* Politica de oaspeți PER VILĂ — ține în sinc cu GUEST_POLICY din
+   src/AvailabilityCalendar.jsx. Serverul recalculează taxele (nu ne
+   bazăm pe sumele trimise de client). */
+const GUESTS = { includedAdults: 8, includedChildren: 4, maxExtraAdults: 2, maxExtraChildren: 4, extraAdultFee: 150, extraChildFee: 75 };
+
 const addDay = (s) => {
   const d = new Date(s + "T00:00:00");
   d.setDate(d.getDate() + 1);
@@ -78,14 +83,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, error: "Server neconfigurat (credențiale Smoobu)." });
   }
 
-  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice, country } = b;
+  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice, country, extraBed, childAges, needCot } = b;
   // rezervare combinată: apartmentIds = mai multe vile rezervate împreună, aceeași perioadă
-  const aptIds = (Array.isArray(b.apartmentIds) && b.apartmentIds.length ? b.apartmentIds : [apartmentId])
-    .filter(Boolean)
-    .map(String);
+  // dedup: ID-uri duplicate ar dubla limitele de oaspeți și ar crea rezervări duble pe aceeași vilă
+  const aptIds = [...new Set(
+    (Array.isArray(b.apartmentIds) && b.apartmentIds.length ? b.apartmentIds : [apartmentId])
+      .filter(Boolean)
+      .map(String)
+  )];
   if (!aptIds.length || !arrivalDate || !departureDate) {
     return res.status(400).json({ ok: false, error: "apartmentId, arrivalDate și departureDate sunt obligatorii." });
   }
+
+  // --- oaspeți: incluși în preț + extra cu taxă, limitele scalează cu numărul de vile ---
+  const nA = Number(adults) || 1;
+  const nC = Number(children) || 0;
+  const inclA = GUESTS.includedAdults * aptIds.length;
+  const inclC = GUESTS.includedChildren * aptIds.length;
+  if (nA > inclA + GUESTS.maxExtraAdults * aptIds.length || nC > inclC + GUESTS.maxExtraChildren * aptIds.length) {
+    return res.status(400).json({ ok: false, error: "Numărul de oaspeți depășește capacitatea maximă (inclusiv locurile extra)." });
+  }
+  const extraAdults = Math.max(0, nA - inclA);
+  const extraChildren = Math.max(0, nC - inclC);
 
   // --- re-verifică disponibilitatea + recalculează prețul din Smoobu, per apartament ---
   let total = 0, nights = 0, allFree = true;
@@ -124,6 +143,21 @@ export default async function handler(req, res) {
     });
   }
 
+  // taxa pentru oaspeții extra — recalculată server-side, adăugată primei rezervări
+  const extraFee = (extraAdults * GUESTS.extraAdultFee + extraChildren * GUESTS.extraChildFee) * nights;
+  if (extraFee > 0) perAptTotals[aptIds[0]] += extraFee;
+  total += extraFee;
+
+  // detaliile pentru gazde, atașate notiței fiecărei rezervări
+  const guestDetails = [
+    `Oaspeți: ${nA} adulți + ${nC} copii.`,
+    extraFee > 0
+      ? `EXTRA: ${extraAdults} adulți + ${extraChildren} copii (${extraAdults * GUESTS.extraAdultFee + extraChildren * GUESTS.extraChildFee} lei/noapte = ${extraFee} lei total) — ${extraBed === "canapea" ? "canapea extensibilă" : "pat suplimentar"} + lenjerie + prosoape.`
+      : "",
+    childAges ? `Vârste copii: ${String(childAges).slice(0, 120)}.` : "",
+    needCot ? "Solicită PĂTUȚ pentru bebeluș (gratuit)." : "",
+  ].filter(Boolean).join(" ");
+
   const combined = aptIds.length > 1;
   const guest = {
     channelId: CHANNEL_DIRECT,
@@ -131,8 +165,8 @@ export default async function handler(req, res) {
     lastName: lastName || "",
     email: email || "",
     phone: phone || "",
-    adults: Number(adults) || 1,
-    children: Number(children) || 0,
+    adults: nA,
+    children: nC,
     country: (country && String(country).trim()) || "Romania",
   };
   const reservations = aptIds.map((id) => ({
@@ -141,7 +175,10 @@ export default async function handler(req, res) {
     departureDate,
     apartmentId: Number(id),
     price: perAptTotals[id],
-    notice: notice || (combined ? "Rezervare de pe site (roots) — pachet AMBELE VILE, împreună cu apartamentul " + aptIds.filter((x) => x !== id).join(", ") + "." : "Rezervare de pe site (roots)."),
+    notice: [
+      notice || (combined ? "Rezervare de pe site (roots) — pachet AMBELE VILE, împreună cu apartamentul " + aptIds.filter((x) => x !== id).join(", ") + "." : "Rezervare de pe site (roots)."),
+      guestDetails,
+    ].join(" "),
   }));
 
   // --- dry-run: validat, dar fără a crea rezervarea reală ---

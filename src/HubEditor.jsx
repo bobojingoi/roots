@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 
 /* ============================================================
@@ -37,6 +37,8 @@ body.hub-edit [data-edit-img]:hover{outline-style:solid;outline-color:#157a55}
 .hub-picker-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .hub-picker-head b{font-size:16px;margin-right:auto}
 .hub-picker-head button{border:1.5px solid #e3e8e5;background:#fff;border-radius:100px;padding:8px 14px;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.hub-picker-head .hub-upbtn{background:#157a55;border-color:#157a55;color:#fff}
+.hub-picker-head .hub-upbtn:disabled{opacity:.6;cursor:wait}
 .hub-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .hub-picker-grid img{width:100%;height:96px;object-fit:cover;border-radius:10px;cursor:pointer;border:3px solid transparent}
 .hub-picker-grid img:hover{border-color:#157a55}
@@ -49,11 +51,26 @@ body.hub-edit [data-edit-idx]{position:relative}
 .hub-addbtn:hover{background:rgba(21,122,85,.14);border-style:solid}
 `;
 
+/* optimizare în browser (identic cu adminul Hub): canvas → WebP 1920px + thumb 480px,
+   ca payload-ul să încapă în limita serverless (4,5MB/request) */
+function resizeImage(img, maxW, quality) {
+  const scale = Math.min(1, maxW / img.naturalWidth);
+  const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  c.getContext("2d").drawImage(img, 0, 0, w, h);
+  const webp = c.toDataURL("image/webp", quality);
+  if (webp.startsWith("data:image/webp")) return { b64: webp.split(",")[1], mime: "image/webp" };
+  return { b64: c.toDataURL("image/jpeg", quality).split(",")[1], mime: "image/jpeg" };
+}
+
 export default function HubEditor({ hubRaw, setHubRaw }) {
   const [dirty, setDirty] = useState(() => new Set());
   const [status, setStatus] = useState("");
   const [picker, setPicker] = useState(null); // calea de imagine în editare
   const [media, setMedia] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
   // stil + marcaj mod editare
   useEffect(() => {
@@ -192,6 +209,45 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     return j;
   };
 
+  /* upload direct din picker: redimensionează în browser → POST /api/v1/media →
+     imaginea nouă se aplică imediat pe zona în editare */
+  const uploadFile = async (f) => {
+    if (!f) return;
+    setUploading(true);
+    const blobUrl = URL.createObjectURL(f);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("Fișierul nu e o imagine validă"));
+        i.src = blobUrl;
+      });
+      const main = resizeImage(img, 1920, 0.8);
+      const thumb = resizeImage(img, 480, 0.72);
+      const j = await call("POST", "/api/v1/media", {
+        filename: f.name, mainBase64: main.b64, thumbBase64: thumb.b64, mime: main.mime,
+        width: Math.min(img.naturalWidth, 1920),
+        height: Math.round(img.naturalHeight * Math.min(1, 1920 / img.naturalWidth)),
+      });
+      setMedia((m) => [j.media, ...(m || [])]);
+      if (picker) {
+        const sect = picker.split(".")[0];
+        if (hubRaw && hubRaw[sect]) {
+          commit(picker, j.media.url);
+          setPicker(null);
+        } else {
+          // secțiunea nu e în draft — imaginea e urcată în galerie, dar n-o putem aplica aici
+          alert("Imaginea e încărcată în Galerie media, dar secțiunea '" + sect + "' nu poate fi editată de aici. URL: " + j.media.url);
+        }
+      }
+    } catch (e) {
+      alert("Eroare la încărcare: " + e.message);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+      setUploading(false);
+    }
+  };
+
   const save = async (publish) => {
     setStatus(publish ? "Se publică…" : "Se salvează…");
     try {
@@ -240,13 +296,18 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         <div className="hub-picker-box">
           <div className="hub-picker-head">
             <b>Alege imaginea</b>
+            <button className="hub-upbtn" disabled={uploading} onClick={() => fileRef.current && fileRef.current.click()}>
+              {uploading ? "Se încarcă…" : "⬆ Încarcă imagine nouă"}
+            </button>
             <button onClick={() => { commit(picker, ""); setPicker(null); }}>Fără imagine</button>
             <button onClick={() => setPicker(null)}>Închide</button>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+              onChange={(e) => { uploadFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
           </div>
           {media === null ? (
             <p>Se încarcă biblioteca…</p>
           ) : media.length === 0 ? (
-            <p>Nicio imagine încă — încarcă întâi în Galerie media, din admin.</p>
+            <p>Nicio imagine încă — apasă „Încarcă imagine nouă" sau adaugă în Galerie media din admin.</p>
           ) : (
             <div className="hub-picker-grid">
               {media.map((m) => (

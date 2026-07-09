@@ -95,6 +95,18 @@ export const VILLA_CSS = `
 .bk-step button:disabled{opacity:.35;cursor:not-allowed}
 .bk-step b{min-width:18px;text-align:center;font-size:15px}
 .bk-cap{font-size:12.5px;color:var(--ink-soft)}
+/* oaspeți extra: alegere pat/canapea + mențiuni; copii: vârste + pătuț */
+.bk-extra{background:rgba(232,114,44,.06);border:1px solid rgba(232,114,44,.25);border-radius:16px;padding:14px 16px;margin-bottom:16px}
+.bk-extra-q{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:10px}
+.bk-extra-opts{display:flex;gap:10px;flex-wrap:wrap}
+.bk-extra-opts label{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:100px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;background:#fff;color:#1E2A24;transition:border-color .2s}
+.bk-extra-opts label.on{border-color:var(--ember);color:var(--ember)}
+.bk-extra-opts input{accent-color:var(--ember)}
+.bk-extra-note{margin-top:12px;font-size:12.5px;line-height:1.6;color:var(--ink-soft)}
+.bk-kids{margin-bottom:16px}
+.bk-kids-lbl{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px}
+.bk-cot{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer}
+.bk-cot input{accent-color:var(--ember);width:17px;height:17px}
 .bk-summary{background:var(--sand);border-radius:16px;padding:16px 18px;margin-bottom:16px}
 .bk-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14.5px;padding:5px 0;color:var(--ink)}
 .bk-row b{font-family:'Fraunces',serif;font-weight:500}
@@ -299,7 +311,6 @@ export default function VillaPage({ villaId }) {
           apartmentId={page.smoobuId}
           villaName={villa.name}
           contact={contact}
-          capacity={10}
           depositPct={30}
         />
         <p className="vp-both">

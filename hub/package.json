@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "seed": "node seed.js",
     "seed:brand": "node seed-brand.js",
-    "seed:tracking": "node seed-tracking.js"
+    "seed:tracking": "node seed-tracking.js",
+    "seed:extra-reviews": "node seed-extra-reviews.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {

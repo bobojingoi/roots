@@ -48,12 +48,14 @@ const villaFacilities = (socializare) => [
   },
 ];
 const VILLA_POLICIES = [
-  { title: "Regulile casei", items: ["Check-in după 16:00", "Checkout înainte de 12:00", "Maxim 8–10 persoane", "Ore de liniște între 22:00 și 08:00", "Acceptăm animalele de companie"] },
+  { title: "Regulile casei", items: ["Check-in după 16:00", "Checkout înainte de 12:00", "8 adulți + 4 copii incluși în preț (extra: max 2 adulți la 150 lei/noapte și 4 copii la 75 lei/noapte)", "Ore de liniște între 22:00 și 08:00", "Acceptăm animalele de companie"] },
   { title: "Safety & Property", items: ["Camere video în exteriorul proprietății", "Alarmă pentru monoxid de carbon", "Alarmă de incendiu", "Alarmă de efracție"] },
   { title: "Politica de anulare", items: ["Anularea este gratuită până la 15 zile înainte de check-in", "Mai multe detalii în secțiunea „Întrebări frecvente”"] },
-  { title: "Despre unitate", items: ["Tip proprietate: vilă privată, închiriere integrală", "Capacitate: 8 persoane incluse, maximum 10 persoane", "Dormitoare: 4 dormitoare duble", "Băi: 4 băi private", "Wellness: ciubăr privat încălzit pe gaz și saună", "Localizare: Stupini, Brașov"] },
+  { title: "Despre unitate", items: ["Tip proprietate: vilă privată, închiriere integrală", "Capacitate: 8 adulți + 4 copii incluși; locuri extra contra cost (pat suplimentar/canapea extensibilă)", "Dormitoare: 4 dormitoare duble", "Băi: 4 băi private", "Wellness: ciubăr privat încălzit pe gaz și saună", "Localizare: Stupini, Brașov"] },
 ];
-const VILLA_MAP_EMBED = "https://maps.google.com/maps?q=Stupini%2C%20Bra%C8%99ov&z=14&output=embed";
+/* Locația reală: Roots Villas, Str. Fântânii 46, Stupini, Brașov (45.705599, 25.574160) */
+const VILLA_MAP_EMBED = "https://maps.google.com/maps?q=Roots%20Villas%2C%20Strada%20F%C3%A2nt%C3%A2nii%2046%2C%20Bra%C8%99ov&ll=45.705599,25.574160&z=15&output=embed";
+const VILLA_MAPS_LINK = "https://maps.google.com/?cid=8153509057249140820"; // fișa business (recenzii, navigare)
 
 /* ---- instrucțiuni pentru oaspeți (pagini /welcome-*) ---- */
 const welcomeSections = (entertainment) => [
@@ -138,6 +140,7 @@ const WELCOME_SHOP_DIRS = [
 export const DEFAULT_CONTENT = {
   brand: { logo: "" },
   tracking: { ga4: "", metaPixel: "", tiktokPixel: "" },
+  extraReviews: [],
   seo: {
     title: "ROOTS Villas Brașov — Două vile private cu ciubăr și saună",
     description:
@@ -286,7 +289,7 @@ export const DEFAULT_CONTENT = {
   location: {
     title: "Unde ne aflăm",
     text: "ROOTS Villas este situat în cartierul Stupini, Brașov, la aproximativ 10–12 minute cu mașina de centrul orașului. Locația oferă acces rapid spre Poiana Brașov, Piața Sfatului și principalele atracții din Brașov, păstrând în același timp intimitatea unei zone rezidențiale.",
-    mapsUrl: "https://maps.google.com/?q=Roots+Villas+Stupini+Brasov",
+    mapsUrl: VILLA_MAPS_LINK,
     points: [
       { label: "Centrul Brașovului", value: "10–12 min" },
       { label: "Poiana Brașov", value: "25 min" },
@@ -347,7 +350,7 @@ export const DEFAULT_CONTENT = {
   welcome: {
     redwood: {
       address: "Strada Fântânii 46, Brașov 500482",
-      mapsUrl: "https://maps.google.com/?q=Strada%20F%C3%A2nt%C3%A2nii%2046%20Bra%C8%99ov",
+      mapsUrl: VILLA_MAPS_LINK,
       wifi: { name: "", password: "" },
       keybox: "1965",
       heroImage: "",
@@ -361,7 +364,7 @@ export const DEFAULT_CONTENT = {
     },
     sequoia: {
       address: "Stupini, Brașov",
-      mapsUrl: "https://maps.google.com/?q=Stupini%20Bra%C8%99ov",
+      mapsUrl: VILLA_MAPS_LINK,
       wifi: { name: "", password: "" },
       keybox: "",
       heroImage: "",
@@ -402,6 +405,8 @@ export function hubToSite(h) {
   if (h.common) out.common = h.common;
   if (h.rules) out.rules = h.rules;
   if (h.testimonials) out.testimonials = h.testimonials;
+  if (h.reviews) out.reviews = h.reviews; // setările din admin → Recenzii (minRating, hidden…)
+  if (h.extra_reviews) out.extraReviews = h.extra_reviews.items || [];
   if (h.video) out.video = h.video;
   if (h.faq && Array.isArray(h.faq.items)) out.faq = h.faq.items;
   if (h.location) out.location = h.location;
@@ -701,8 +706,15 @@ section{position:relative}
 .ava-row .plus{display:grid;place-items:center;background:rgba(233,184,114,.25);color:var(--gold);font:800 11px 'Manrope',sans-serif}
 .ava-stack small{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.6)}
 .ava-stack small b{color:var(--gold)}
+/* filtrul pe naționalități */
+.testi-filter{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px}
+.testi-filter button{border:1.5px solid rgba(255,255,255,.22);background:none;color:rgba(255,255,255,.78);border-radius:100px;padding:8px 16px;font:700 13px 'Manrope',sans-serif;cursor:pointer;transition:all .2s}
+.testi-filter button:hover{border-color:rgba(233,184,114,.55)}
+.testi-filter button.on{background:var(--gold);border-color:var(--gold);color:var(--night)}
+.testi-note{margin-top:16px;font-size:13.5px;color:rgba(255,255,255,.6)}
 /* zidul masonry — absoarbe orice lungimi de text, zero găuri, zero orfani */
 .testi-wall{columns:2 340px;column-gap:18px;margin-top:38px}
+.testi-filter+.testi-wall{margin-top:24px}
 .testi-wall>*{display:inline-block;width:100%;break-inside:avoid;margin:0 0 18px;vertical-align:top}
 /* score card — ancora de încredere, prima placă a zidului */
 .score-card{background:linear-gradient(160deg,rgba(233,184,114,.16),rgba(233,184,114,.03));border:1px solid rgba(233,184,114,.45);border-radius:26px;padding:32px 28px;text-align:center}
@@ -1361,7 +1373,7 @@ function ClampText({ text, dataEdit }) {
   if (EDIT_MODE) return <p data-edit={dataEdit}>{text}</p>;
   return (
     <>
-      <p ref={ref} className={open ? "" : "clamp"}>{text}</p>
+      <p ref={ref} className={open ? "" : "clamp"} dir="auto">{text}</p>
       {over && !open ? (
         <button type="button" className="t-more" onClick={() => setOpen(true)}>{t("read_more")}</button>
       ) : null}
@@ -1369,30 +1381,87 @@ function ClampText({ text, dataEdit }) {
   );
 }
 
-function Testimonials({ t: T, cfg }) {
-  const [g, setG] = useState(null);
+/* Filtrul de naționalitate al recenziilor: setul Google se re-cere în limba țării
+   (Google ordonează recenziile relevante pentru limba cerută), apoi se filtrează
+   după limba textului; recenziile manuale (din Hub) se filtrează după `country`. */
+const COUNTRY_CHIPS = [
+  { key: "ro", flag: "🇷🇴", label: "România", glang: "ro" },
+  { key: "il", flag: "🇮🇱", label: "Israel", glang: "he" },
+  { key: "en", flag: "🇬🇧", label: "English", glang: "en" },
+  { key: "fr", flag: "🇫🇷", label: "Français", glang: "fr" },
+];
+const hasHebrew = (s) => /[֐-׿]/.test(s || "");
+const matchesCountry = (rv, c) => {
+  const l = (rv.lang || "").toLowerCase();
+  if (c === "il") return l === "iw" || l === "he" || hasHebrew(rv.text);
+  if (c === "ro") return l === "ro" || (!l && !hasHebrew(rv.text));
+  return l === c;
+};
+
+function Testimonials({ t: T, cfg, extra }) {
+  const [gsets, setGsets] = useState({}); // per limbă: undefined = necerut, null = se încarcă, false = eșec, obiect = date
+  const [flt, setFlt] = useState("all");
+  const requested = useRef(new Set()); // limbile deja cerute — updater-ul de state rămâne pur
   // re-scanează .rv la fiecare render local: cardurile montate DUPĂ sosirea
   // recenziilor Google trebuie și ele observate, altfel rămân la opacity:0
   useReveal();
-  useEffect(() => {
-    fetch(HUB_URL + "/api/v1/google-reviews?lang=" + LANG)
+  const fetchSet = useCallback((lang) => {
+    if (requested.current.has(lang)) return;
+    requested.current.add(lang);
+    setGsets((s) => ({ ...s, [lang]: null }));
+    fetch(HUB_URL + "/api/v1/google-reviews?lang=" + lang)
       .then((r) => r.json())
-      .then((j) => { if (j && j.reviews && j.reviews.length) setG(j); })
-      .catch(() => {});
+      .then((j) => setGsets((s2) => ({ ...s2, [lang]: j && j.reviews && j.reviews.length ? j : false })))
+      .catch(() => setGsets((s2) => ({ ...s2, [lang]: false })));
   }, []);
-  // în modul editare arătăm testimonialele CMS (ca să rămână editabile);
-  // Google Places dă max ~5 recenzii prin API — le afișăm pe toate în zid
+  useEffect(() => { fetchSet(LANG); }, [fetchSet]);
+
   const C = cfg || {};
+  const g = gsets[LANG] || null; // setul principal — dă ratingul, totalul și linkul
   const live = !EDIT_MODE && g;
-  const items = live
-    ? g.reviews
+  const manualAll = !EDIT_MODE
+    ? (extra || []).filter((it) => it && it.name && (it.text || "").trim())
+    : [];
+
+  // chips: „Toate" + România/Israel (când avem recenzii live) + țările din recenziile manuale
+  const manualCountries = [...new Set(manualAll.map((m) => (m.country || "").toLowerCase()).filter(Boolean))];
+  const chips = COUNTRY_CHIPS.filter((c) => (live && ["ro", "il"].includes(c.key)) || manualCountries.includes(c.key));
+  const showChips = !EDIT_MODE && chips.length > 0;
+  const activeChip = COUNTRY_CHIPS.find((c) => c.key === flt) || null;
+  const setForFilter = flt === "all" ? g : activeChip ? gsets[activeChip.glang] || null : null;
+  const setLoading = flt !== "all" && activeChip && gsets[activeChip.glang] === null;
+  const pickFilter = (key) => {
+    setFlt(key);
+    const chip = COUNTRY_CHIPS.find((c) => c.key === key);
+    if (chip && gsets[chip.glang] === undefined) fetchSet(chip.glang);
+  };
+
+  // în modul editare arătăm testimonialele CMS (ca să rămână editabile);
+  // altfel: recenziile Google (max ~5 de la API) + cele adăugate manual în Hub
+  const googleItems = !EDIT_MODE && setForFilter && setForFilter.reviews
+    ? setForFilter.reviews
         .filter((rv) => (rv.rating || 0) >= (C.minRating ?? 4))
         .filter((rv) => !(C.hidden || []).includes(rv.name))
+        .filter((rv) => (flt === "all" ? true : matchesCountry(rv, flt)))
         .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
-        .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, rating: Math.round(rv.rating || 5), time: rv.time || "", fromApi: true }))
-    : T.items;
+        .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, rating: Math.round(rv.rating || 5), time: rv.time || "", src: "google" }))
+    : [];
+  const manualItems = manualAll
+    .filter((m) => (flt === "all" ? true : (m.country || "").toLowerCase() === flt))
+    .map((m) => ({ name: m.name, text: m.text, photo: m.photo || "", rating: Math.round(Number(m.rating) || 5), time: m.time || "", src: "manual" }));
+  const wallItems = googleItems.concat(manualItems);
+  const useCms = EDIT_MODE || (!live && wallItems.length === 0 && flt === "all");
+  const items = useCms ? T.items.map((it) => ({ ...it, src: "cms" })) : wallItems;
+
   const rating = live && g.rating ? String(g.rating) : T.rating;
-  const stack = live ? items.filter((it) => it.photo).slice(0, 5) : [];
+  // stiva de avatare respectă aceleași filtre din admin ca zidul (minRating, hidden)
+  const stack = live
+    ? (g.reviews || [])
+        .filter((rv) => (rv.rating || 0) >= (C.minRating ?? 4))
+        .filter((rv) => !(C.hidden || []).includes(rv.name))
+        .filter((rv) => rv.photo)
+        .slice(0, 5)
+    : [];
   return (
     <section>
       <div className="testi-band">
@@ -1417,10 +1486,20 @@ function Testimonials({ t: T, cfg }) {
               <small><b>{rating}</b> · {live ? t("reviews_count", { n: g.total || items.length }) : t("testi_rating")}</small>
             </div>
           </div>
+          {showChips && (
+            <div className="testi-filter rv">
+              <button type="button" className={flt === "all" ? "on" : ""} onClick={() => pickFilter("all")}>{t("reviews_all")}</button>
+              {chips.map((c) => (
+                <button type="button" key={c.key} className={flt === c.key ? "on" : ""} onClick={() => pickFilter(c.key)}>
+                  {c.flag} {c.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="testi-wall" data-edit-list={EDIT_MODE ? "testimonials.items" : undefined}>
             <ScoreCard rating={rating} g={live ? g : null} />
             {items.map((item, i) => (
-              <div className={`tcard rv rv-d${Math.min(i + 1, 3)}`} key={`${item.fromApi ? "g" : "c"}${i}`} data-edit-idx={EDIT_MODE ? i : undefined}>
+              <div className={`tcard rv rv-d${Math.min(i + 1, 3)}`} key={`${flt}:${item.src}${i}`} data-edit-idx={EDIT_MODE ? i : undefined}>
                 <span className="q-mark" aria-hidden="true">„</span>
                 <div className="t-id">
                   {item.photo ? (
@@ -1430,18 +1509,20 @@ function Testimonials({ t: T, cfg }) {
                   )}
                   <div>
                     <b data-edit={`testimonials.items.${i}.name`}>{item.name}</b>
-                    {item.fromApi ? (
-                      <span className="t-meta"><span className="t-stars">{"★".repeat(item.rating || 5)}</span>{item.time ? ` · ${item.time}` : ""}</span>
-                    ) : (
+                    {item.src === "cms" ? (
                       <span className="t-meta" data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span>
+                    ) : (
+                      <span className="t-meta"><span className="t-stars">{"★".repeat(item.rating || 5)}</span>{item.time ? ` · ${item.time}` : ""}</span>
                     )}
                   </div>
-                  {item.fromApi ? <GLogo className="g-mini" size={20} /> : null}
+                  {item.src === "google" ? <GLogo className="g-mini" size={20} /> : null}
                 </div>
                 <ClampText text={item.text} dataEdit={`testimonials.items.${i}.text`} />
               </div>
             ))}
           </div>
+          {setLoading && <p className="testi-note rv">{t("loading")}</p>}
+          {!setLoading && !useCms && items.length === 0 && <p className="testi-note rv">{t("reviews_none")}</p>}
           {!EDIT_MODE && g && g.url && (
             <div className="testi-more rv">
               <a href={g.url} target="_blank" rel="noreferrer">{g.total ? t("all_reviews_g", { n: g.total }) : t("more_reviews")}</a>
@@ -1979,7 +2060,7 @@ export default function RootsVillas() {
       <Editorial editorial={content.editorial} />
       <Common common={content.common} />
       <Rules rules={content.rules} />
-      <Testimonials t={content.testimonials} cfg={content.reviews} />
+      <Testimonials t={content.testimonials} cfg={content.reviews} extra={content.extraReviews} />
       <Video video={content.video} />
       <FAQ faq={content.faq} />
       <LocationSec location={content.location} />

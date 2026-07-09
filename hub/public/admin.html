@@ -159,13 +159,14 @@ const SECTION_META = {
   legal_privacy:   ['Politica de confidențialitate', 'Pagina legală GDPR'],
   legal_cookies:   ['Politica de cookies', 'Pagina legală cookies'],
   legal_terms:     ['Termeni și condiții', 'Pagina legală T&C'],
+  extra_reviews:   ['Recenzii manuale', 'Recenzii adăugate de tine, afișate lângă cele Google (max ~5 de la API). country: il / ro / en / fr'],
   brand:           ['Logo & Brand', 'Logo-ul site-ului (URL imagine; gol = textul R ROOTS)'],
   tracking:        ['Marketing & Tracking', 'ID-uri Google Analytics 4 (G-XXXX), Meta Pixel, TikTok Pixel — se încarcă doar cu consimțământ cookie'],
 };
 
 /* meniul e organizat pe PAGINI — fiecare pagină se configurează separat */
 const PAGES_NAV = [
-  { cap: 'Home page', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'video', 'faq', 'location', 'contact'] },
+  { cap: 'Home page', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'extra_reviews', 'video', 'faq', 'location', 'contact'] },
   { cap: 'Vile & instrucțiuni', keys: ['villa_redwood', 'villa_sequoia', 'welcome_redwood', 'welcome_sequoia'] },
   { cap: 'Pagini text', keys: ['about_page', 'legal_privacy', 'legal_cookies', 'legal_terms'] },
   { cap: 'Setări site', keys: ['brand', 'tracking'] },

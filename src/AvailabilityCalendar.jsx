@@ -109,8 +109,14 @@ function Stepper({ label, value, set, min, max }) {
   );
 }
 
+/* Politica de oaspeți per vilă: 8 adulți + 4 copii incluși în preț;
+   extra max 2 adulți (150 lei/noapte) + 4 copii (75 lei/noapte).
+   Constantele sunt dublate automat la rezervarea combinată (ambele vile)
+   și trebuie ținute în sinc cu api/book.js (serverul recalculează). */
+export const GUEST_POLICY = { includedAdults: 8, includedChildren: 4, maxExtraAdults: 2, maxExtraChildren: 4, extraAdultFee: 150, extraChildFee: 75 };
+
 export default function AvailabilityCalendar({
-  apartmentId, apartmentIds, villaName = "vila", contact = {}, capacity = 10, depositPct = 30, currency = "lei",
+  apartmentId, apartmentIds, villaName = "vila", contact = {}, depositPct = 30, currency = "lei",
   title,
 }) {
   // apartmentIds (array) = rezervare combinată pe mai multe vile; altfel apartmentId simplu
@@ -119,12 +125,21 @@ export default function AvailabilityCalendar({
     [apartmentIds, apartmentId]
   );
   const multi = aptKey.includes(",");
+  const nApts = Math.max(1, aptKey.split(",").filter(Boolean).length);
+  const P = GUEST_POLICY;
+  const inclAdults = P.includedAdults * nApts;
+  const inclChildren = P.includedChildren * nApts;
+  const maxAdults = inclAdults + P.maxExtraAdults * nApts;
+  const maxChildren = inclChildren + P.maxExtraChildren * nApts;
   const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [checkIn, setCheckIn] = useState(null);
   const [checkOut, setCheckOut] = useState(null);
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
+  const [extraBed, setExtraBed] = useState("pat"); // pat suplimentar | canapea (pentru oaspeții extra)
+  const [childAges, setChildAges] = useState("");
+  const [needCot, setNeedCot] = useState(false);
   const [step, setStep] = useState("select"); // select | form | sending | done
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
   const [result, setResult] = useState(null);
@@ -154,16 +169,25 @@ export default function AvailabilityCalendar({
 
   const nights = checkIn && checkOut ? eachNight(checkIn, checkOut) : [];
   const priceKnown = nights.length > 0 && nights.every((n) => prices[n] != null);
-  const total = nights.reduce((s, n) => s + (Number(prices[n]) || 0), 0);
+  const baseTotal = nights.reduce((s, n) => s + (Number(prices[n]) || 0), 0);
+  // oaspeți peste cei incluși în preț → taxă per noapte (serverul recalculează identic)
+  const extraAdults = Math.max(0, adults - inclAdults);
+  const extraChildren = Math.max(0, children - inclChildren);
+  const extraFee = (extraAdults * P.extraAdultFee + extraChildren * P.extraChildFee) * nights.length;
+  const total = baseTotal + extraFee;
   const deposit = Math.round(total * depositPct / 100);
   const rest = total - deposit;
   const hasRange = nights.length > 0;
+  const hasExtra = extraAdults + extraChildren > 0;
 
   const wa = (contact.whatsapp || "").replace(/[^0-9]/g, "");
   const waMsg = encodeURIComponent(
     `Bună! Aș dori să rezerv ${villaName}.\n` +
     `Check-in: ${checkIn}\nCheck-out: ${checkOut}\nNopți: ${nights.length}\n` +
     `Oaspeți: ${adults} adulți${children ? ` + ${children} copii` : ""}\n` +
+    (hasExtra ? `Oaspeți extra: ${extraAdults} adulți + ${extraChildren} copii (${extraBed === "pat" ? "pat suplimentar" : "canapea extensibilă"})\n` : "") +
+    (children && childAges.trim() ? `Vârste copii: ${childAges.trim()}\n` : "") +
+    (needCot ? "Avem nevoie de pătuț pentru bebeluș (gratuit)\n" : "") +
     (priceKnown ? `Total: ${lei(total)} ${currency}\nAvans (${depositPct}%): ${lei(deposit)} ${currency}` : "Preț: la cerere")
   );
   const waHref = `https://wa.me/${wa}?text=${waMsg}`;
@@ -183,6 +207,9 @@ export default function AvailabilityCalendar({
           apartmentIds: multi ? aptKey.split(",") : undefined,
           villaName, depositPct,
           arrivalDate: checkIn, departureDate: checkOut, adults, children,
+          extraBed: hasExtra ? extraBed : undefined,
+          childAges: children > 0 ? childAges.trim() : undefined,
+          needCot,
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),
@@ -205,6 +232,9 @@ export default function AvailabilityCalendar({
       <div className="bk-row"><span>{checkIn} → {checkOut}</span><span>{nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</span></div>
       {priceKnown ? (
         <>
+          {hasExtra && (
+            <div className="bk-row muted"><span>{t("extra_guests_row", { a: extraAdults, c: extraChildren })}</span><span>+{lei(extraFee)} {currency}</span></div>
+          )}
           <div className="bk-row"><span>{t("total_stay")}</span><b>{lei(total)} {currency}</b></div>
           <div className="bk-row hi"><span>{t("deposit_now")} ({depositPct}%)</span><b>{lei(deposit)} {currency}</b></div>
           <div className="bk-row muted"><span>{t("rest_checkin")}</span><span>{lei(rest)} {currency}</span></div>
@@ -249,10 +279,38 @@ export default function AvailabilityCalendar({
         {step === "select" && (
           <>
             <div className="bk-guests">
-              <Stepper label={t("adults")} value={adults} set={setAdults} min={1} max={capacity} />
-              <Stepper label={t("children")} value={children} set={setChildren} min={0} max={Math.max(0, capacity - adults)} />
-              <div className="bk-cap">{t("max_persons", { n: capacity })}</div>
+              <Stepper label={t("adults")} value={adults} set={setAdults} min={1} max={maxAdults} />
+              <Stepper label={t("children")} value={children} set={setChildren} min={0} max={maxChildren} />
+              <div className="bk-cap">
+                {t("guests_included", { a: inclAdults, c: inclChildren })} · {t("extra_prices", { pa: P.extraAdultFee, pc: P.extraChildFee })}
+              </div>
             </div>
+            {hasExtra && (
+              <div className="bk-extra">
+                <div className="bk-extra-q">{t("extra_bed_q")}</div>
+                <div className="bk-extra-opts">
+                  <label className={extraBed === "pat" ? "on" : ""}>
+                    <input type="radio" name="extrabed" checked={extraBed === "pat"} onChange={() => setExtraBed("pat")} />
+                    {t("extra_bed_bed")}
+                  </label>
+                  <label className={extraBed === "canapea" ? "on" : ""}>
+                    <input type="radio" name="extrabed" checked={extraBed === "canapea"} onChange={() => setExtraBed("canapea")} />
+                    {t("extra_bed_sofa")}
+                  </label>
+                </div>
+                <p className="bk-extra-note">{t("extra_note")}</p>
+              </div>
+            )}
+            {children > 0 && (
+              <div className="bk-kids">
+                <label className="bk-kids-lbl" htmlFor="bk-ages">{t("child_ages")}</label>
+                <input id="bk-ages" className="bk-input" placeholder={t("child_ages_ph")} value={childAges} onChange={(e) => setChildAges(e.target.value)} />
+                <label className="bk-cot">
+                  <input type="checkbox" checked={needCot} onChange={(e) => setNeedCot(e.target.checked)} />
+                  {t("need_cot")}
+                </label>
+              </div>
+            )}
             {hasRange && <Recap />}
             <button className="bk-cta" disabled={!hasRange} onClick={() => { setStep("form"); track("begin_checkout", { label: villaName, value: priceKnown ? total : undefined }); }}>
               {hasRange ? t("continue_book") : t("choose_period")}

@@ -54,8 +54,12 @@ app.use(async (req, res, next) => {
 
 const PORT = process.env.PORT || 4000;
 
-/* ============ cache public site-content (invalidat la publicare) ============ */
-let siteCache = null; // { etag, body }
+/* ============ cache public site-content (invalidat la publicare) ============
+   TTL de siguranță: scripturile care scriu direct în DB (seed/fix) nu pot
+   invalida cache-ul instanțelor calde — după 60s se reconstruiește oricum
+   (CDN-ul are deja max-age=60, deci costul e nul). */
+const SITE_CACHE_TTL = 60e3;
+let siteCache = null; // { etag, body, at }
 
 async function buildSiteContent() {
   const r = await pool.query(
@@ -70,14 +74,15 @@ async function buildSiteContent() {
   }
   const body = JSON.stringify({ content, publishedAt: latest ? new Date(latest).toISOString() : null });
   const etag = '"' + crypto.createHash('sha1').update(body).digest('hex') + '"';
-  siteCache = { etag, body };
+  siteCache = { etag, body, at: Date.now() };
   return siteCache;
 }
 
 /* ============ PUBLIC ============ */
 app.get('/api/v1/site-content', async (req, res) => {
   try {
-    const cache = siteCache || (await buildSiteContent());
+    const fresh = siteCache && Date.now() - (siteCache.at || 0) < SITE_CACHE_TTL;
+    const cache = fresh ? siteCache : await buildSiteContent();
     if (req.headers['if-none-match'] === cache.etag) return res.status(304).end();
     res.setHeader('ETag', cache.etag);
     res.setHeader('Cache-Control', 'public, max-age=60');
@@ -123,6 +128,9 @@ app.get('/api/v1/google-reviews', async (req, res) => {
         text: rv.text,
         time: rv.relative_time_description,
         photo: rv.profile_photo_url,
+        // limba ORIGINALĂ a recenziei (nu a traducerii Google) — pentru filtrul de naționalitate
+        lang: rv.original_language || rv.language || null,
+        translated: Boolean(rv.translated),
       })),
     };
     gReviewsCache[lang] = { at: Date.now(), data: out };
