@@ -749,12 +749,14 @@ body.t-al .testi-more a{color:var(--gold)}
 .loc-map-link:hover{color:var(--ember)}
 .loc-map-link svg{color:var(--ember)}
 
-/* final CTA */
-.final{background:linear-gradient(180deg,var(--pine) 0%,var(--pine-3) 100%);color:var(--ivory);border-radius:44px;margin:0 14px;padding:46px 0;text-align:center;position:relative;overflow:hidden}
-@media(max-width:760px){.final{padding:36px 0;border-radius:30px}}
-.final h2{color:var(--ivory);max-width:18ch;margin:0 auto}
-.final .lede{margin-left:auto;margin-right:auto;color:rgba(251,247,239,.7)}
+/* final CTA — fără box: text direct pe fundalul paginii, culori închise */
+.final{padding:64px 0 72px;text-align:center}
+@media(max-width:760px){.final{padding:44px 0 52px}}
+.final h2{color:var(--pine);max-width:18ch;margin:0 auto}
+.final .lede{margin-left:auto;margin-right:auto}
 .final .hero-ctas{justify-content:center}
+.final .btn-ghost{background:none;color:var(--pine);border-color:rgba(18,43,34,.35);backdrop-filter:none}
+.final .btn-ghost:hover{background:rgba(18,43,34,.07)}
 
 /* footer */
 .foot{background:var(--night);color:#fff;padding:84px 0 40px;margin-top:24px}
@@ -1398,14 +1400,14 @@ function LocationSec({ location }) {
 
 function FinalCta({ contact }) {
   return (
-    <section id="final">
-      <div className="final">
-        <Embers />
-        <div className="wrap" style={{ position: "relative", zIndex: 2 }}>
-          <div className="hero-ctas rv">
-            <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
-            <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="btn btn-ghost">{ICONS.phone} {contact.phone}</a>
-          </div>
+    <section id="final" className="final">
+      <div className="wrap">
+        <div className="eyebrow rv" style={{ justifyContent: "center" }}>{t("final_eyebrow")}</div>
+        <h2 className="rv">{t("final_title")}</h2>
+        <p className="lede rv rv-d1">{t("final_lede")}</p>
+        <div className="hero-ctas rv rv-d2">
+          <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="btn btn-ember">{ICONS.wa} {t("write_wa")}</a>
+          <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="btn btn-ghost">{ICONS.phone} {contact.phone}</a>
         </div>
       </div>
     </section>

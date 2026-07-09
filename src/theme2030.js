@@ -81,14 +81,16 @@ body.t-aurora .eyebrow::before{background:linear-gradient(90deg,#FF7A45,transpar
 body.t-aurora .lede{color:var(--ink-soft)}
 body.t-aurora .villas-band,
 body.t-aurora .common,
-body.t-aurora .testi-band,
-body.t-aurora .final{
+body.t-aurora .testi-band{
   background:rgba(16,27,21,.55);
   border:1px solid var(--line);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   box-shadow:0 30px 90px rgba(0,0,0,.35);
 }
 body.t-aurora .villas-band h2, body.t-aurora .testi-band h2, body.t-aurora .final h2{color:var(--ink)}
+/* .final nu mai e box — pe fundalul închis butonul-fantomă redevine deschis */
+body.t-aurora .final .btn-ghost{color:#fff;border-color:rgba(255,255,255,.35)}
+body.t-aurora .final .btn-ghost:hover{background:rgba(255,255,255,.12)}
 body.t-aurora .common{background:rgba(14,24,18,.5)}
 
 /* ---- carduri vile: sticlă cu margine aurorală ---- */
@@ -228,7 +230,7 @@ body.t-al .sec, body.t-al .villas-band, body.t-al .common, body.t-al .testi-band
 body.t-al .rule, body.t-al .pill, body.t-al .bpost-card, body.t-al .wel-card{box-shadow:0 8px 28px rgba(30,42,36,.06)}
 body.t-al .rule:hover, body.t-al .pill:hover{box-shadow:0 18px 40px rgba(232,114,44,.14)}
 body.t-al .cal-card{box-shadow:0 34px 90px rgba(30,42,36,.16);border:1px solid rgba(30,42,36,.07)}
-body.t-al .villas-band, body.t-al .testi-band, body.t-al .final{box-shadow:0 30px 80px rgba(13,27,42,.25)}
+body.t-al .villas-band, body.t-al .testi-band{box-shadow:0 30px 80px rgba(13,27,42,.25)}
 `;
 
 /* Comută tema pe <body> și întoarce stilul de injectat. */
