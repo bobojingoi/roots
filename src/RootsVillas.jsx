@@ -1404,7 +1404,8 @@ function PhotosModal({ villa, page, onClose }) {
           <p className="ph-empty">Pozele se adaugă în galeriile vilei (pagina vilei, din editor).</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
