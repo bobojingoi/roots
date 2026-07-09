@@ -109,6 +109,7 @@ export default async function handler(req, res) {
   // --- re-verifică disponibilitatea + recalculează prețul din Smoobu, per apartament ---
   let total = 0, nights = 0, allFree = true;
   const perAptTotals = {};
+  const nightPrices = {};
   try {
     for (const id of aptIds) {
       const q = [
@@ -124,7 +125,9 @@ export default async function handler(req, res) {
       for (let d = arrivalDate; d < departureDate; d = addDay(d)) {
         const info = perApt[d];
         if (!info || info.available === 0) allFree = false;
-        aptTotal += (info && Number(info.price)) || 0;
+        const p = (info && Number(info.price)) || 0;
+        aptTotal += p;
+        nightPrices[d] = (nightPrices[d] || 0) + p; // pentru ofertele pe interval
         aptNights++;
       }
       perAptTotals[id] = aptTotal;
@@ -143,10 +146,61 @@ export default async function handler(req, res) {
     });
   }
 
-  // taxa pentru oaspeții extra — recalculată server-side, adăugată primei rezervări
+  // --- OFERTE + COD DE REDUCERE — recalculate server-side (nu ne bazăm pe client);
+  //     aceeași logică există în AvailabilityCalendar.jsx — ține-le în sinc ---
+  const HUB = (process.env.HUB_URL || "https://roots-hub-dun.vercel.app").replace(/\/$/, "");
+  let offers = [];
+  try {
+    const r = await fetch(HUB + "/api/v1/offers");
+    const j = await r.json();
+    offers = j.offers || [];
+  } catch (e) { /* fără oferte dacă hub-ul nu răspunde */ }
+  let codePct = 0;
+  const discountCode = String(b.discountCode || "").trim().toUpperCase();
+  if (discountCode) {
+    try {
+      const r = await fetch(HUB + "/api/v1/discount?code=" + encodeURIComponent(discountCode));
+      const j = await r.json();
+      if (j.ok) codePct = Number(j.pct) || 0;
+    } catch (e) { /* cod ignorat dacă validarea pică */ }
+  }
+  const baseTotal = total;
+  const dayMs = 86400000;
+  const daysToArrival = Math.round((new Date(arrivalDate + "T00:00:00") - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00")) / dayMs);
+  const candidates = [];
+  for (const o of offers) {
+    const pct = Number(o.pct) || 0;
+    if (o.type === "interval" && pct) {
+      const from = o.date_from ? String(o.date_from).slice(0, 10) : null;
+      const to = o.date_to ? String(o.date_to).slice(0, 10) : null;
+      let amt = 0;
+      for (const [d, p] of Object.entries(nightPrices)) {
+        if ((from && d < from) || (to && d > to)) continue;
+        amt += (p * pct) / 100;
+      }
+      if (amt > 0) candidates.push({ title: o.title, amount: amt });
+    } else if (o.type === "lastminute" && pct && daysToArrival >= 0 && daysToArrival <= (Number(o.days_before) || 0)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "earlybird" && pct && daysToArrival >= (Number(o.days_before) || 0)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "longstay" && pct && Number(o.min_nights) > 0 && nights >= Number(o.min_nights)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    }
+  }
+  const bestOffer = candidates.sort((a, b2) => b2.amount - a.amount)[0] || null;
+  const offerDiscount = bestOffer ? Math.round(bestOffer.amount) : 0;
+  const comboOffer = aptIds.length > 1 ? offers.find((o) => o.type === "combo" && Number(o.amount_lei) > 0) : null;
+  const comboDiscount = comboOffer ? Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights)) : 0;
+  const afterOffers = Math.max(0, baseTotal - offerDiscount - comboDiscount);
+  const codeDiscount = codePct ? Math.round((afterOffers * codePct) / 100) : 0;
+  const totalDiscount = offerDiscount + comboDiscount + codeDiscount;
+
+  // taxa pentru oaspeții extra — recalculată server-side; ajustările de preț
+  // (extra − reduceri) se aplică primei rezervări, fără să scadă sub zero
   const extraFee = (extraAdults * GUESTS.extraAdultFee + extraChildren * GUESTS.extraChildFee) * nights;
-  if (extraFee > 0) perAptTotals[aptIds[0]] += extraFee;
-  total += extraFee;
+  const firstAdj = extraFee - totalDiscount;
+  perAptTotals[aptIds[0]] = Math.max(0, perAptTotals[aptIds[0]] + firstAdj);
+  total = afterOffers - codeDiscount + extraFee;
 
   // detaliile pentru gazde, atașate notiței fiecărei rezervări
   const guestDetails = [
@@ -156,6 +210,9 @@ export default async function handler(req, res) {
       : "",
     childAges ? `Vârste copii: ${String(childAges).slice(0, 120)}.` : "",
     needCot ? "Solicită PĂTUȚ pentru bebeluș (gratuit)." : "",
+    offerDiscount > 0 && bestOffer ? `OFERTĂ: ${bestOffer.title} (−${offerDiscount} lei).` : "",
+    comboDiscount > 0 && comboOffer ? `COMBO: ${comboOffer.title} (−${comboDiscount} lei).` : "",
+    codeDiscount > 0 ? `COD REDUCERE: ${discountCode} −${codePct}% (−${codeDiscount} lei).` : "",
   ].filter(Boolean).join(" ");
 
   const combined = aptIds.length > 1;

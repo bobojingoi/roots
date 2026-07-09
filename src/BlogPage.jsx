@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, NavLogin, TreeLoader, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
@@ -104,7 +104,7 @@ function BlogHeader({ logo }) {
           <Link to="/">{t("nav_home")}</Link>
           <Link to="/blog">{t("nav_blog")}</Link>
           <LangSwitcher />
-          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
+          <NavLogin />
         </nav>
       </div>
     </header>

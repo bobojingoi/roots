@@ -575,7 +575,11 @@ section{position:relative}
 .nav a:hover{color:var(--ember-2)}
 .nav .cta{color:#fff;background:var(--ember);padding:10px 20px;border-radius:100px;box-shadow:0 6px 18px rgba(232,114,44,.35)}
 .nav .cta:hover{color:#fff;background:var(--ember-2);transform:translateY(-1px)}
-@media(max-width:760px){.nav a:not(.cta){display:none}.nav:has(.burger) .cta{display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
+@media(max-width:760px){.nav a:not(.cta):not(.nav-login){display:none}.nav:has(.burger) .cta{display:none}.nav .cta{padding:9px 16px;font-size:13.5px}}
+/* iconul de cont din bară */
+.nav-login{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);color:#fff;transition:border-color .25s,color .25s,background .25s}
+.hdr.solid .nav-login{border-color:var(--line);color:var(--pine)}
+.nav-login:hover{border-color:var(--ember);color:var(--ember)}
 /* language dropdown (flag) */
 .langdd{position:relative}
 .langdd-btn{display:flex;align-items:center;gap:6px;border:1.5px solid rgba(255,255,255,.3);background:none;color:rgba(255,255,255,.9);border-radius:9px;padding:6px 9px;cursor:pointer;transition:border-color .25s,background .25s}
@@ -604,7 +608,7 @@ section{position:relative}
 .mnav .close{position:absolute;top:20px;right:22px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer;line-height:1}
 
 /* ---- hero: scena de seară ---- */
-.hero{min-height:100svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
+.hero{min-height:118svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden; /* +~20% ca imaginea înaltă să respire */
   background:linear-gradient(180deg,#0B1626 0%,#152B3D 30%,#3D4A56 52%,#8A5A46 68%,#C4713C 80%,#E88940 92%)}
 .hero-photo{position:absolute;inset:0;background-size:cover;background-position:center}
 .hero-veil{position:absolute;inset:0} /* fundalul vine inline, din setările Logo & Brand (admin) */
@@ -612,7 +616,7 @@ section{position:relative}
 .ridge svg{display:block;width:100%;height:auto}
 .ridge-far{bottom:120px;opacity:.5}
 .ridge-near{bottom:0}
-.hero-inner{position:relative;z-index:3;width:100%;padding:0 22px 96px}
+.hero-inner{position:relative;z-index:3;width:100%;max-width:1120px;margin:0 auto;padding:0 22px 96px} /* aliniat cu .wrap */
 @media(max-width:760px){.hero-inner{padding-bottom:40px}} /* pe mobil textul stă mai jos, poza respiră */
 .hero-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:22px}
 .hero-eyebrow::before{content:"";width:34px;height:1px;background:var(--gold)}
@@ -712,6 +716,25 @@ section{position:relative}
 .vs-add{position:absolute;bottom:12px;right:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
 .vs-add.multi{bottom:52px;background:#0e5e40}
 .pic-mob-btn{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
+/* butonul + modalul „Vezi toate pozele" */
+.vcard-photos{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:9px 16px;background:rgba(12,31,25,.62);backdrop-filter:blur(8px);border:1px solid rgba(233,184,114,.35);color:#fff;font:700 12.5px 'Manrope',sans-serif;cursor:pointer;transition:background .2s}
+.vcard-photos:hover{background:rgba(12,31,25,.85)}
+.vcard-titlelink{color:inherit;text-decoration:none;transition:color .25s}
+.vcard-titlelink:hover{color:var(--gold)}
+.ph-modal{position:fixed;inset:0;z-index:130;background:rgba(12,31,25,.72);backdrop-filter:blur(6px);display:grid;place-items:center;padding:18px}
+.ph-box{background:var(--ivory);color:var(--ink);border-radius:24px;max-width:980px;width:100%;max-height:88vh;overflow:auto;padding:24px 26px}
+.ph-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;position:sticky;top:-24px;background:var(--ivory);padding:8px 0;z-index:2}
+.ph-head b{font-family:'Fraunces',serif;font-weight:500;font-size:26px;color:var(--pine);margin-right:auto}
+.ph-golink{color:var(--ember);font-weight:700;font-size:14px;text-decoration:none}
+.ph-golink:hover{text-decoration:underline}
+.ph-close{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:#fff;font-size:20px;line-height:1;cursor:pointer;color:var(--ink)}
+.ph-cat{font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ember);margin:20px 0 12px}
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.ph-grid figure{margin:0}
+.ph-grid img{width:100%;height:220px;object-fit:cover;border-radius:14px;display:block}
+.ph-grid figcaption{margin-top:8px;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+.ph-empty{color:var(--ink-soft);padding:20px 0}
+@media(max-width:600px){.ph-grid{grid-template-columns:1fr 1fr}.ph-grid img{height:150px}}
 .vcard-media .glow{position:absolute;bottom:-70px;left:50%;transform:translateX(-50%);width:320px;height:170px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.55),transparent 70%)}
 .vcard-tag{position:absolute;top:16px;left:16px;background:rgba(12,31,25,.6);backdrop-filter:blur(8px);border:1px solid rgba(233,184,114,.35);color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:100px}
 .vcard-body{padding:30px 30px 34px}
@@ -1174,6 +1197,16 @@ export function Brand({ logo }) {
   );
 }
 
+/* iconul de cont din bara de meniu: logat sau nu, duce la /cont */
+export const NavLogin = () => (
+  <Link to="/cont" className="nav-login" aria-label="Contul meu" title="Contul meu">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.5 20.5c1.4-3.8 4.6-5.7 7.5-5.7s6.1 1.9 7.5 5.7" />
+    </svg>
+  </Link>
+);
+
 export function Header({ content }) {
   const scrolled = useScrolled();
   const [menu, setMenu] = useState(false);
@@ -1191,7 +1224,7 @@ export function Header({ content }) {
           <a href="#locatie">{t("nav_location")}</a>
           <Link to="/blog">{t("nav_blog")}</Link>
           <LangSwitcher />
-          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
+          <NavLogin />
           <button className="burger" onClick={() => setMenu(true)} aria-label="Meniu">☰</button>
         </nav>
       </div>
@@ -1323,7 +1356,52 @@ function VCardSlider({ slides }) {
   );
 }
 
-function VillaCard({ villa, delay, contact, idx }) {
+/* Modal „Vezi toate pozele": pozele vilei pe categorii (Exterior/Interior),
+   cu descrierile lor — sursele sunt galeriile editabile ale paginii de vilă */
+function PhotosModal({ villa, page, onClose }) {
+  const groups = [
+    { key: "ext", title: t("gal_ext"), items: ((page && page.galleryExterior) || []).filter((it) => it && it.img) },
+    { key: "int", title: t("gal_int"), items: ((page && page.galleryInterior) || []).filter((it) => it && it.img) },
+  ].filter((g) => g.items.length);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
+  }, [onClose]);
+  return (
+    <div className="ph-modal" role="dialog" aria-label={villa.name} onClick={(e) => { if (e.target.classList.contains("ph-modal")) onClose(); }}>
+      <div className="ph-box">
+        <div className="ph-head">
+          <b>{villa.name}</b>
+          <Link to={`/vila-${villa.id}`} className="ph-golink">{t("see_details")} →</Link>
+          <button type="button" className="ph-close" onClick={onClose} aria-label="Închide">×</button>
+        </div>
+        {groups.length ? (
+          groups.map((g) => (
+            <div key={g.key}>
+              <h4 className="ph-cat">{g.title}</h4>
+              <div className="ph-grid">
+                {g.items.map((it, i) => (
+                  <figure key={i}>
+                    <img src={it.img} alt={it.caption || ""} loading="lazy" />
+                    {it.caption ? <figcaption>{it.caption}</figcaption> : null}
+                  </figure>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="ph-empty">Pozele se adaugă în galeriile vilei (pagina vilei, din editor).</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VillaCard({ villa, delay, contact, idx, page }) {
+  const [showPhotos, setShowPhotos] = useState(false);
   // slide-urile păstrează CALEA originală din draft (cover / gallery.N cu N brut),
   // ca „Fără imagine" pe un slide să nu decaleze editarea celorlalte
   const slides = [
@@ -1349,6 +1427,11 @@ function VillaCard({ villa, delay, contact, idx }) {
           </>
         )}
         <span className="vcard-tag">{t("villa_tag", { n: villa.id === "redwood" ? "01" : "02" })}</span>
+        {!EDIT_MODE && (
+          <button type="button" className="vcard-photos" onClick={() => setShowPhotos(true)}>
+            🖼 {t("see_all_photos")}
+          </button>
+        )}
         {EDIT_MODE && slides.length > 0 && (
           <>
             <button type="button" className="vs-add" data-edit-img={`villas.items.${idx}.gallery.${(villa.gallery || []).length}`}>＋ foto</button>
@@ -1356,8 +1439,9 @@ function VillaCard({ villa, delay, contact, idx }) {
           </>
         )}
       </div>
+      {showPhotos && <PhotosModal villa={villa} page={page} onClose={() => setShowPhotos(false)} />}
       <div className="vcard-body">
-        <h3 data-edit={`villas.items.${idx}.name`}>{villa.name}</h3>
+        <h3 data-edit={`villas.items.${idx}.name`}><Link to={`/vila-${villa.id}`} className="vcard-titlelink">{villa.name}</Link></h3>
         <div className="tagline" data-edit={`villas.items.${idx}.tagline`}>{villa.tagline}</div>
         <p className="desc" data-edit={`villas.items.${idx}.description`}>{villa.description}</p>
         <div className="feat-list" data-edit-list={`villas.items.${idx}.features`}>
@@ -1377,7 +1461,7 @@ function VillaCard({ villa, delay, contact, idx }) {
   );
 }
 
-function Villas({ villas, contact }) {
+function Villas({ villas, contact, pages }) {
   return (
     <section id="vile">
       <div className="villas-band">
@@ -1389,7 +1473,7 @@ function Villas({ villas, contact }) {
           </div>
           <div className="villa-grid">
             {villas.map((v, i) => (
-              <VillaCard key={v.id} villa={v} contact={contact} idx={i} delay={i === 1 ? "rv-d1" : ""} />
+              <VillaCard key={v.id} villa={v} contact={contact} idx={i} delay={i === 1 ? "rv-d1" : ""} page={(pages || {})[v.id]} />
             ))}
           </div>
         </div>
@@ -2271,7 +2355,7 @@ export default function RootsVillas() {
       <Header content={content} />
       <Hero hero={content.hero} brand={content.brand} />
       <About about={content.about} />
-      <Villas villas={content.villas} contact={content.contact} />
+      <Villas villas={content.villas} contact={content.contact} pages={content.pages} />
       <RootDivider />
       <Editorial editorial={content.editorial} />
       <Common common={content.common} />

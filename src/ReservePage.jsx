@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, NavLogin, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
@@ -18,6 +18,8 @@ const RES_CSS = `
 .res-tab.both{border-color:rgba(232,114,44,.45)}
 .res-tab.both.on{background:var(--ember);border-color:var(--ember)}
 .res-both-hint{max-width:640px;margin:-14px auto 26px;text-align:center;font-size:13.5px;line-height:1.6;color:var(--ink-soft);background:var(--sand,#F4EDE0);border:1px solid var(--line);border-radius:14px;padding:12px 18px}
+.res-info{max-width:920px;margin:36px auto 0}
+.res-info-h{font-family:'Fraunces',serif;font-weight:500;font-size:24px;color:var(--pine);margin-bottom:18px}
 `;
 
 export default function ReservePage() {
@@ -50,6 +52,7 @@ export default function ReservePage() {
             <Link to="/vila-redwood">Redwood</Link>
             <Link to="/vila-sequoia">Sequoia</Link>
             <LangSwitcher />
+            <NavLogin />
           </nav>
         </div>
       </header>
@@ -73,6 +76,25 @@ export default function ReservePage() {
           contact={content.contact}
           depositPct={30}
         />
+        {/* info importante: regulile casei + politica de anulare ale vilei selectate */}
+        {(() => {
+          const src = both ? pages.redwood || {} : page;
+          const info = (src.policies || []).filter((p) => /regul|anulare/i.test(p.title || ""));
+          if (!info.length) return null;
+          return (
+            <div className="res-info">
+              <h3 className="res-info-h">{t("res_info_title")}</h3>
+              <div className="vpol-grid">
+                {info.map((p, pi) => (
+                  <div className="vpol-col" key={pi}>
+                    <h4>{p.title}</h4>
+                    <ul>{(p.items || []).map((it, i) => <li key={i}>{it}</li>)}</ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </main>
       <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />

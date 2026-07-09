@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, NavLogin, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { mdToHtml } from "./BlogPage.jsx";
 
@@ -30,7 +30,7 @@ function TextHeader({ logo }) {
           <Link to="/">{t("nav_home")}</Link>
           <Link to="/blog">{t("nav_blog")}</Link>
           <LangSwitcher />
-          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
+          <NavLogin />
         </nav>
       </div>
     </header>

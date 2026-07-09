@@ -266,6 +266,11 @@ function renderNav() {
   if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
   if (can('blog')) h += `<div class="nav-cap">Blog</div><button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
   if (can('media')) h += `<div class="nav-cap">Bibliotecă</div><button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
+  if (can('oferte')) {
+    h += `<div class="nav-cap">Marketing</div>`;
+    h += `<button class="nav-i ${TAB === 'offers' ? 'on' : ''}" onclick="go('offers')">${ICONS.star} Oferte</button>`;
+    h += `<button class="nav-i ${TAB === 'discounts' ? 'on' : ''}" onclick="go('discounts')">${ICONS.doc} Reduceri (coduri)</button>`;
+  }
   if (can('sistem')) {
     h += `<div class="nav-cap">Sistem</div>`;
     h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.user} Utilizatori</button>`;
@@ -363,6 +368,8 @@ async function renderMain() {
   if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
   if (TAB === 'roles') { renderRoles(); return; }
+  if (TAB === 'offers') { renderOffers(); return; }
+  if (TAB === 'discounts') { renderDiscounts(); return; }
   if (TAB === 'noaccess') {
     $('main').innerHTML = '<div class="card">Contul tău nu are acces la nicio zonă din admin. Cere owner-ului să îți aloce permisiuni (Sistem → Roluri &amp; acces).</div>';
     return;
@@ -853,6 +860,123 @@ const EVENT_LABELS = {
   UserDeleted: 'Utilizator șters', PostCreated: 'Articol creat', PostPublished: 'Articol publicat',
   PostUnpublished: 'Articol retras', BookingSynced: 'Rezervare sincronizată',
 };
+/* ============ oferte ============ */
+let OFFERS = [], OFFER = null;
+const OFFER_META = {
+  interval:  ['Reducere pe interval', '−X% pentru un interval de date'],
+  lastminute:['Last minute', '−X% pentru sosiri în următoarele X zile'],
+  earlybird: ['Early bird', '−X% dacă rezervă cu min. X zile înainte'],
+  longstay:  ['Sejur lung', '−X% pentru sejururi de min. X nopți'],
+  combo:     ['Combo ambele vile', '−X lei/noapte când se rezervă AMBELE vile împreună'],
+  perk:      ['Bonus (fără preț)', 'ex. late check-out, gustare din partea casei — apare informativ'],
+};
+function offerSummary(o) {
+  if (o.type === 'interval') return `−${o.pct}% · ${o.date_from ? o.date_from.slice(0,10) : '…'} → ${o.date_to ? o.date_to.slice(0,10) : '…'}`;
+  if (o.type === 'lastminute') return `−${o.pct}% · sosire în max. ${o.days_before} zile`;
+  if (o.type === 'earlybird') return `−${o.pct}% · rezervat cu min. ${o.days_before} zile înainte`;
+  if (o.type === 'longstay') return `−${o.pct}% · min. ${o.min_nights} nopți`;
+  if (o.type === 'combo') return `−${o.amount_lei} lei/noapte la ambele vile`;
+  return 'bonus informativ';
+}
+async function renderOffers() {
+  OFFERS = (await api('/api/v1/admin/offers')).offers;
+  if (OFFER) { renderOfferForm(); return; }
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Oferte</h1><div class="lead">Reducerile active se aplică automat la prețul din pagina de rezervare (și se re-verifică pe server).</div></div>
+      <button class="btn p" onclick="newOffer()">+ Ofertă nouă</button></div>
+    ${OFFERS.map((o) => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
+        <div><b>${esc(o.title)}</b>
+          <div class="hint" style="margin-top:2px">${esc((OFFER_META[o.type] || [o.type])[0])} · ${esc(offerSummary(o))}</div></div>
+        <span class="badge ${o.active ? 'pub' : 'mod'}">${o.active ? 'Activă' : 'Oprită'}</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn s" onclick="editOffer('${o.id}')">Editează</button>
+          <button class="btn s" onclick="toggleOffer('${o.id}', ${o.active ? 'false' : 'true'})">${o.active ? 'Oprește' : 'Activează'}</button>
+          <button class="btn d" onclick="delOffer('${o.id}')">Șterge</button>
+        </div>
+      </div>`).join('') || '<div class="card">Nicio ofertă încă — apasă „+ Ofertă nouă".</div>'}`;
+}
+function newOffer() { OFFER = { id: null, type: 'interval', title: OFFER_META.interval[0], pct: '', amount_lei: '', min_nights: '', days_before: '', date_from: '', date_to: '', active: true }; renderOfferForm(); }
+function editOffer(id) { const o = OFFERS.find((x) => x.id === id); OFFER = { ...o, date_from: o.date_from ? String(o.date_from).slice(0, 10) : '', date_to: o.date_to ? String(o.date_to).slice(0, 10) : '' }; renderOfferForm(); }
+function setOfferType(t) { const wasDefault = !OFFER.title || Object.values(OFFER_META).some(([n]) => n === OFFER.title); OFFER.type = t; if (wasDefault) OFFER.title = OFFER_META[t][0]; renderOfferForm(); }
+function of(k, label, type) {
+  return `<label class="f">${label}</label><input class="f" type="${type || 'text'}" value="${esc(String(OFFER[k] ?? ''))}" oninput="OFFER['${k}']=this.value" />`;
+}
+function renderOfferForm() {
+  const t = OFFER.type;
+  let fields = '';
+  if (t === 'interval') fields = of('pct', 'Reducere (%)', 'number') + `<div style="display:flex;gap:10px"><div style="flex:1">${of('date_from', 'De la', 'date')}</div><div style="flex:1">${of('date_to', 'Până la', 'date')}</div></div>`;
+  else if (t === 'lastminute') fields = of('pct', 'Reducere (%)', 'number') + of('days_before', 'Pentru sosiri în următoarele X zile', 'number');
+  else if (t === 'earlybird') fields = of('pct', 'Reducere (%)', 'number') + of('days_before', 'Rezervat cu minim X zile înainte', 'number');
+  else if (t === 'longstay') fields = of('pct', 'Reducere (%)', 'number') + of('min_nights', 'Minim X nopți', 'number');
+  else if (t === 'combo') fields = of('amount_lei', 'Reducere (lei/noapte) când se rezervă ambele vile', 'number');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>${OFFER.id ? 'Editează oferta' : 'Ofertă nouă'}</h1></div></div>
+    <div class="card">
+      <label class="f">Tip ofertă</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px">
+        ${Object.entries(OFFER_META).map(([k, [name, desc]]) => `
+          <button class="card" style="text-align:left;cursor:pointer;padding:12px 14px;margin:0;border:2px solid ${k === t ? '#157a55' : '#e3e8e5'};background:${k === t ? '#f0faf5' : '#fff'}" onclick="setOfferType('${k}')">
+            <b style="font-size:14px">${name}</b><div class="hint" style="margin-top:3px">${desc}</div>
+          </button>`).join('')}
+      </div>
+      ${of('title', 'Titlu (afișat pe site, în recap)')}
+      ${fields}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn s" onclick="OFFER=null;renderOffers()">← Înapoi</button>
+      <button class="btn p" onclick="saveOffer()">Salvează</button>
+    </div>`;
+}
+async function saveOffer() {
+  try {
+    const body = JSON.stringify(OFFER);
+    if (OFFER.id) await api('/api/v1/admin/offers/' + OFFER.id, { method: 'PUT', body });
+    else await api('/api/v1/admin/offers', { method: 'POST', body });
+    OFFER = null; toast('Ofertă salvată'); renderOffers();
+  } catch (e) { toast(e.message); }
+}
+async function toggleOffer(id, active) {
+  const o = OFFERS.find((x) => x.id === id);
+  await api('/api/v1/admin/offers/' + id, { method: 'PUT', body: JSON.stringify({ ...o, active }) });
+  renderOffers();
+}
+async function delOffer(id) { if (!confirm('Ștergi oferta?')) return; await api('/api/v1/admin/offers/' + id, { method: 'DELETE' }); renderOffers(); }
+
+/* ============ coduri de reducere ============ */
+async function renderDiscounts() {
+  const j = await api('/api/v1/admin/discount-codes');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Reduceri (coduri)</h1><div class="lead">Clientul introduce codul în contul lui de pe site (/cont) — prețul i se recalculează automat cât e logat.</div></div></div>
+    <div class="card">
+      <b>Cod nou</b>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px">
+        <input class="f" id="dcCode" placeholder="COD (ex: ROOTS10)" style="text-transform:uppercase" />
+        <input class="f" id="dcPct" type="number" placeholder="reducere %" />
+        <input class="f" id="dcExp" type="date" title="expiră (opțional)" />
+        <button class="btn p" onclick="addDiscount()">Creează</button>
+      </div>
+    </div>
+    ${j.codes.map((c) => `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
+        <div><b style="letter-spacing:.08em">${esc(c.code)}</b>
+          <div class="hint" style="margin-top:2px">−${c.pct}%${c.expires ? ' · expiră ' + String(c.expires).slice(0, 10) : ''}</div></div>
+        <span class="badge ${c.active ? 'pub' : 'mod'}">${c.active ? 'Activ' : 'Oprit'}</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn s" onclick="toggleDiscount('${c.id}', ${c.active ? 'false' : 'true'})">${c.active ? 'Oprește' : 'Activează'}</button>
+          <button class="btn d" onclick="delDiscount('${c.id}')">Șterge</button>
+        </div>
+      </div>`).join('') || '<div class="card">Niciun cod încă.</div>'}`;
+}
+async function addDiscount() {
+  try {
+    await api('/api/v1/admin/discount-codes', { method: 'POST', body: JSON.stringify({ code: $('dcCode').value, pct: $('dcPct').value, expires: $('dcExp').value || null }) });
+    toast('Cod creat'); renderDiscounts();
+  } catch (e) { toast(e.message); }
+}
+async function toggleDiscount(id, active) { await api('/api/v1/admin/discount-codes/' + id, { method: 'PUT', body: JSON.stringify({ active }) }); renderDiscounts(); }
+async function delDiscount(id) { if (!confirm('Ștergi codul?')) return; await api('/api/v1/admin/discount-codes/' + id, { method: 'DELETE' }); renderDiscounts(); }
+
 /* ============ roluri & acces (doar owner) ============ */
 let ROLES_DATA = null; // { areas: [[cheie, etichetă]], perms: { rol: [chei] } }
 async function renderRoles() {

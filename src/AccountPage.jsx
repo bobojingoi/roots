@@ -17,6 +17,11 @@ const ACC_CSS = `
 .acc-card input,.acc-card select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:var(--ivory);color:var(--ink)}
 .acc-switch{display:block;width:100%;margin-top:12px;background:none;border:none;color:var(--ember);font:700 14px 'Manrope',sans-serif;cursor:pointer;text-align:center}
 .acc-switch:hover{text-decoration:underline}
+.acc-code-row{display:flex;gap:10px;margin-top:10px}
+.acc-code-row input{flex:1;text-transform:uppercase;letter-spacing:.06em}
+.acc-code-active{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;background:#e7f5ee;border:1px solid rgba(21,122,85,.3);border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;color:#157a55}
+.acc-code-rm{background:none;border:none;color:#c0392b;font:700 13px 'Manrope',sans-serif;cursor:pointer}
+.acc-code-rm:hover{text-decoration:underline}
 .acc-btn{margin-top:20px;width:100%;padding:13px;border:0;border-radius:99px;background:var(--ember);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .acc-btn:disabled{opacity:.6}
 .acc-err{margin-top:12px;color:#c0392b;font-size:14px}
@@ -117,6 +122,23 @@ export default function AccountPage() {
     setToken(""); setAcc(null);
   }
 
+  const [codeInput, setCodeInput] = useState("");
+  const [codeErr, setCodeErr] = useState("");
+  async function saveCode(remove) {
+    setCodeErr("");
+    try {
+      const r = await fetch(HUB_URL + "/api/v1/my-account/discount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ code: remove ? "" : codeInput.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Eroare");
+      setAcc((a) => ({ ...a, discount: j.discount }));
+      setCodeInput("");
+    } catch (e) { setCodeErr(e.message); }
+  }
+
   const SOURCES = [
     ["google", t("src_google")],
     ["social", t("src_social")],
@@ -199,6 +221,23 @@ export default function AccountPage() {
               ) : (
                 <p className="acc-help" style={{ marginTop: 8 }}>{t("acc_none")}</p>
               )}
+            </div>
+            <div style={{ marginTop: 22 }}>
+              <b>{t("acc_code")}</b>
+              {acc.discount ? (
+                <div className="acc-code-active">
+                  <span>🏷 {t("acc_code_active", { c: acc.discount.code, p: acc.discount.pct })}</span>
+                  <button type="button" className="acc-code-rm" onClick={() => saveCode(true)}>{t("acc_code_remove")}</button>
+                </div>
+              ) : (
+                <div className="acc-code-row">
+                  <input value={codeInput} onChange={(e) => setCodeInput(e.target.value.toUpperCase())} placeholder={t("acc_code_ph")} />
+                  <button type="button" className="acc-btn" style={{ width: "auto", marginTop: 0, padding: "11px 18px" }} onClick={() => saveCode(false)} disabled={!codeInput.trim()}>
+                    {t("acc_code_save")}
+                  </button>
+                </div>
+              )}
+              {codeErr && <div className="acc-err">{codeErr}</div>}
             </div>
             {isStaff && <a className="acc-link" href={ADMIN_URL} target="_blank" rel="noopener noreferrer">{t("acc_admin")} →</a>}
           </div>

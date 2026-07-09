@@ -8,6 +8,7 @@ import {
   Ridge,
   Embers,
   Brand,
+  NavLogin,
   TreeLoader,
   Footer,
   Fabs,
@@ -114,6 +115,7 @@ export const VILLA_CSS = `
 .bk-row.hi{color:var(--ember)}
 .bk-row.hi b{color:var(--ember);font-size:19px}
 .bk-row.muted{color:var(--ink-soft);font-size:13px}
+.bk-row.disc{color:#157a55;font-weight:700;font-size:13.5px}
 .bk-cta{display:block;text-align:center;background:var(--ember);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:100px;text-decoration:none;box-shadow:0 10px 26px rgba(232,114,44,.4);transition:transform .2s,background .2s}
 .bk-cta:hover{background:var(--ember-2);transform:translateY(-2px)}
 .bk-cta:disabled{background:var(--sand);color:var(--ink-soft);box-shadow:none;cursor:not-allowed;transform:none}
@@ -212,7 +214,7 @@ function VHeader({ contact, logo }) {
           <a href="#facilitati">{t("vp_details")}</a>
           <a href="#locatie">{t("nav_location")}</a>
           <LangSwitcher />
-          <Link to="/rezervare" className="cta">{t("book_now")}</Link>
+          <NavLogin />
         </nav>
       </div>
     </header>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { t } from "./i18n.js";
 import { track } from "./tracking.js";
+import { HUB_URL } from "./HubEditor.jsx";
 
 /* ============================================================
    Widget de rezervare — calendar cu selecție de interval,
@@ -143,6 +144,23 @@ export default function AvailabilityCalendar({
   const [step, setStep] = useState("select"); // select | form | sending | done
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
   const [result, setResult] = useState(null);
+  // ofertele active din Hub + codul de reducere al utilizatorului logat
+  const [offers, setOffers] = useState([]);
+  const [userDisc, setUserDisc] = useState(null); // { code, pct }
+  useEffect(() => {
+    fetch(HUB_URL + "/api/v1/offers")
+      .then((r) => r.json())
+      .then((j) => setOffers(j.offers || []))
+      .catch(() => {});
+    let tok = "";
+    try { tok = localStorage.getItem("roots_auth") || ""; } catch { /* privat */ }
+    if (tok) {
+      fetch(HUB_URL + "/api/v1/my-account", { headers: { Authorization: "Bearer " + tok } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (j && j.discount) setUserDisc(j.discount); })
+        .catch(() => {});
+    }
+  }, []);
 
   const m2 = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   const startDate = iso(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -174,7 +192,34 @@ export default function AvailabilityCalendar({
   const extraAdults = Math.max(0, adults - inclAdults);
   const extraChildren = Math.max(0, children - inclChildren);
   const extraFee = (extraAdults * P.extraAdultFee + extraChildren * P.extraChildFee) * nights.length;
-  const total = baseTotal + extraFee;
+
+  // --- OFERTE (fără cumul — se aplică cea mai avantajoasă) + combo + cod de reducere ---
+  // ATENȚIE: aceeași logică e replicată server-side în api/book.js — ține-le în sinc
+  const daysToArrival = checkIn ? Math.round((parseISO(checkIn) - today) / 86400000) : null;
+  const candidates = [];
+  for (const o of offers) {
+    const pct = Number(o.pct) || 0;
+    if (o.type === "interval" && pct) {
+      const from = o.date_from ? String(o.date_from).slice(0, 10) : null;
+      const to = o.date_to ? String(o.date_to).slice(0, 10) : null;
+      const amt = nights.reduce((s, n) => ((from && n < from) || (to && n > to) ? s : s + ((Number(prices[n]) || 0) * pct) / 100), 0);
+      if (amt > 0) candidates.push({ title: o.title, amount: amt });
+    } else if (o.type === "lastminute" && pct && daysToArrival != null && daysToArrival >= 0 && daysToArrival <= (Number(o.days_before) || 0)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "earlybird" && pct && daysToArrival != null && daysToArrival >= (Number(o.days_before) || 0)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "longstay" && pct && Number(o.min_nights) > 0 && nights.length >= Number(o.min_nights)) {
+      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    }
+  }
+  const bestOffer = candidates.sort((a, b) => b.amount - a.amount)[0] || null;
+  const offerDiscount = bestOffer ? Math.round(bestOffer.amount) : 0;
+  const comboOffer = multi ? offers.find((o) => o.type === "combo" && Number(o.amount_lei) > 0) : null;
+  const comboDiscount = comboOffer ? Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights.length)) : 0;
+  const afterOffers = Math.max(0, baseTotal - offerDiscount - comboDiscount);
+  const codeDiscount = userDisc && userDisc.pct ? Math.round((afterOffers * userDisc.pct) / 100) : 0;
+
+  const total = afterOffers - codeDiscount + extraFee;
   const deposit = Math.round(total * depositPct / 100);
   const rest = total - deposit;
   const hasRange = nights.length > 0;
@@ -210,6 +255,7 @@ export default function AvailabilityCalendar({
           extraBed: hasExtra ? extraBed : undefined,
           childAges: children > 0 ? childAges.trim() : undefined,
           needCot,
+          discountCode: userDisc ? userDisc.code : undefined,
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),
@@ -232,6 +278,15 @@ export default function AvailabilityCalendar({
       <div className="bk-row"><span>{checkIn} → {checkOut}</span><span>{nights.length} {nights.length === 1 ? "noapte" : "nopți"} · {adults + children} oaspeți</span></div>
       {priceKnown ? (
         <>
+          {offerDiscount > 0 && bestOffer && (
+            <div className="bk-row disc"><span>🏷 {bestOffer.title}</span><span>−{lei(offerDiscount)} {currency}</span></div>
+          )}
+          {comboDiscount > 0 && comboOffer && (
+            <div className="bk-row disc"><span>🏷 {comboOffer.title}</span><span>−{lei(comboDiscount)} {currency}</span></div>
+          )}
+          {codeDiscount > 0 && userDisc && (
+            <div className="bk-row disc"><span>🏷 {t("code_row", { c: userDisc.code, p: userDisc.pct })}</span><span>−{lei(codeDiscount)} {currency}</span></div>
+          )}
           {hasExtra && (
             <div className="bk-row muted"><span>{t("extra_guests_row", { a: extraAdults, c: extraChildren })}</span><span>+{lei(extraFee)} {currency}</span></div>
           )}

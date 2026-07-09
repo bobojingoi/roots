@@ -180,6 +180,7 @@ const PERM_AREAS = [
   ['heatmap', 'Heatmap'],
   ['blog', 'Articole blog'],
   ['media', 'Galerie media'],
+  ['oferte', 'Oferte & Reduceri'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
@@ -286,9 +287,109 @@ app.post('/api/v1/site-register', async (req, res) => {
   });
 });
 
+/* ============ OFERTE & CODURI DE REDUCERE ============ */
+// public: ofertele active — site-ul le aplică la calculul prețului
+app.get('/api/v1/offers', async (_req, res) => {
+  const r = await pool.query(
+    'SELECT id, type, title, pct, amount_lei, min_nights, days_before, date_from, date_to FROM offers WHERE active ORDER BY created_at DESC'
+  );
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json({ offers: r.rows });
+});
+// public: validare cod (nu expune lista de coduri)
+app.get('/api/v1/discount', async (req, res) => {
+  const code = String(req.query.code || '').trim().toUpperCase();
+  if (!code) return res.json({ ok: false });
+  const r = await pool.query(
+    'SELECT pct FROM discount_codes WHERE upper(code) = $1 AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
+    [code]
+  );
+  if (!r.rows.length) return res.json({ ok: false });
+  res.json({ ok: true, pct: Number(r.rows[0].pct) });
+});
+// admin CRUD oferte
+const OFFER_TYPES = ['interval', 'lastminute', 'earlybird', 'longstay', 'combo', 'perk'];
+app.get('/api/v1/admin/offers', requirePerm('oferte'), async (_req, res) => {
+  const r = await pool.query('SELECT * FROM offers ORDER BY created_at DESC');
+  res.json({ offers: r.rows });
+});
+app.post('/api/v1/admin/offers', requirePerm('oferte'), async (req, res) => {
+  const b = req.body || {};
+  if (!OFFER_TYPES.includes(b.type)) return res.status(400).json({ error: 'Tip de ofertă invalid' });
+  if (!String(b.title || '').trim()) return res.status(400).json({ error: 'Titlul e obligatoriu' });
+  const r = await pool.query(
+    `INSERT INTO offers (type, title, pct, amount_lei, min_nights, days_before, date_from, date_to, active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true)) RETURNING *`,
+    [b.type, String(b.title).trim().slice(0, 120), b.pct || null, b.amount_lei || null, b.min_nights || null, b.days_before || null, b.date_from || null, b.date_to || null, b.active]
+  );
+  emit('OfferCreated', { title: r.rows[0].title, by: req.user.email });
+  res.json({ ok: true, offer: r.rows[0] });
+});
+app.put('/api/v1/admin/offers/:id', requirePerm('oferte'), async (req, res) => {
+  const b = req.body || {};
+  const r = await pool.query(
+    `UPDATE offers SET title=COALESCE($2,title), pct=$3, amount_lei=$4, min_nights=$5, days_before=$6,
+       date_from=$7, date_to=$8, active=COALESCE($9,active) WHERE id=$1 RETURNING *`,
+    [req.params.id, b.title, b.pct || null, b.amount_lei || null, b.min_nights || null, b.days_before || null, b.date_from || null, b.date_to || null, b.active]
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Ofertă inexistentă' });
+  res.json({ ok: true, offer: r.rows[0] });
+});
+app.delete('/api/v1/admin/offers/:id', requirePerm('oferte'), async (req, res) => {
+  await pool.query('DELETE FROM offers WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+// admin CRUD coduri de reducere
+app.get('/api/v1/admin/discount-codes', requirePerm('oferte'), async (_req, res) => {
+  const r = await pool.query('SELECT * FROM discount_codes ORDER BY created_at DESC');
+  res.json({ codes: r.rows });
+});
+app.post('/api/v1/admin/discount-codes', requirePerm('oferte'), async (req, res) => {
+  const code = String((req.body || {}).code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
+  const pct = Number((req.body || {}).pct);
+  if (!code || !pct || pct <= 0 || pct > 90) return res.status(400).json({ error: 'Cod și procent (1–90) obligatorii' });
+  try {
+    const r = await pool.query(
+      'INSERT INTO discount_codes (code, pct, expires) VALUES ($1,$2,$3) RETURNING *',
+      [code, pct, (req.body || {}).expires || null]
+    );
+    emit('DiscountCodeCreated', { code, by: req.user.email });
+    res.json({ ok: true, code: r.rows[0] });
+  } catch (e) {
+    res.status(400).json({ error: e.message.includes('duplicate') ? 'Codul există deja' : e.message });
+  }
+});
+app.put('/api/v1/admin/discount-codes/:id', requirePerm('oferte'), async (req, res) => {
+  const r = await pool.query('UPDATE discount_codes SET active=COALESCE($2,active), pct=COALESCE($3,pct), expires=$4 WHERE id=$1 RETURNING *', [
+    req.params.id, (req.body || {}).active, (req.body || {}).pct || null, (req.body || {}).expires || null,
+  ]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Cod inexistent' });
+  res.json({ ok: true, code: r.rows[0] });
+});
+app.delete('/api/v1/admin/discount-codes/:id', requirePerm('oferte'), async (req, res) => {
+  await pool.query('DELETE FROM discount_codes WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+// contul de pe site: atașează un cod de reducere
+app.post('/api/v1/my-account/discount', requireAuth, async (req, res) => {
+  const code = String((req.body || {}).code || '').trim().toUpperCase();
+  if (!code) {
+    await pool.query('UPDATE users SET discount_code = NULL WHERE id = $1', [req.user.id]);
+    return res.json({ ok: true, discount: null });
+  }
+  const r = await pool.query(
+    'SELECT pct FROM discount_codes WHERE upper(code) = $1 AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
+    [code]
+  );
+  if (!r.rows.length) return res.status(400).json({ error: 'Cod invalid sau expirat' });
+  await pool.query('UPDATE users SET discount_code = $2 WHERE id = $1', [req.user.id, code]);
+  emit('DiscountCodeAttached', { code, email: req.user.email });
+  res.json({ ok: true, discount: { code, pct: Number(r.rows[0].pct) } });
+});
+
 /* contul clientului: datele lui + rezervările legate de emailul lui */
 app.get('/api/v1/my-account', requireAuth, async (req, res) => {
-  const u = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [req.user.id]);
+  const u = await pool.query('SELECT name, email, role, discount_code FROM users WHERE id = $1', [req.user.id]);
   const b = await pool.query(
     `SELECT b.villa, b.arrival, b.departure, b.guests_count, b.status
      FROM bookings b JOIN guests g ON g.id = b.guest_id
@@ -296,7 +397,17 @@ app.get('/api/v1/my-account', requireAuth, async (req, res) => {
      ORDER BY b.arrival DESC LIMIT 50`,
     [req.user.email]
   );
-  res.json({ user: u.rows[0] || null, bookings: b.rows });
+  const user = u.rows[0] || null;
+  // codul salvat, revalidat (poate a expirat între timp)
+  let discount = null;
+  if (user && user.discount_code) {
+    const d = await pool.query(
+      'SELECT pct FROM discount_codes WHERE upper(code) = upper($1) AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
+      [user.discount_code]
+    );
+    if (d.rows.length) discount = { code: user.discount_code, pct: Number(d.rows[0].pct) };
+  }
+  res.json({ user, bookings: b.rows, discount });
 });
 
 app.get('/api/v1/auth/me', requireAuth, async (req, res) => {

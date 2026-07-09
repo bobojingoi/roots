@@ -123,6 +123,32 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- oferte: reduceri automate aplicate la rezervare + bonusuri informative
+CREATE TABLE IF NOT EXISTS offers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,              -- interval | lastminute | earlybird | longstay | combo | perk
+  title TEXT NOT NULL,
+  pct NUMERIC,                     -- % reducere (tipurile procentuale)
+  amount_lei NUMERIC,              -- combo: lei/noapte reducere la ambele vile
+  min_nights INT,                  -- longstay
+  days_before INT,                 -- lastminute (max X zile până la sosire) / earlybird (min X zile)
+  date_from DATE,
+  date_to DATE,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- coduri de reducere (se introduc în contul de pe site)
+CREATE TABLE IF NOT EXISTS discount_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  pct NUMERIC NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  expires DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_code TEXT;
+
 -- heatmap: click-uri anonime de pe site (fără date personale)
 CREATE TABLE IF NOT EXISTS page_events (
   id BIGSERIAL PRIMARY KEY,
