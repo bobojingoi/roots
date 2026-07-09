@@ -39,3 +39,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+/* loaderul de boot din index.html dispare după prima randare React —
+   de acolo preia TreeLoader-ul (aceeași animație), dacă mai e ceva de încărcat */
+requestAnimationFrame(() =>
+  requestAnimationFrame(() => {
+    const boot = document.getElementById("boot-tree");
+    if (boot) boot.remove();
+  })
+);

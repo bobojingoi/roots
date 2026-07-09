@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { mdToHtml } from "./BlogPage.jsx";
 
@@ -53,7 +53,7 @@ export default function TextPage({ sectionKey }) {
       <TextHeader logo={content.brand?.logo} />
       <main className="txt-main">
         {!loaded ? (
-          <p className="txt-intro">{t("loading")}</p>
+          <TreeLoader inline label={t("loading")} />
         ) : !page ? (
           <>
             <h1>{t("page_missing")}</h1>

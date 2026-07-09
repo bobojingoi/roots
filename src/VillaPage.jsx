@@ -316,9 +316,6 @@ export default function VillaPage({ villaId }) {
         <div className="wrap vhero-inner">
           <h1>{villa.name}</h1>
           <p className="vhero-sub" data-edit={`${sk}.heroSubtitle`}>{page.heroSubtitle}</p>
-          <a className="vhero-phone" href={`tel:${contact.phone.replace(/\s/g, "")}`}>
-            {ICONS.phone} {contact.phone}{page.phoneLabel ? ` · ${page.phoneLabel}` : ""}
-          </a>
         </div>
       </section>
 

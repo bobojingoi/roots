@@ -1111,6 +1111,7 @@ export const Embers = () => {
    Poartă propriul <style> ca să poată fi folosit înaintea CSS-ului principal. */
 const TL_CSS = `
 .treeload{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:'Manrope',system-ui,sans-serif}
+.treeload.inline{min-height:46vh;background:none}
 .treeload .tl-box{text-align:center}
 .treeload svg{overflow:visible}
 .treeload .tl-roots path{stroke-dasharray:34;stroke-dashoffset:34;animation:tlRoots 2.6s ease-out infinite}
@@ -1129,9 +1130,9 @@ const TL_CSS = `
 @keyframes tlLayer3{0%,50%{opacity:0;transform:translateY(8px) scale(.6)}66%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
 @media(prefers-reduced-motion:reduce){.treeload *{animation:none!important;opacity:1!important;transform:none!important;stroke-dashoffset:0!important}}
 `;
-export function TreeLoader({ label = "Se încarcă…" }) {
+export function TreeLoader({ label = "Se încarcă…", inline = false }) {
   return (
-    <div className="treeload" role="status" aria-label={label}>
+    <div className={`treeload${inline ? " inline" : ""}`} role="status" aria-label={label}>
       <style>{TL_CSS}</style>
       <div className="tl-box">
         <svg viewBox="0 0 120 140" width="96" height="112" aria-hidden="true">
@@ -2225,11 +2226,7 @@ export default function RootsVillas() {
   useReveal();
 
   if (!loaded) {
-    return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#FBF7EF", fontFamily: "sans-serif", color: "#122B22" }}>
-        Se încarcă Roots Villas…
-      </div>
-    );
+    return <TreeLoader label={t("loading")} />;
   }
 
   return (

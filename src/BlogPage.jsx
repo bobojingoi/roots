@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CSS, Brand, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
@@ -191,7 +191,7 @@ export function BlogList() {
           <p className="lede" style={{ margin: "16px auto 0" }}>{t("blog_lede")}</p>
         </div>
         {posts === null ? (
-          <div className="blog-empty">{t("loading")}</div>
+          <TreeLoader inline label={t("loading")} />
         ) : posts.length === 0 ? (
           <div className="blog-empty">{t("blog_empty")}</div>
         ) : (
@@ -242,7 +242,7 @@ export function BlogPost() {
         {missing ? (
           <div className="blog-empty">{t("blog_missing")} <Link to="/blog">{t("blog_back")}</Link></div>
         ) : !post ? (
-          <div className="blog-empty">{t("loading")}</div>
+          <TreeLoader inline label={t("loading")} />
         ) : (
           <article>
             {post.cover && <div className="post-hero" style={{ backgroundImage: `url(${post.cover})` }} />}
