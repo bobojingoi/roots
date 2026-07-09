@@ -116,6 +116,8 @@ export const VILLA_CSS = `
 .bk-row.hi b{color:var(--ember);font-size:19px}
 .bk-row.muted{color:var(--ink-soft);font-size:13px}
 .bk-row.disc{color:#157a55;font-weight:700;font-size:13.5px}
+.bk-perks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.bk-perks span{background:rgba(233,184,114,.16);border:1px solid rgba(233,184,114,.45);border-radius:100px;padding:7px 14px;font-size:12.5px;font-weight:700;color:#7A5A1E}
 .bk-cta{display:block;text-align:center;background:var(--ember);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:100px;text-decoration:none;box-shadow:0 10px 26px rgba(232,114,44,.4);transition:transform .2s,background .2s}
 .bk-cta:hover{background:var(--ember-2);transform:translateY(-2px)}
 .bk-cta:disabled{background:var(--sand);color:var(--ink-soft);box-shadow:none;cursor:not-allowed;transform:none}

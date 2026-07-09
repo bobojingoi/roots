@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
@@ -608,7 +609,7 @@ section{position:relative}
 .mnav .close{position:absolute;top:20px;right:22px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer;line-height:1}
 
 /* ---- hero: scena de seară ---- */
-.hero{min-height:118svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden; /* +~20% ca imaginea înaltă să respire */
+.hero{min-height:100svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden; /* un ecran întreg — CTA-ul rămâne vizibil fără scroll */
   background:linear-gradient(180deg,#0B1626 0%,#152B3D 30%,#3D4A56 52%,#8A5A46 68%,#C4713C 80%,#E88940 92%)}
 .hero-photo{position:absolute;inset:0;background-size:cover;background-position:center}
 .hero-veil{position:absolute;inset:0} /* fundalul vine inline, din setările Logo & Brand (admin) */
@@ -724,7 +725,7 @@ section{position:relative}
 .ph-modal{position:fixed;inset:0;z-index:130;background:rgba(12,31,25,.72);backdrop-filter:blur(6px);display:grid;place-items:center;padding:18px}
 .ph-box{background:var(--ivory);color:var(--ink);border-radius:24px;max-width:980px;width:100%;max-height:88vh;overflow:auto;padding:24px 26px}
 .ph-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;position:sticky;top:-24px;background:var(--ivory);padding:8px 0;z-index:2}
-.ph-head b{font-family:'Fraunces',serif;font-weight:500;font-size:26px;color:var(--pine);margin-right:auto}
+.ph-head b{font-family:'Fraunces',serif;font-weight:500;font-size:26px;color:var(--pine);margin-inline-end:auto}
 .ph-golink{color:var(--ember);font-weight:700;font-size:14px;text-decoration:none}
 .ph-golink:hover{text-decoration:underline}
 .ph-close{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:#fff;font-size:20px;line-height:1;cursor:pointer;color:var(--ink)}
@@ -1370,7 +1371,9 @@ function PhotosModal({ villa, page, onClose }) {
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
   }, [onClose]);
-  return (
+  // portal în <body>: .vcard are overflow:hidden + transform pe hover, care ar
+  // transforma position:fixed în poziționare relativă la card (modal tăiat)
+  return createPortal(
     <div className="ph-modal" role="dialog" aria-label={villa.name} onClick={(e) => { if (e.target.classList.contains("ph-modal")) onClose(); }}>
       <div className="ph-box">
         <div className="ph-head">
@@ -1441,7 +1444,12 @@ function VillaCard({ villa, delay, contact, idx, page }) {
       </div>
       {showPhotos && <PhotosModal villa={villa} page={page} onClose={() => setShowPhotos(false)} />}
       <div className="vcard-body">
-        <h3 data-edit={`villas.items.${idx}.name`}><Link to={`/vila-${villa.id}`} className="vcard-titlelink">{villa.name}</Link></h3>
+        {/* în editor titlul rămâne text simplu editabil; pe site e link către pagina vilei */}
+        {EDIT_MODE ? (
+          <h3 data-edit={`villas.items.${idx}.name`}>{villa.name}</h3>
+        ) : (
+          <h3><Link to={`/vila-${villa.id}`} className="vcard-titlelink">{villa.name}</Link></h3>
+        )}
         <div className="tagline" data-edit={`villas.items.${idx}.tagline`}>{villa.tagline}</div>
         <p className="desc" data-edit={`villas.items.${idx}.description`}>{villa.description}</p>
         <div className="feat-list" data-edit-list={`villas.items.${idx}.features`}>

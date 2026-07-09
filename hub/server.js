@@ -297,7 +297,18 @@ app.get('/api/v1/offers', async (_req, res) => {
   res.json({ offers: r.rows });
 });
 // public: validare cod (nu expune lista de coduri)
+// - rate-limit per IP contra enumerării prin brute-force
+// - cu &email= cere ca acel cod să fie ATAȘAT contului cu emailul respectiv
+//   (așa îl folosește api/book — codul e legat de cont, nu circulă liber)
+const discHits = new Map();
 app.get('/api/v1/discount', async (req, res) => {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const now = Date.now();
+  const hits = (discHits.get(ip) || []).filter((t) => now - t < 60e3);
+  if (hits.length >= 20) return res.status(429).json({ ok: false, error: 'Prea multe încercări.' });
+  hits.push(now);
+  discHits.set(ip, hits);
+
   const code = String(req.query.code || '').trim().toUpperCase();
   if (!code) return res.json({ ok: false });
   const r = await pool.query(
@@ -305,6 +316,11 @@ app.get('/api/v1/discount', async (req, res) => {
     [code]
   );
   if (!r.rows.length) return res.json({ ok: false });
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (email) {
+    const u = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1 AND upper(discount_code) = $2', [email, code]);
+    if (!u.rows.length) return res.json({ ok: false, reason: 'necuplat' });
+  }
   res.json({ ok: true, pct: Number(r.rows[0].pct) });
 });
 // admin CRUD oferte
@@ -313,24 +329,49 @@ app.get('/api/v1/admin/offers', requirePerm('oferte'), async (_req, res) => {
   const r = await pool.query('SELECT * FROM offers ORDER BY created_at DESC');
   res.json({ offers: r.rows });
 });
+/* normalizare + validare câmpuri ofertă: pct 1–90, sume pozitive, date YYYY-MM-DD */
+function offerFields(b) {
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+  const day = (v) => { const s = String(v || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null; };
+  const pct = num(b.pct);
+  const amount = num(b.amount_lei);
+  const f = {
+    pct: pct != null ? pct : null,
+    amount_lei: amount != null ? amount : null,
+    min_nights: Math.max(0, Math.round(num(b.min_nights) || 0)) || null,
+    days_before: Math.max(0, Math.round(num(b.days_before) || 0)) || null,
+    date_from: day(b.date_from),
+    date_to: day(b.date_to),
+  };
+  if (['interval', 'lastminute', 'earlybird', 'longstay'].includes(b.type)) {
+    if (!f.pct || f.pct < 1 || f.pct > 90) return { error: 'Procentul trebuie să fie între 1 și 90.' };
+  }
+  if (b.type === 'combo' && (!f.amount_lei || f.amount_lei <= 0)) return { error: 'Suma (lei/noapte) trebuie să fie pozitivă.' };
+  return { f };
+}
 app.post('/api/v1/admin/offers', requirePerm('oferte'), async (req, res) => {
   const b = req.body || {};
   if (!OFFER_TYPES.includes(b.type)) return res.status(400).json({ error: 'Tip de ofertă invalid' });
   if (!String(b.title || '').trim()) return res.status(400).json({ error: 'Titlul e obligatoriu' });
+  const { f, error } = offerFields(b);
+  if (error) return res.status(400).json({ error });
   const r = await pool.query(
     `INSERT INTO offers (type, title, pct, amount_lei, min_nights, days_before, date_from, date_to, active)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true)) RETURNING *`,
-    [b.type, String(b.title).trim().slice(0, 120), b.pct || null, b.amount_lei || null, b.min_nights || null, b.days_before || null, b.date_from || null, b.date_to || null, b.active]
+    [b.type, String(b.title).trim().slice(0, 120), f.pct, f.amount_lei, f.min_nights, f.days_before, f.date_from, f.date_to, b.active]
   );
   emit('OfferCreated', { title: r.rows[0].title, by: req.user.email });
   res.json({ ok: true, offer: r.rows[0] });
 });
 app.put('/api/v1/admin/offers/:id', requirePerm('oferte'), async (req, res) => {
   const b = req.body || {};
+  if (b.type && !OFFER_TYPES.includes(b.type)) return res.status(400).json({ error: 'Tip de ofertă invalid' });
+  const { f, error } = offerFields(b);
+  if (error) return res.status(400).json({ error });
   const r = await pool.query(
-    `UPDATE offers SET title=COALESCE($2,title), pct=$3, amount_lei=$4, min_nights=$5, days_before=$6,
+    `UPDATE offers SET type=COALESCE($10,type), title=COALESCE($2,title), pct=$3, amount_lei=$4, min_nights=$5, days_before=$6,
        date_from=$7, date_to=$8, active=COALESCE($9,active) WHERE id=$1 RETURNING *`,
-    [req.params.id, b.title, b.pct || null, b.amount_lei || null, b.min_nights || null, b.days_before || null, b.date_from || null, b.date_to || null, b.active]
+    [req.params.id, b.title, f.pct, f.amount_lei, f.min_nights, f.days_before, f.date_from, f.date_to, b.active, b.type || null]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Ofertă inexistentă' });
   res.json({ ok: true, offer: r.rows[0] });
@@ -360,9 +401,15 @@ app.post('/api/v1/admin/discount-codes', requirePerm('oferte'), async (req, res)
   }
 });
 app.put('/api/v1/admin/discount-codes/:id', requirePerm('oferte'), async (req, res) => {
-  const r = await pool.query('UPDATE discount_codes SET active=COALESCE($2,active), pct=COALESCE($3,pct), expires=$4 WHERE id=$1 RETURNING *', [
-    req.params.id, (req.body || {}).active, (req.body || {}).pct || null, (req.body || {}).expires || null,
-  ]);
+  const b = req.body || {};
+  // expirarea se modifică DOAR dacă e trimisă explicit (toggle-ul nu o atinge)
+  const hasExp = Object.prototype.hasOwnProperty.call(b, 'expires');
+  const r = await pool.query(
+    `UPDATE discount_codes SET active=COALESCE($2,active), pct=COALESCE($3,pct),
+       expires = CASE WHEN $5 THEN $4::date ELSE expires END
+     WHERE id=$1 RETURNING *`,
+    [req.params.id, b.active, b.pct || null, hasExp ? b.expires || null : null, hasExp]
+  );
   if (!r.rows.length) return res.status(404).json({ error: 'Cod inexistent' });
   res.json({ ok: true, code: r.rows[0] });
 });

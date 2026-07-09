@@ -9,7 +9,11 @@ import { createPortal } from "react-dom";
    ============================================================ */
 
 const qs = new URLSearchParams(window.location.search);
-export const HUB_URL = qs.get("hub") || "https://roots-hub-dun.vercel.app";
+/* ?hub= e acceptat DOAR din lista de host-uri cunoscute — altfel tokenul Bearer
+   al editorului ar putea fi exfiltrat către un server străin printr-un link malițios */
+const ALLOWED_HUBS = ["https://roots-hub-dun.vercel.app", "https://hub.rootsvillas.ro", "http://localhost:4000"];
+const hubParam = qs.get("hub");
+export const HUB_URL = ALLOWED_HUBS.includes(hubParam) ? hubParam : "https://roots-hub-dun.vercel.app";
 const TOKEN = (window.location.hash.match(/hubtok=([^&]+)/) || [])[1] || "";
 export const EDIT_MODE = qs.has("edit") && Boolean(TOKEN);
 

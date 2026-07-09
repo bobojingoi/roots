@@ -79,7 +79,10 @@ export default function ReservePage() {
         {/* info importante: regulile casei + politica de anulare ale vilei selectate */}
         {(() => {
           const src = both ? pages.redwood || {} : page;
-          const info = (src.policies || []).filter((p) => /regul|anulare/i.test(p.title || ""));
+          // pozițional (0 = regulile casei, 2 = politica de anulare) — titlurile sunt
+          // traduse pe EN/HE/FR, deci un filtru pe text românesc ar goli secțiunea
+          const pol = src.policies || [];
+          const info = [pol[0], pol[2]].filter((p) => p && (p.items || []).length);
           if (!info.length) return null;
           return (
             <div className="res-info">

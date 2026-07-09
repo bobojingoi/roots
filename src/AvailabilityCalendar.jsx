@@ -147,11 +147,14 @@ export default function AvailabilityCalendar({
   // ofertele active din Hub + codul de reducere al utilizatorului logat
   const [offers, setOffers] = useState([]);
   const [userDisc, setUserDisc] = useState(null); // { code, pct }
-  useEffect(() => {
+  const loadOffers = useCallback(() => {
     fetch(HUB_URL + "/api/v1/offers")
       .then((r) => r.json())
       .then((j) => setOffers(j.offers || []))
       .catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadOffers();
     let tok = "";
     try { tok = localStorage.getItem("roots_auth") || ""; } catch { /* privat */ }
     if (tok) {
@@ -160,7 +163,7 @@ export default function AvailabilityCalendar({
         .then((j) => { if (j && j.discount) setUserDisc(j.discount); })
         .catch(() => {});
     }
-  }, []);
+  }, [loadOffers]);
 
   const m2 = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   const startDate = iso(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -194,28 +197,30 @@ export default function AvailabilityCalendar({
   const extraFee = (extraAdults * P.extraAdultFee + extraChildren * P.extraChildFee) * nights.length;
 
   // --- OFERTE (fără cumul — se aplică cea mai avantajoasă) + combo + cod de reducere ---
-  // ATENȚIE: aceeași logică e replicată server-side în api/book.js — ține-le în sinc
-  const daysToArrival = checkIn ? Math.round((parseISO(checkIn) - today) / 86400000) : null;
+  // ATENȚIE: aceeași logică e replicată server-side în api/book.js — ține-le în sinc.
+  // „azi" se calculează în fusul proprietății (Europe/Bucharest), identic cu serverul.
+  const todayBucharest = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bucharest" }).format(new Date());
+  const daysToArrival = checkIn ? Math.round((new Date(checkIn + "T00:00:00Z") - new Date(todayBucharest + "T00:00:00Z")) / 86400000) : null;
   const candidates = [];
   for (const o of offers) {
     const pct = Number(o.pct) || 0;
-    if (o.type === "interval" && pct) {
+    if (o.type === "interval" && pct > 0) {
       const from = o.date_from ? String(o.date_from).slice(0, 10) : null;
       const to = o.date_to ? String(o.date_to).slice(0, 10) : null;
       const amt = nights.reduce((s, n) => ((from && n < from) || (to && n > to) ? s : s + ((Number(prices[n]) || 0) * pct) / 100), 0);
       if (amt > 0) candidates.push({ title: o.title, amount: amt });
-    } else if (o.type === "lastminute" && pct && daysToArrival != null && daysToArrival >= 0 && daysToArrival <= (Number(o.days_before) || 0)) {
-      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
-    } else if (o.type === "earlybird" && pct && daysToArrival != null && daysToArrival >= (Number(o.days_before) || 0)) {
-      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
-    } else if (o.type === "longstay" && pct && Number(o.min_nights) > 0 && nights.length >= Number(o.min_nights)) {
-      candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "lastminute" && pct > 0 && daysToArrival != null && daysToArrival >= 0 && daysToArrival <= (Number(o.days_before) || 0)) {
+      if (baseTotal > 0) candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "earlybird" && pct > 0 && daysToArrival != null && daysToArrival >= (Number(o.days_before) || 0)) {
+      if (baseTotal > 0) candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
+    } else if (o.type === "longstay" && pct > 0 && Number(o.min_nights) > 0 && nights.length >= Number(o.min_nights)) {
+      if (baseTotal > 0) candidates.push({ title: o.title, amount: (baseTotal * pct) / 100 });
     }
   }
   const bestOffer = candidates.sort((a, b) => b.amount - a.amount)[0] || null;
-  const offerDiscount = bestOffer ? Math.round(bestOffer.amount) : 0;
+  const offerDiscount = bestOffer ? Math.max(0, Math.round(bestOffer.amount)) : 0;
   const comboOffer = multi ? offers.find((o) => o.type === "combo" && Number(o.amount_lei) > 0) : null;
-  const comboDiscount = comboOffer ? Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights.length)) : 0;
+  const comboDiscount = comboOffer ? Math.max(0, Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights.length))) : 0;
   const afterOffers = Math.max(0, baseTotal - offerDiscount - comboDiscount);
   const codeDiscount = userDisc && userDisc.pct ? Math.round((afterOffers * userDisc.pct) / 100) : 0;
 
@@ -256,6 +261,7 @@ export default function AvailabilityCalendar({
           childAges: children > 0 ? childAges.trim() : undefined,
           needCot,
           discountCode: userDisc ? userDisc.code : undefined,
+          expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),
@@ -266,6 +272,7 @@ export default function AvailabilityCalendar({
         // conversii pentru Ads: rezervare reală = purchase, dry-run = lead
         track(json.dryRun ? "generate_lead" : "purchase", { label: villaName, value: json.price || total });
       }
+      if (json && json.priceChanged) loadOffers(); // prețul s-a schimbat — reafișăm cu ofertele proaspete
       setResult(json);
     } catch (e) {
       setResult({ ok: false, error: "Eroare de rețea. Încearcă din nou sau scrie-ne pe WhatsApp." });
@@ -366,6 +373,11 @@ export default function AvailabilityCalendar({
                 </label>
               </div>
             )}
+            {offers.some((o) => o.type === "perk") && (
+              <div className="bk-perks">
+                {offers.filter((o) => o.type === "perk").map((o, i) => <span key={i}>🎁 {o.title}</span>)}
+              </div>
+            )}
             {hasRange && <Recap />}
             <button className="bk-cta" disabled={!hasRange} onClick={() => { setStep("form"); track("begin_checkout", { label: villaName, value: priceKnown ? total : undefined }); }}>
               {hasRange ? t("continue_book") : t("choose_period")}
@@ -404,8 +416,13 @@ export default function AvailabilityCalendar({
                 <div className="bk-crow"><span>Check-in</span><b>{checkIn}</b></div>
                 <div className="bk-crow"><span>Check-out</span><b>{checkOut}</b></div>
                 <div className="bk-crow"><span>{t("bk_nights_g")}</span><b>{nights.length} · {adults + children}</b></div>
-                {priceKnown && <div className="bk-crow"><span>{t("bk_total")}</span><b>{lei(total)} {currency}</b></div>}
-                {priceKnown && <div className="bk-crow"><span>{t("bk_deposit", { p: depositPct })}</span><b>{lei(deposit)} {currency}</b></div>}
+                {/* totalul CONFIRMAT de server (result.price) — nu calculul clientului */}
+                {(result.price != null || priceKnown) && (
+                  <div className="bk-crow"><span>{t("bk_total")}</span><b>{lei(result.price != null ? Number(result.price) : total)} {currency}</b></div>
+                )}
+                {(result.price != null || priceKnown) && (
+                  <div className="bk-crow"><span>{t("bk_deposit", { p: depositPct })}</span><b>{lei(Math.round((result.price != null ? Number(result.price) : total) * depositPct / 100))} {currency}</b></div>
+                )}
                 {result.reservationId && <div className="bk-crow"><span>{t("bk_ref")}</span><b>#{result.reservationId}</b></div>}
               </div>
               <p className="bk-soon">
