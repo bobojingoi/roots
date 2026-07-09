@@ -684,33 +684,78 @@ section{position:relative}
 .rule .icon{width:44px;height:44px;border-radius:12px;background:var(--sand);display:grid;place-items:center;color:var(--ember)}
 .rule p{font-size:14.5px;font-weight:600;line-height:1.55;color:var(--ink)}
 
-/* testimonials */
-.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:56px 0 44px;overflow:hidden;position:relative}
+/* testimonials — „Trust Wall": score card + zid masonry de recenzii */
+.testi-band{background:radial-gradient(130% 100% at 85% -20%,#14304A 0%,var(--night) 58%);color:#fff;border-radius:44px;margin:0 14px;padding:56px 0 48px;overflow:hidden;position:relative}
 @media(max-width:760px){.testi-band{padding:44px 0 36px;border-radius:30px}}
 .testi-band .eyebrow{color:var(--gold)}.testi-band .eyebrow::before{background:var(--gold)}
 .testi-band h2{color:#fff}
 .testi-band .lede{color:rgba(255,255,255,.65)}
 .testi-head{display:flex;justify-content:space-between;align-items:flex-end;gap:30px;flex-wrap:wrap}
-.rating-badge{display:flex;align-items:center;gap:14px}
-.rating-badge b{font-family:'Fraunces',serif;font-size:56px;font-weight:500;color:var(--gold)}
-.stars{display:flex;gap:2px;color:var(--gold)}
-.rating-badge span{display:block;font-size:12.5px;color:rgba(255,255,255,.55);font-weight:600}
-.rating-badge .rev-count{color:var(--gold);margin-top:2px}
-.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px}
-@media(max-width:900px){.testi-grid{grid-template-columns:1fr}}
-.tcard{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:30px 28px;display:flex;flex-direction:column;gap:18px;transition:transform .35s,border-color .35s}
-.tcard:hover{transform:translateY(-6px);border-color:rgba(233,184,114,.4)}
-.tcard .q{font-family:'Fraunces',serif;font-size:40px;line-height:0;color:var(--gold);height:14px}
-.tcard p{font-size:15px;line-height:1.7;color:rgba(255,255,255,.85);flex:1}
-.tcard .who{display:flex;align-items:center;gap:11px}
-.tcard .who b{display:block;font-size:14.5px}
-.tcard .who span{font-size:12.5px;color:rgba(255,255,255,.5);font-weight:600}
-.t-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;object-fit:cover}
-.t-ava-ph{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;background:rgba(233,184,114,.25);color:var(--gold);font-weight:800;font-size:16px}
-.testi-more{display:flex;justify-content:center;margin-top:26px}
-.testi-more a{display:inline-flex;align-items:center;border:1.5px solid rgba(233,184,114,.5);color:var(--gold);border-radius:100px;padding:11px 24px;font:700 14px 'Manrope',sans-serif;text-decoration:none;transition:background .3s}
+/* stiva de avatare din header — semnal social la nivel de scanare */
+.ava-stack{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.ava-row{display:flex;padding-inline-start:10px}
+.ava-row img,.ava-row .plus{width:34px;height:34px;border-radius:50%;border:2px solid rgba(13,27,42,.8);margin-inline-start:-10px;object-fit:cover}
+.ava-row .plus{display:grid;place-items:center;background:rgba(233,184,114,.25);color:var(--gold);font:800 11px 'Manrope',sans-serif}
+.ava-stack small{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.6)}
+.ava-stack small b{color:var(--gold)}
+/* zidul masonry — absoarbe orice lungimi de text, zero găuri, zero orfani */
+.testi-wall{columns:2 340px;column-gap:18px;margin-top:38px}
+.testi-wall>*{display:inline-block;width:100%;break-inside:avoid;margin:0 0 18px;vertical-align:top}
+/* score card — ancora de încredere, prima placă a zidului */
+.score-card{background:linear-gradient(160deg,rgba(233,184,114,.16),rgba(233,184,114,.03));border:1px solid rgba(233,184,114,.45);border-radius:26px;padding:32px 28px;text-align:center}
+.score-card .num{display:block;font:500 74px/1 'Fraunces',serif;color:var(--gold)}
+.score-card .num small{font-size:22px;color:rgba(255,255,255,.4);margin-inline-start:4px}
+.score-card .verdict{font:600 19px 'Fraunces',serif;color:#fff;margin-top:10px}
+.stars-fill{position:relative;display:inline-flex;gap:3px;margin-top:12px;color:rgba(255,255,255,.22)}
+.stars-fill .st{display:inline-flex;opacity:0;transition:opacity .4s ease calc(var(--i,0)*70ms)}
+.rv.on .stars-fill .st{opacity:1}
+.stars-fill .fill{position:absolute;inset:0;inset-inline-start:0;width:0;overflow:hidden;white-space:nowrap;display:inline-flex;gap:3px;color:var(--gold);transition:width .7s ease .35s}
+.rv.on .stars-fill .fill{width:var(--pct)}
+.g-chip{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#3C4043;border-radius:100px;padding:7px 14px;font:700 12.5px 'Manrope',sans-serif;margin-top:16px}
+.score-cta{display:inline-flex;align-items:center;margin-top:14px;padding:12px 22px;border-radius:100px;background:var(--gold);color:var(--night);font:800 14px 'Manrope',sans-serif;text-decoration:none;transition:transform .25s,box-shadow .25s}
+.score-cta:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(233,184,114,.3)}
+.score-note{margin-top:12px;font-size:12px;color:rgba(255,255,255,.55);font-weight:600}
+/* cardul de recenzie — reveal doar prin fade (transform-ul rămâne al hover-ului),
+   cu delay-urile de stagger declarate longhand ca să nu fie resetate de shorthand */
+.tcard{position:relative;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:24px;transition:transform .35s,border-color .35s,opacity .9s cubic-bezier(.2,.7,.2,1)}
+.tcard.rv{transform:none}
+.tcard.rv-d1{transition-delay:0s,0s,.12s}
+.tcard.rv-d2{transition-delay:0s,0s,.24s}
+.tcard.rv-d3{transition-delay:0s,0s,.36s}
+.tcard:hover{transform:translateY(-6px);border-color:rgba(233,184,114,.45)}
+.q-mark{position:absolute;top:6px;inset-inline-end:20px;font:500 80px/1 'Fraunces',serif;color:rgba(233,184,114,.1);pointer-events:none;user-select:none}
+.t-id{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-inline-end:30px}
+.t-id b{display:block;font-size:14.5px}
+.t-id .t-meta{display:block;font-size:12.5px;color:rgba(255,255,255,.5);font-weight:600;margin-top:2px}
+.t-id .t-meta .t-stars{color:var(--gold);letter-spacing:1px}
+.t-id .g-mini{position:absolute;top:22px;inset-inline-end:22px}
+.t-ava{width:44px;height:44px;border-radius:50%;flex-shrink:0;object-fit:cover;border:2px solid rgba(233,184,114,.5)}
+.t-ava-ph{width:44px;height:44px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font:500 18px 'Fraunces',serif;color:var(--gold);box-shadow:0 0 0 1.5px rgba(233,184,114,.5)}
+.tcard p{font-size:15px;line-height:1.7;color:rgba(255,255,255,.85)}
+.tcard p.clamp{display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden}
+.t-more{background:none;border:none;padding:0;margin-top:10px;color:var(--gold);font:700 13px 'Manrope',sans-serif;cursor:pointer}
+.t-more:hover{text-decoration:underline}
+/* dublura CTA — doar pe mobil (pe desktop CTA-ul trăiește în score card) */
+.testi-more{display:none;justify-content:center;margin-top:20px}
+.testi-more a{display:inline-flex;align-items:center;justify-content:center;width:100%;border:1.5px solid rgba(233,184,114,.5);color:var(--gold);border-radius:100px;padding:13px 24px;font:700 14px 'Manrope',sans-serif;text-decoration:none;transition:background .3s}
 .testi-more a:hover{background:rgba(233,184,114,.12)}
 body.t-al .testi-more a{color:var(--gold)}
+/* mobil: zidul devine rail orizontal cu snap (score card = primul slide) */
+@media(max-width:760px){
+  .testi-wall{columns:auto;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;margin-inline:-22px;padding-inline:22px;padding-bottom:10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .testi-wall::-webkit-scrollbar{display:none}
+  .testi-wall>*{flex:0 0 86%;scroll-snap-align:center;margin:0}
+  /* în rail reveal-ul e dezactivat: slide-urile din afara ecranului trebuie să se
+     vadă la peek/swipe, nu să aștepte IntersectionObserver-ul */
+  .testi-wall .rv{opacity:1;transform:none}
+  .score-card .num{font-size:60px}
+  .testi-more{display:flex}
+  .ava-stack{align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){
+  .stars-fill .st{opacity:1;transition:none}
+  .stars-fill .fill{transition:none;width:var(--pct)}
+}
 
 /* video */
 .video-card{margin-top:48px;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:16/9;background:linear-gradient(160deg,#152B3D,#0C1F19);display:grid;place-items:center}
@@ -1218,27 +1263,133 @@ function Rules({ rules }) {
   );
 }
 
+// „G"-ul Google multicolor (SVG oficial, inline — fără imagini externe)
+const GLogo = ({ size = 18, className }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 18.9 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.3-.4-3.5z"/>
+  </svg>
+);
+
+// numărul mare din score card: count-up 0 → rating la primul reveal (o singură dată;
+// cu prefers-reduced-motion sare direct la valoarea finală)
+function CountUpNum({ value }) {
+  const target = parseFloat(String(value).replace(",", ".")) || 0;
+  const ref = useRef(null);
+  const started = useRef(false);
+  const [shown, setShown] = useState("0.0");
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // rating-ul s-a schimbat după ce animația a rulat (ex. a sosit cel live) → sari direct
+    if (reduce || started.current) {
+      setShown(target.toFixed(1));
+      return;
+    }
+    let raf = 0;
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (!e.isIntersecting || started.current) return;
+        started.current = true;
+        const t0 = performance.now();
+        const tick = (now) => {
+          const p = Math.min(1, (now - t0) / 900);
+          const eased = 1 - Math.pow(1 - p, 3);
+          setShown((target * eased).toFixed(1));
+          if (p < 1) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        io.disconnect();
+      }),
+      { threshold: 0.4 }
+    );
+    io.observe(el);
+    return () => { io.disconnect(); if (raf) cancelAnimationFrame(raf); };
+  }, [target]);
+  return <span ref={ref}>{shown}</span>;
+}
+
+// prima placă a zidului: scorul, stelele care se aprind, chip-ul Google și CTA-ul
+function ScoreCard({ rating, g }) {
+  const num = parseFloat(String(rating).replace(",", ".")) || 0;
+  const pct = Math.max(0, Math.min(100, (num / 5) * 100));
+  return (
+    <div className="score-card rv">
+      <b className="num">
+        {EDIT_MODE ? <span data-edit="testimonials.rating">{rating}</span> : <CountUpNum value={rating} />}
+        <small>/5</small>
+      </b>
+      <div className="stars-fill" style={{ "--pct": pct + "%" }} role="img" aria-label={`${rating}/5`}>
+        {[0, 1, 2, 3, 4].map((i) => <span key={i} className="st" style={{ "--i": i }}>{ICONS.star}</span>)}
+        <span className="fill" aria-hidden="true">
+          {[0, 1, 2, 3, 4].map((i) => <span key={i} className="st" style={{ "--i": i }}>{ICONS.star}</span>)}
+        </span>
+      </div>
+      <div className="verdict">{num >= 4.8 ? t("testi_verdict_exc") : t("testi_verdict_sup")}</div>
+      {g && g.total ? (
+        <div><span className="g-chip"><GLogo size={16} />{t("reviews_verified", { n: g.total })}</span></div>
+      ) : null}
+      {g && g.url ? (
+        <div><a className="score-cta" href={g.url} target="_blank" rel="noreferrer">{g.total ? t("all_reviews_g", { n: g.total }) : t("more_reviews")}</a></div>
+      ) : null}
+      <div className="score-note">{t("free_cancel_note")}</div>
+    </div>
+  );
+}
+
+// textul recenziei cu trunchiere reală: butonul „Citește tot" apare doar dacă
+// clamp-ul chiar taie ceva (măsurat pe scrollHeight, nu ghicit după caractere)
+function ClampText({ text, dataEdit }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    if (open) return;
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setOver(el.scrollHeight > el.clientHeight + 2);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [text, open]);
+  if (EDIT_MODE) return <p data-edit={dataEdit}>{text}</p>;
+  return (
+    <>
+      <p ref={ref} className={open ? "" : "clamp"}>{text}</p>
+      {over && !open ? (
+        <button type="button" className="t-more" onClick={() => setOpen(true)}>{t("read_more")}</button>
+      ) : null}
+    </>
+  );
+}
+
 function Testimonials({ t: T, cfg }) {
   const [g, setG] = useState(null);
+  // re-scanează .rv la fiecare render local: cardurile montate DUPĂ sosirea
+  // recenziilor Google trebuie și ele observate, altfel rămân la opacity:0
+  useReveal();
   useEffect(() => {
     fetch(HUB_URL + "/api/v1/google-reviews?lang=" + LANG)
       .then((r) => r.json())
       .then((j) => { if (j && j.reviews && j.reviews.length) setG(j); })
       .catch(() => {});
   }, []);
-  // în modul editare arătăm testimonialele CMS (ca să rămână editabile)
-  // Google Places dă max ~5 recenzii prin API — le afișăm pe toate, fără buton „mai multe"
+  // în modul editare arătăm testimonialele CMS (ca să rămână editabile);
+  // Google Places dă max ~5 recenzii prin API — le afișăm pe toate în zid
   const C = cfg || {};
-  const allReviews = !EDIT_MODE && g
+  const live = !EDIT_MODE && g;
+  const items = live
     ? g.reviews
         .filter((rv) => (rv.rating || 0) >= (C.minRating ?? 4))
         .filter((rv) => !(C.hidden || []).includes(rv.name))
         .sort((a, b) => (C.photosFirst !== false ? (b.photo ? 1 : 0) - (a.photo ? 1 : 0) : 0))
-        .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, stay: `${"★".repeat(Math.round(rv.rating || 5))} · Google · ${rv.time || ""}` }))
-    : null;
-  const items = allReviews || T.items;
-  const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
-  const reviewCount = !EDIT_MODE && g ? (g.total || (g.reviews ? g.reviews.length : 0)) : 0;
+        .map((rv) => ({ name: rv.name, text: rv.text, photo: rv.photo, rating: Math.round(rv.rating || 5), time: rv.time || "", fromApi: true }))
+    : T.items;
+  const rating = live && g.rating ? String(g.rating) : T.rating;
+  const stack = live ? items.filter((it) => it.photo).slice(0, 5) : [];
   return (
     <section>
       <div className="testi-band">
@@ -1249,34 +1400,48 @@ function Testimonials({ t: T, cfg }) {
               <h2 data-edit="testimonials.title">{T.title}</h2>
               <p className="lede" data-edit="testimonials.intro">{T.intro}</p>
             </div>
-            <div className="rating-badge">
-              <b data-edit="testimonials.rating">{rating}</b>
-              <div>
-                <div className="stars">{[0,1,2,3,4].map((i) => <span key={i}>{ICONS.star}</span>)}</div>
-                <span>{t("testi_rating")}</span>
-                {reviewCount ? <span className="rev-count">{t("reviews_count", { n: reviewCount })}</span> : null}
+            <div className="ava-stack rv rv-d1">
+              <div className="ava-row">
+                {(live ? stack : T.items.slice(0, 3)).map((it, i) =>
+                  it.photo ? (
+                    <img key={i} src={it.photo} alt="" referrerPolicy="no-referrer" loading="lazy" />
+                  ) : (
+                    <span key={i} className="plus">{(it.name || "?").trim()[0]}</span>
+                  )
+                )}
+                {live && g.total > stack.length ? <span className="plus">+{g.total - stack.length}</span> : null}
               </div>
+              <small><b>{rating}</b> · {live ? t("reviews_count", { n: g.total || items.length }) : t("testi_rating")}</small>
             </div>
           </div>
-          <div className="testi-grid" data-edit-list={EDIT_MODE ? "testimonials.items" : undefined}>
+          <div className="testi-wall" data-edit-list={EDIT_MODE ? "testimonials.items" : undefined}>
+            <ScoreCard rating={rating} g={live ? g : null} />
             {items.map((item, i) => (
-              <div className={`tcard rv ${i === 1 ? "rv-d1" : i === 2 ? "rv-d2" : ""}`} key={i} data-edit-idx={EDIT_MODE ? i : undefined}>
-                <div className="q">"</div>
-                <p data-edit={`testimonials.items.${i}.text`}>{item.text}</p>
-                <div className="who">
+              <div className={`tcard rv rv-d${Math.min(i + 1, 3)}`} key={`${item.fromApi ? "g" : "c"}${i}`} data-edit-idx={EDIT_MODE ? i : undefined}>
+                <span className="q-mark" aria-hidden="true">„</span>
+                <div className="t-id">
                   {item.photo ? (
                     <img className="t-ava" src={item.photo} alt="" referrerPolicy="no-referrer" loading="lazy" />
                   ) : (
                     <span className="t-ava-ph">{(item.name || "?").trim()[0]}</span>
                   )}
-                  <div><b data-edit={`testimonials.items.${i}.name`}>{item.name}</b><span data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span></div>
+                  <div>
+                    <b data-edit={`testimonials.items.${i}.name`}>{item.name}</b>
+                    {item.fromApi ? (
+                      <span className="t-meta"><span className="t-stars">{"★".repeat(item.rating || 5)}</span>{item.time ? ` · ${item.time}` : ""}</span>
+                    ) : (
+                      <span className="t-meta" data-edit={`testimonials.items.${i}.stay`}>{item.stay}</span>
+                    )}
+                  </div>
+                  {item.fromApi ? <GLogo className="g-mini" size={20} /> : null}
                 </div>
+                <ClampText text={item.text} dataEdit={`testimonials.items.${i}.text`} />
               </div>
             ))}
           </div>
           {!EDIT_MODE && g && g.url && (
             <div className="testi-more rv">
-              <a href={g.url} target="_blank" rel="noreferrer">{t("all_reviews_g", { n: g.total || "" })}</a>
+              <a href={g.url} target="_blank" rel="noreferrer">{g.total ? t("all_reviews_g", { n: g.total }) : t("more_reviews")}</a>
             </div>
           )}
         </div>

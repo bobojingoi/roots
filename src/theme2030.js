@@ -118,7 +118,10 @@ body.t-aurora .rule .icon{background:rgba(255,122,69,.12);color:var(--ember-2)}
 body.t-aurora .rule p{color:var(--ink)}
 body.t-aurora .tcard{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.09)}
 body.t-aurora .tcard:hover{border-color:rgba(255,217,160,.45)}
-body.t-aurora .rating-badge b{color:transparent;background:linear-gradient(120deg,#FFD9A0,#FF7A45);-webkit-background-clip:text;background-clip:text}
+body.t-aurora .score-card .num{color:transparent;background:linear-gradient(120deg,#FFD9A0,#FF7A45);-webkit-background-clip:text;background-clip:text}
+body.t-aurora .score-card .num small{color:rgba(255,255,255,.4);-webkit-text-fill-color:rgba(255,255,255,.4)}
+/* în editorul vizual textul-gradient ar face caret-ul/textul invizibil la editare */
+body.hub-edit.t-aurora .score-card .num{color:#FFD9A0;background:none;-webkit-background-clip:initial;background-clip:initial}
 
 /* ---- FAQ / locație / video ---- */
 body.t-aurora .faq-q{color:var(--ink)}

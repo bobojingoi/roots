@@ -164,6 +164,11 @@ const D = {
   wel_foot:     { ro: "Sejur plăcut la ROOTS! · Stupini, Brașov", en: "Enjoy your stay at ROOTS! · Stupini, Brașov", he: "שהות נעימה ב-ROOTS! · סטופיני, ברשוב", fr: "Bon séjour chez ROOTS ! · Stupini, Brașov" },
   more_reviews: { ro: "Vezi mai multe recenzii", en: "See more reviews", he: "עוד ביקורות", fr: "Voir plus d'avis" },
   all_reviews_g:{ ro: "Toate cele {n} recenzii pe Google →", en: "All {n} reviews on Google →", he: "← כל {n} הביקורות בגוגל", fr: "Les {n} avis sur Google →" },
+  reviews_verified: { ro: "{n} recenzii verificate", en: "{n} verified reviews", he: "{n} ביקורות מאומתות", fr: "{n} avis vérifiés" },
+  testi_verdict_exc:{ ro: "Excepțional", en: "Exceptional", he: "יוצא מן הכלל", fr: "Exceptionnel" },
+  testi_verdict_sup:{ ro: "Superb", en: "Superb", he: "מעולה", fr: "Superbe" },
+  read_more:    { ro: "Citește tot", en: "Read more", he: "קרא עוד", fr: "Lire la suite" },
+  free_cancel_note: { ro: "Anulare gratuită până la 15 zile înainte de check-in", en: "Free cancellation up to 15 days before check-in", he: "ביטול חינם עד 15 יום לפני הצ'ק-אין", fr: "Annulation gratuite jusqu'à 15 jours avant l'arrivée" },
 };
 
 export function t(key, vars) {
