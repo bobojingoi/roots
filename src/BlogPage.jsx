@@ -35,11 +35,13 @@ const BLOG_CSS = `
 .blog-empty{text-align:center;color:var(--ink-soft);padding:60px 0}
 /* blocuri articol */
 .pb-imgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:26px 0}
+.pb-imgs picture{display:block}
 .pb-imgs img{width:100%;height:260px;object-fit:cover;border-radius:16px;display:block}
 .pb-slider{position:relative;margin:26px 0}
 .pb-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:16px;-webkit-overflow-scrolling:touch}
 .pb-track::-webkit-scrollbar{display:none}
-.pb-track img{flex:0 0 88%;height:380px;object-fit:cover;border-radius:16px;scroll-snap-align:center}
+.pb-track picture{flex:0 0 88%;scroll-snap-align:center;display:block}
+.pb-track img{width:100%;height:380px;object-fit:cover;border-radius:16px;display:block}
 @media(max-width:600px){.pb-track img{height:240px}}
 .pb-arr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;border-radius:50%;border:none;background:rgba(12,31,25,.6);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(6px)}
 .pb-arr.left{left:12px}.pb-arr.right{right:12px}
@@ -112,7 +114,17 @@ function BlogHeader({ logo }) {
 const fmtDate = (d) => new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" });
 
 /* ---- blocurile articolului (text/poze/slider/comparație/checklist) ---- */
-function BlockSlider({ urls }) {
+/* imagine cu variantă opțională de mobil (sub 760px) */
+function PicImg({ src, mob, ...rest }) {
+  return (
+    <picture>
+      {mob ? <source media="(max-width:760px)" srcSet={mob} /> : null}
+      <img src={src} alt="" loading="lazy" {...rest} />
+    </picture>
+  );
+}
+
+function BlockSlider({ urls, urlsMobile }) {
   const ref = React.useRef(null);
   const [cur, setCur] = useState(0);
   // RTL-safe: scrollIntoView + Math.abs (în ebraică scrollLeft e negativ)
@@ -130,7 +142,7 @@ function BlockSlider({ urls }) {
   return (
     <div className="pb-slider">
       <div className="pb-track" ref={ref} onScroll={onScroll}>
-        {urls.map((u, i) => <img key={i} src={u} alt="" loading="lazy" />)}
+        {urls.map((u, i) => <PicImg key={i} src={u} mob={(urlsMobile || [])[i]} />)}
       </div>
       {urls.length > 1 && (
         <>
@@ -150,9 +162,9 @@ function PostBlocks({ blocks }) {
         if (!b || !b.type) return null;
         if (b.type === "text") return <div key={i} className="post-body" dangerouslySetInnerHTML={{ __html: mdToHtml(b.md || "") }} />;
         if (b.type === "images") return (
-          <div key={i} className="pb-imgs">{(b.urls || []).map((u, j) => <img key={j} src={u} alt="" loading="lazy" />)}</div>
+          <div key={i} className="pb-imgs">{(b.urls || []).map((u, j) => <PicImg key={j} src={u} mob={(b.urlsMobile || [])[j]} />)}</div>
         );
-        if (b.type === "slider") return <BlockSlider key={i} urls={b.urls || []} />;
+        if (b.type === "slider") return <BlockSlider key={i} urls={b.urls || []} urlsMobile={b.urlsMobile || []} />;
         if (b.type === "compare") return (
           <div key={i} className="pb-compare">
             <div className="pb-col"><h4>{b.title_a}</h4><ul>{(b.rows || []).map((r, j) => <li key={j}>{r.a}</li>)}</ul></div>

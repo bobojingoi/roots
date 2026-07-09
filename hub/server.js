@@ -184,6 +184,40 @@ app.post('/api/v1/site-login', async (req, res) => {
   });
 });
 
+/* ============ ÎNREGISTRARE DE PE SITE (cont client) ============ */
+const regHits = new Map(); // anti-abuz simplu per instanță: max 5 înregistrări/oră/IP
+app.post('/api/v1/site-register', async (req, res) => {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const now = Date.now();
+  const hits = (regHits.get(ip) || []).filter((t) => now - t < 3600e3);
+  if (hits.length >= 5) return res.status(429).json({ error: 'Prea multe încercări — reîncearcă mai târziu.' });
+  hits.push(now);
+  regHits.set(ip, hits);
+
+  const { name, email, password, phone, source, website } = req.body || {};
+  if (website) return res.status(400).json({ error: 'Cerere invalidă.' }); // honeypot pentru boți
+  const mail = String(email || '').trim().toLowerCase();
+  if (!String(name || '').trim() || !/.+@.+\..+/.test(mail)) return res.status(400).json({ error: 'Nume și email valid, te rugăm.' });
+  if (String(password || '').length < 6) return res.status(400).json({ error: 'Parola trebuie să aibă minim 6 caractere.' });
+
+  const dup = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1', [mail]);
+  if (dup.rows.length) return res.status(409).json({ error: 'Există deja un cont cu acest email — autentifică-te.' });
+
+  const r = await pool.query(
+    `INSERT INTO users (email, password_hash, name, role, phone, source)
+     VALUES ($1, $2, $3, 'client', $4, $5) RETURNING id, email, name, role`,
+    [mail, await hashPassword(password), String(name).trim().slice(0, 120), String(phone || '').trim().slice(0, 40) || null, String(source || '').trim().slice(0, 120) || null]
+  );
+  const user = r.rows[0];
+  const { signToken } = require('./auth');
+  emit('SiteRegister', { email: user.email, source: source || null });
+  res.json({
+    ok: true,
+    token: signToken({ id: user.id, role: user.role, email: user.email }, 30 * 24 * 60 * 60),
+    user: { name: user.name, email: user.email, role: user.role },
+  });
+});
+
 /* contul clientului: datele lui + rezervările legate de emailul lui */
 app.get('/api/v1/my-account', requireAuth, async (req, res) => {
   const u = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [req.user.id]);
@@ -342,7 +376,7 @@ app.delete('/api/v1/media/:id', requireOwner, async (req, res) => {
 
 /* ============ UTILIZATORI (owner/admin) ============ */
 app.get('/api/v1/admin/users', requireOwner, async (_req, res) => {
-  const r = await pool.query('SELECT id, email, name, role, created_at FROM users ORDER BY created_at');
+  const r = await pool.query('SELECT id, email, name, role, phone, source, created_at FROM users ORDER BY created_at');
   res.json({ users: r.rows });
 });
 app.post('/api/v1/admin/users', requireOwner, async (req, res) => {

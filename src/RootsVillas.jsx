@@ -400,7 +400,9 @@ export function hubToSite(h) {
       description: v.description || "",
       features: (v.features || []).map(txt),
       image: v.cover || v.image || "",
+      imageMobile: v.coverMobile || "",
       gallery: v.gallery || [], // BRUT, cu găuri — indicii trebuie să corespundă draftului din Hub
+      galleryMobile: v.galleryMobile || [], // paralel cu gallery (variantele de mobil)
       accent: i === 0 ? "ember" : "gold",
     }));
   if (h.editorial && Array.isArray(h.editorial.blocks))
@@ -695,7 +697,8 @@ section{position:relative}
 /* slider în cardul vilei */
 .vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .vslides::-webkit-scrollbar{display:none}
-.vslide{flex:0 0 100%;scroll-snap-align:center;background-size:cover;background-position:center}
+.vslide{flex:0 0 100%;scroll-snap-align:center;position:relative}
+.vslide-bg{position:absolute;inset:0;background-size:cover;background-position:center}
 .vs-arr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:38px;height:38px;border-radius:50%;border:none;background:rgba(12,31,25,.55);color:#fff;font-size:20px;line-height:1;cursor:pointer;backdrop-filter:blur(6px);display:grid;place-items:center;transition:background .2s}
 .vs-arr:hover{background:rgba(12,31,25,.85)}
 .vs-arr.left{left:12px}.vs-arr.right{right:12px}
@@ -834,6 +837,7 @@ body.t-al .testi-more a{color:var(--gold)}
 .video-card .video-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .video-card .video-poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,20,15,.15),rgba(10,20,15,.45))}
 .video-card .ridgebg{position:absolute;inset:auto 0 0 0;opacity:.6}
+.video-url-edit{display:inline-flex;align-items:center;gap:8px;margin-top:12px;background:#fff;border:1.5px dashed rgba(21,122,85,.6);border-radius:12px;padding:8px 14px;font:600 13px 'Manrope',monospace;color:#157a55;max-width:100%;overflow-wrap:anywhere}
 .video-card .playbtn{position:relative;z-index:2;width:88px;height:88px;border-radius:50%;background:var(--ember);display:grid;place-items:center;color:#fff;box-shadow:0 0 0 0 rgba(232,114,44,.5);animation:pulse 2.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,114,44,.5)}70%{box-shadow:0 0 0 26px rgba(232,114,44,0)}100%{box-shadow:0 0 0 0 rgba(232,114,44,0)}}
 .video-card .vlabel{position:absolute;top:22px;left:24px;z-index:2;color:#fff;font-weight:700;font-size:14px;display:flex;gap:10px;align-items:center}
@@ -1292,12 +1296,10 @@ function VCardSlider({ slides }) {
     <>
       <div className="vslides" ref={ref} onScroll={onScroll}>
         {slides.map((s, i) => (
-          <div
-            className="vslide"
-            key={i}
-            style={{ backgroundImage: `url(${s.url})` }}
-            data-edit-img={EDIT_MODE ? s.path : undefined}
-          />
+          <div className="vslide" key={i} data-edit-img={EDIT_MODE ? s.path : undefined}>
+            <div className="vslide-bg pic-desk" style={{ backgroundImage: `url(${s.url})` }} />
+            <div className="vslide-bg pic-mob" style={{ backgroundImage: `url(${s.mob || s.url})` }} />
+          </div>
         ))}
       </div>
       {slides.length > 1 && (
@@ -1307,6 +1309,9 @@ function VCardSlider({ slides }) {
           <div className="vs-dots" aria-hidden="true">{slides.map((_, i) => <span key={i} className={i === cur ? "on" : ""} />)}</div>
         </>
       )}
+      {EDIT_MODE && slides[cur] && (
+        <button type="button" className="pic-mob-btn" data-edit-img={slides[cur].mobPath}>📱 mobil · slide {cur + 1}</button>
+      )}
     </>
   );
 }
@@ -1315,8 +1320,13 @@ function VillaCard({ villa, delay, contact, idx }) {
   // slide-urile păstrează CALEA originală din draft (cover / gallery.N cu N brut),
   // ca „Fără imagine" pe un slide să nu decaleze editarea celorlalte
   const slides = [
-    { url: villa.image, path: `villas.items.${idx}.cover` },
-    ...(villa.gallery || []).map((g, gi) => ({ url: g, path: `villas.items.${idx}.gallery.${gi}` })),
+    { url: villa.image, mob: villa.imageMobile, path: `villas.items.${idx}.cover`, mobPath: `villas.items.${idx}.coverMobile` },
+    ...(villa.gallery || []).map((g, gi) => ({
+      url: g,
+      mob: (villa.galleryMobile || [])[gi] || "",
+      path: `villas.items.${idx}.gallery.${gi}`,
+      mobPath: `villas.items.${idx}.galleryMobile.${gi}`,
+    })),
   ].filter((s) => s.url);
   return (
     <article className={`vcard rv ${delay}`}>
@@ -1728,6 +1738,7 @@ function Video({ video }) {
   const [play, setPlay] = useState(false);
   const id = ytId(video.youtubeUrl);
   const poster = video.image || (id ? `https://i.ytimg.com/vi/${id}/maxresdefault.jpg` : "");
+  const posterMob = video.imageMobile || poster;
   return (
     <section className="sec">
       <div className="wrap">
@@ -1735,9 +1746,14 @@ function Video({ video }) {
           <div className="eyebrow">{t("video_eyebrow")}</div>
           <h2 data-edit="video.title">{video.title}</h2>
           <p className="lede" data-edit="video.text">{video.text}</p>
+          {EDIT_MODE && (
+            <div className="video-url-edit" title="Linkul clipului YouTube (youtu.be/... sau watch?v=...) — click și editează">
+              🔗 <span data-edit="video.youtubeUrl">{video.youtubeUrl}</span>
+            </div>
+          )}
         </div>
         <div className="video-card rv rv-d1">
-          {play && id ? (
+          {play && id && !EDIT_MODE ? (
             <iframe
               className="video-frame"
               src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`}
@@ -1749,11 +1765,14 @@ function Video({ video }) {
             <button
               type="button"
               className="video-poster"
-              onClick={() => (id ? setPlay(true) : window.open(video.youtubeUrl, "_blank", "noopener"))}
+              onClick={() => { if (EDIT_MODE) return; if (id) setPlay(true); else window.open(video.youtubeUrl, "_blank", "noopener"); }}
               aria-label={id ? "Redă videoclipul Roots" : "Deschide videoclipul Roots pe YouTube"}
             >
               {poster ? (
-                <img className="video-thumb" src={poster} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                <>
+                  <img className="video-thumb pic-desk" src={poster} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  <img className="video-thumb pic-mob" src={posterMob} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                </>
               ) : (
                 <div className="ridgebg" style={{ position: "absolute", inset: "auto 0 0 0" }}><Ridge fill="#0C1F19" height={130} /></div>
               )}
@@ -1762,6 +1781,12 @@ function Video({ video }) {
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5-11-6.5Z" /></svg>
               </div>
             </button>
+          )}
+          {EDIT_MODE && (
+            <>
+              <button type="button" className="vs-add" data-edit-img="video.image">📷 Copertă desktop</button>
+              <button type="button" className="pic-mob-btn" data-edit-img="video.imageMobile">📱 Copertă mobil</button>
+            </>
           )}
         </div>
       </div>

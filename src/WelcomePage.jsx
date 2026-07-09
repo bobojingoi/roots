@@ -96,7 +96,12 @@ export default function WelcomePage({ villaId }) {
       </header>
 
       <main className="wel">
-        {(w.heroImage || EDIT_MODE) && <div className="wel-heroimg" data-edit-img={`${sk}.heroImage`} style={{ backgroundImage: w.heroImage ? `url(${w.heroImage})` : "none", ...(w.heroImage ? {} : { background: "#e3e8e5" }) }} role="img" aria-label={villa.name} />}
+        {(w.heroImage || EDIT_MODE) && (
+          <>
+            <div className="wel-heroimg pic-desk" data-edit-img={`${sk}.heroImage`} style={{ backgroundImage: w.heroImage ? `url(${w.heroImage})` : "none", ...(w.heroImage ? {} : { background: "#e3e8e5" }) }} role="img" aria-label={villa.name} />
+            <div className="wel-heroimg pic-mob" data-edit-img={`${sk}.heroImageMobile`} style={{ backgroundImage: (w.heroImageMobile || w.heroImage) ? `url(${w.heroImageMobile || w.heroImage})` : "none", ...((w.heroImageMobile || w.heroImage) ? {} : { background: "#e3e8e5" }) }} role="img" aria-label={villa.name} />
+          </>
+        )}
         <section className="wel-hero">
           <div className="wel-eyebrow">{t("wel_welcome")}</div>
           <h1>{villa.name}</h1>

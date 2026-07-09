@@ -860,7 +860,7 @@ async function renderUsers() {
     </div>
     ${j.users.map((u) => `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
-        <div><b>${esc(u.email)}</b><div class="hint" style="margin-top:2px">${esc(u.name || '')}</div></div>
+        <div><b>${esc(u.email)}</b><div class="hint" style="margin-top:2px">${esc(u.name || '')}${u.phone ? ' · ' + esc(u.phone) : ''}${u.source ? ' · 📣 ' + esc(u.source) : ''}</div></div>
         <input class="f" style="max-width:150px" value="${esc(u.role)}" list="roleList" onchange="updUser('${u.id}',{role:this.value})" title="rol" />
         <div style="display:flex;gap:8px">
           <button class="btn s" onclick="resetUserPass('${u.id}')">Resetează parola</button>
@@ -931,7 +931,8 @@ function setRows(i, val) { POST.blocks[i].rows = val.split(NL).map((s) => s.trim
 function blockHtml(b, i) {
   let inner = '';
   if (b.type === 'text') inner = `<textarea class="f" rows="6" placeholder="Markdown: ## titlu, **bold**, - listă" oninput="POST.blocks[${i}].md=this.value">${esc(b.md || '')}</textarea>`;
-  else if (b.type === 'images' || b.type === 'slider') inner = `<label class="f">URL-uri imagini — câte unul pe rând (copiază din Galerie media)</label><textarea class="f" rows="4" oninput="setLines(${i},'urls',this.value)">${esc((b.urls || []).join(NL))}</textarea>`;
+  else if (b.type === 'images' || b.type === 'slider') inner = `<label class="f">URL-uri imagini — câte unul pe rând (copiază din Galerie media)</label><textarea class="f" rows="4" oninput="setLines(${i},'urls',this.value)">${esc((b.urls || []).join(NL))}</textarea>
+    <label class="f">URL-uri pentru MOBIL (opțional — aceeași ordine; gol = se folosesc cele de sus)</label><textarea class="f" rows="3" oninput="setLines(${i},'urlsMobile',this.value)">${esc((b.urlsMobile || []).join(NL))}</textarea>`;
   else if (b.type === 'compare') inner = `
     <div style="display:flex;gap:10px"><input class="f" placeholder="Titlu coloana A" value="${esc(b.title_a || '')}" oninput="POST.blocks[${i}].title_a=this.value" />
     <input class="f" placeholder="Titlu coloana B" value="${esc(b.title_b || '')}" oninput="POST.blocks[${i}].title_b=this.value" /></div>

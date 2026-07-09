@@ -14,7 +14,9 @@ const ACC_CSS = `
 .acc-main h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(32px,5vw,46px);color:var(--pine);margin-bottom:20px}
 .acc-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px;box-shadow:0 12px 36px rgba(30,42,36,.08)}
 .acc-card label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px}
-.acc-card input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:var(--ivory)}
+.acc-card input,.acc-card select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:var(--ivory);color:var(--ink)}
+.acc-switch{display:block;width:100%;margin-top:12px;background:none;border:none;color:var(--ember);font:700 14px 'Manrope',sans-serif;cursor:pointer;text-align:center}
+.acc-switch:hover{text-decoration:underline}
 .acc-btn{margin-top:20px;width:100%;padding:13px;border:0;border-radius:99px;background:var(--ember);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .acc-btn:disabled{opacity:.6}
 .acc-err{margin-top:12px;color:#c0392b;font-size:14px}
@@ -29,7 +31,7 @@ const ACC_CSS = `
 .acc-link{display:inline-block;margin-top:18px;color:var(--ember);font-weight:700}
 body.t-aurora .acc-card{background:rgba(255,255,255,.05);border-color:var(--line)}
 body.t-aurora .acc-main h1,body.t-aurora .acc-book b{color:var(--ink)}
-body.t-aurora .acc-card input{background:rgba(255,255,255,.06);color:var(--ink)}
+body.t-aurora .acc-card input,body.t-aurora .acc-card select{background:rgba(255,255,255,.06);color:var(--ink)}
 `;
 
 function AccHeader({ logo }) {
@@ -51,8 +53,13 @@ export default function AccountPage() {
   const { content } = useHubContent();
   const [token, setToken] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } });
   const [acc, setAcc] = useState(null);
+  const [mode, setMode] = useState("login"); // login | register
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [source, setSource] = useState("");
+  const [sourceOther, setSourceOther] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -85,10 +92,39 @@ export default function AccountPage() {
     setBusy(false);
   }
 
+  async function register(e) {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try {
+      const src = source === "other" && sourceOther.trim() ? `altele: ${sourceOther.trim()}` : source;
+      const r = await fetch(HUB_URL + "/api/v1/site-register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email, password: pass, phone: phone.trim(), source: src }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Eroare la crearea contului");
+      try { localStorage.setItem(TOKEN_KEY, j.token); } catch {}
+      setToken(j.token);
+    } catch (e2) {
+      setErr(e2.message);
+    }
+    setBusy(false);
+  }
+
   function logout() {
     try { localStorage.removeItem(TOKEN_KEY); } catch {}
     setToken(""); setAcc(null);
   }
+
+  const SOURCES = [
+    ["google", t("src_google")],
+    ["social", t("src_social")],
+    ["recomandare", t("src_reco")],
+    ["booking/airbnb", t("src_ota")],
+    ["oaspete", t("src_stay")],
+    ["other", t("src_other")],
+  ];
 
   const isStaff = acc && acc.user && ["owner", "admin", "manager"].includes(acc.user.role);
   const fmt = (d) => new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" });
@@ -102,16 +138,42 @@ export default function AccountPage() {
       <main className="acc-main">
         <h1>{t("acc_title")}</h1>
         {!token || !acc ? (
-          <form className="acc-card" onSubmit={login}>
-            <b>{t("acc_login")}</b>
-            <label>{t("acc_email")}</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-            <label>{t("acc_pass")}</label>
-            <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} required autoComplete="current-password" />
-            {err && <div className="acc-err">{err}</div>}
-            <button className="acc-btn" disabled={busy}>{busy ? "…" : t("acc_login")}</button>
-            <p className="acc-help">{t("acc_help")}</p>
-          </form>
+          mode === "login" ? (
+            <form className="acc-card" onSubmit={login}>
+              <b>{t("acc_login")}</b>
+              <label>{t("acc_email")}</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              <label>{t("acc_pass")}</label>
+              <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} required autoComplete="current-password" />
+              {err && <div className="acc-err">{err}</div>}
+              <button className="acc-btn" disabled={busy}>{busy ? "…" : t("acc_login")}</button>
+              <button type="button" className="acc-switch" onClick={() => { setMode("register"); setErr(""); }}>{t("acc_no_acc")}</button>
+              <p className="acc-help">{t("acc_help")}</p>
+            </form>
+          ) : (
+            <form className="acc-card" onSubmit={register}>
+              <b>{t("acc_register")}</b>
+              <label>{t("acc_name")}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+              <label>{t("acc_email")}</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              <label>{t("acc_phone")}</label>
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+              <label>{t("acc_pass_min")}</label>
+              <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} required minLength={6} autoComplete="new-password" />
+              <label>{t("acc_source")}</label>
+              <select value={source} onChange={(e) => setSource(e.target.value)} required>
+                <option value="" disabled>{t("src_pick")}</option>
+                {SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              {source === "other" && (
+                <input style={{ marginTop: 8 }} value={sourceOther} onChange={(e) => setSourceOther(e.target.value)} placeholder={t("src_other") + "…"} />
+              )}
+              {err && <div className="acc-err">{err}</div>}
+              <button className="acc-btn" disabled={busy}>{busy ? "…" : t("acc_register")}</button>
+              <button type="button" className="acc-switch" onClick={() => { setMode("login"); setErr(""); }}>{t("acc_have")}</button>
+            </form>
+          )
         ) : (
           <div className="acc-card">
             <div className="acc-row">

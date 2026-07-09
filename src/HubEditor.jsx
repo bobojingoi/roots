@@ -133,10 +133,13 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         const keys = path.split(".");
         const section = keys[0];
         let o = next[section];
-        if (o == null) return prev;
+        if (o == null) return prev; // secțiunea trebuie să existe în draft
+        // containerele intermediare lipsă se creează (ex. galleryMobile pe secțiuni vechi):
+        // cheia următoare numerică => array, altfel obiect
         for (let i = 1; i < keys.length - 1; i++) {
-          o = o[keys[i]];
-          if (o == null) return prev;
+          const k = keys[i];
+          if (o[k] == null) o[k] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+          o = o[k];
         }
         const last = keys[keys.length - 1];
         if (String(o[last] ?? "") === value) return prev;

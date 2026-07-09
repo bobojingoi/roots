@@ -112,6 +112,9 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS blocks JSONB;
 
 -- roluri flexibile (admin/client/orice)
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+-- conturi create de pe site: telefon + „de unde știi de noi"
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS source TEXT;
 
 -- heatmap: click-uri anonime de pe site (fără date personale)
 CREATE TABLE IF NOT EXISTS page_events (
