@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import HubEditor, { EDIT_MODE } from "./HubEditor.jsx";
-import { CSS, ICONS, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, ICONS, Brand, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 
 /* Pagină de instrucțiuni pentru oaspeți (/welcome-redwood, /welcome-sequoia).
@@ -91,7 +91,7 @@ export default function WelcomePage({ villaId }) {
       <style>{WELCOME_CSS}</style>
 
       <header className="wel-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+        <Link to="/" className="logo"><Brand logo={content.brand?.logo} /></Link>
         <LangSwitcher />
       </header>
 

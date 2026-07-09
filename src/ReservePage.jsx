@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
@@ -38,7 +38,7 @@ export default function ReservePage() {
       <style>{RES_CSS}</style>
       <header className="hdr solid" style={{ position: "fixed" }}>
         <div className="wrap">
-          <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+          <Link to="/" className="logo"><Brand logo={content.brand?.logo} /></Link>
           <nav className="nav">
             <Link to="/">{t("nav_home")}</Link>
             <Link to="/vila-redwood">Redwood</Link>
@@ -66,7 +66,7 @@ export default function ReservePage() {
           depositPct={30}
         />
       </main>
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
     </div>
   );

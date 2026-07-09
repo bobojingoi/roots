@@ -6,6 +6,10 @@ const { hashPassword } = require('./auth'); // același format ca la verificare
 
 // Conținutul real Roots (din seed-content.md — sursa canonică a textelor)
 const CONTENT = {
+  brand: {
+    // logo-ul site-ului: gol = textul „R ROOTS"; pune un URL de imagine (din Galerie media) ca să-l înlocuiești
+    logo: '',
+  },
   seo: {
     title: 'ROOTS Villas Brașov — Două vile private cu ciubăr și saună',
     description:

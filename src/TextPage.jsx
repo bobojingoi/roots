@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { mdToHtml } from "./BlogPage.jsx";
 
@@ -21,11 +21,11 @@ body.t-aurora .txt-main h1,body.t-aurora .txt-body h2,body.t-aurora .txt-body h3
 body.t-aurora .txt-body{color:var(--ink)}
 `;
 
-function TextHeader() {
+function TextHeader({ logo }) {
   return (
     <header className="hdr solid" style={{ position: "fixed" }}>
       <div className="wrap">
-        <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+        <Link to="/" className="logo"><Brand logo={logo} /></Link>
         <nav className="nav">
           <Link to="/">{t("nav_home")}</Link>
           <Link to="/blog">{t("nav_blog")}</Link>
@@ -50,7 +50,7 @@ export default function TextPage({ sectionKey }) {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <style>{TEXT_CSS}</style>
-      <TextHeader />
+      <TextHeader logo={content.brand?.logo} />
       <main className="txt-main">
         {!loaded ? (
           <p className="txt-intro">{t("loading")}</p>
@@ -67,7 +67,7 @@ export default function TextPage({ sectionKey }) {
           </>
         )}
       </main>
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
     </div>
   );

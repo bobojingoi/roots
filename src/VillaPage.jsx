@@ -7,6 +7,7 @@ import {
   ICONS,
   Ridge,
   Embers,
+  Brand,
   Footer,
   Fabs,
   useScrolled,
@@ -176,14 +177,14 @@ const FAC_ICON = {
   "Confort și bucătărie": "fire",
 };
 
-function VHeader({ contact }) {
+function VHeader({ contact, logo }) {
   const scrolled = useScrolled();
   const wa = `https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`;
   return (
     <header className={`hdr ${scrolled ? "solid" : ""}`}>
       <div className="wrap">
         <Link to="/" className="logo">
-          <span className="logo-ring">R</span>ROOTS
+          <Brand logo={logo} />
         </Link>
         <nav className="nav">
           <Link to="/">{t("nav_home")}</Link>
@@ -267,7 +268,7 @@ export default function VillaPage({ villaId }) {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <style>{VILLA_CSS}</style>
-      <VHeader contact={contact} />
+      <VHeader contact={contact} logo={content.brand?.logo} />
 
       {/* HERO */}
       <section className="vhero">
@@ -368,7 +369,7 @@ export default function VillaPage({ villaId }) {
         </div>
       </section>
 
-      <Footer contact={contact} />
+      <Footer contact={contact} logo={content.brand?.logo} />
       <Fabs contact={contact} />
       {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, Footer, Fabs, useHubContent, useScrolled, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
@@ -59,12 +59,12 @@ export function mdToHtml(md) {
   return html;
 }
 
-function BlogHeader() {
+function BlogHeader({ logo }) {
   const scrolled = useScrolled(10);
   return (
     <header className={`hdr solid`} style={{ position: "fixed" }}>
       <div className="wrap">
-        <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+        <Link to="/" className="logo"><Brand logo={logo} /></Link>
         <nav className="nav">
           <Link to="/">{t("nav_home")}</Link>
           <Link to="/blog">{t("nav_blog")}</Link>
@@ -90,7 +90,7 @@ export function BlogList() {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <style>{BLOG_CSS}</style>
-      <BlogHeader />
+      <BlogHeader logo={content.brand?.logo} />
       <main className="blog-main">
         <div className="blog-head">
           <div className="eyebrow" style={{ justifyContent: "center" }}>{t("blog_eyebrow")}</div>
@@ -117,7 +117,7 @@ export function BlogList() {
           </div>
         )}
       </main>
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
     </div>
   );
@@ -144,7 +144,7 @@ export function BlogPost() {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <style>{BLOG_CSS}</style>
-      <BlogHeader />
+      <BlogHeader logo={content.brand?.logo} />
       <main className="post-main">
         {missing ? (
           <div className="blog-empty">{t("blog_missing")} <Link to="/blog">{t("blog_back")}</Link></div>
@@ -160,7 +160,7 @@ export function BlogPost() {
           </article>
         )}
       </main>
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
     </div>
   );

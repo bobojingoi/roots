@@ -135,6 +135,7 @@ const WELCOME_SHOP_DIRS = [
 ];
 
 export const DEFAULT_CONTENT = {
+  brand: { logo: "" },
   seo: {
     title: "ROOTS Villas Brașov — Două vile private cu ciubăr și saună",
     description:
@@ -379,6 +380,7 @@ export function hubToSite(h) {
   if (!h) return {};
   const out = {};
   const txt = (x) => (typeof x === "string" ? x : (x && x.text) || "");
+  if (h.brand) out.brand = { ...DEFAULT_CONTENT.brand, ...h.brand };
   if (h.seo) out.seo = { ...DEFAULT_CONTENT.seo, ...h.seo };
   if (h.hero) out.hero = { ...DEFAULT_CONTENT.hero, ...h.hero };
   if (h.about) out.about = { title: h.about.title || "", text1: h.about.p1 || "", text2: h.about.p2 || "" };
@@ -515,6 +517,10 @@ section{position:relative}
 .logo{font-family:'Fraunces',serif;font-weight:600;font-size:24px;letter-spacing:.14em;color:#fff;text-decoration:none;display:flex;align-items:center;gap:10px;transition:color .4s}
 .hdr.solid .logo{color:var(--pine)}
 .logo-ring{width:30px;height:30px;border-radius:50%;border:1.5px solid currentColor;display:grid;place-items:center;font-size:13px;letter-spacing:0}
+.logo-txt{display:inline-flex;align-items:center;gap:10px}
+.logo-img{height:38px;width:auto;max-width:180px;object-fit:contain;display:block}
+.foot .logo-img{max-width:160px}
+@media(max-width:760px){.logo-img{height:32px;max-width:150px}}
 .nav{display:flex;gap:26px;align-items:center}
 .nav a{color:rgba(255,255,255,.85);text-decoration:none;font-size:14.5px;font-weight:600;transition:color .3s}
 .hdr.solid .nav a{color:var(--ink-soft)}
@@ -679,8 +685,8 @@ section{position:relative}
 .rule p{font-size:14.5px;font-weight:600;line-height:1.55;color:var(--ink)}
 
 /* testimonials */
-.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:74px 0;overflow:hidden;position:relative}
-@media(max-width:760px){.testi-band{padding:52px 0;border-radius:30px}}
+.testi-band{background:var(--night);color:#fff;border-radius:44px;margin:0 14px;padding:64px 0 56px;overflow:hidden;position:relative}
+@media(max-width:760px){.testi-band{padding:48px 0 44px;border-radius:30px}}
 .testi-band .eyebrow{color:var(--gold)}.testi-band .eyebrow::before{background:var(--gold)}
 .testi-band h2{color:#fff}
 .testi-band .lede{color:rgba(255,255,255,.65)}
@@ -689,7 +695,8 @@ section{position:relative}
 .rating-badge b{font-family:'Fraunces',serif;font-size:56px;font-weight:500;color:var(--gold)}
 .stars{display:flex;gap:2px;color:var(--gold)}
 .rating-badge span{display:block;font-size:12.5px;color:rgba(255,255,255,.55);font-weight:600}
-.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:52px}
+.rating-badge .rev-count{color:var(--gold);margin-top:2px}
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px}
 @media(max-width:900px){.testi-grid{grid-template-columns:1fr}}
 .tcard{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:30px 28px;display:flex;flex-direction:column;gap:18px;transition:transform .35s,border-color .35s}
 .tcard:hover{transform:translateY(-6px);border-color:rgba(233,184,114,.4)}
@@ -707,7 +714,11 @@ section{position:relative}
 body.t-al .testi-more a{color:rgba(255,255,255,.6)}
 
 /* video */
-.video-card{margin-top:48px;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:16/8.2;background:linear-gradient(160deg,#152B3D,#0C1F19);display:grid;place-items:center;cursor:pointer;text-decoration:none}
+.video-card{margin-top:48px;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:16/9;background:linear-gradient(160deg,#152B3D,#0C1F19);display:grid;place-items:center}
+.video-card .video-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.video-card .video-poster{position:absolute;inset:0;width:100%;height:100%;padding:0;margin:0;border:0;background:none;cursor:pointer;display:grid;place-items:center}
+.video-card .video-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.video-card .video-poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,20,15,.15),rgba(10,20,15,.45))}
 .video-card .ridgebg{position:absolute;inset:auto 0 0 0;opacity:.6}
 .video-card .playbtn{position:relative;z-index:2;width:88px;height:88px;border-radius:50%;background:var(--ember);display:grid;place-items:center;color:#fff;box-shadow:0 0 0 0 rgba(232,114,44,.5);animation:pulse 2.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,114,44,.5)}70%{box-shadow:0 0 0 26px rgba(232,114,44,0)}100%{box-shadow:0 0 0 0 rgba(232,114,44,0)}}
@@ -747,7 +758,7 @@ body.t-al .testi-more a{color:rgba(255,255,255,.6)}
 .final .hero-ctas{justify-content:center}
 
 /* footer */
-.foot{background:var(--night);color:#fff;padding:80px 0 40px;margin-top:-46px;padding-top:126px}
+.foot{background:var(--night);color:#fff;padding:84px 0 40px;margin-top:24px}
 .foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:44px}
 @media(max-width:860px){.foot-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.foot-grid{grid-template-columns:1fr}}
@@ -978,6 +989,18 @@ export const Embers = () => {
 };
 
 /* ============================ PUBLIC SITE ============================ */
+// Logo partajat: imagine dacă e setată în Admin (brand.logo), altfel textul „R ROOTS".
+// În mod editare zona e clickabilă (data-edit-img) ca să încarci/schimbi logo-ul.
+export function Brand({ logo }) {
+  if (logo)
+    return <img className="logo-img" src={logo} alt="ROOTS" data-edit-img={EDIT_MODE ? "brand.logo" : undefined} />;
+  return (
+    <span className="logo-txt" data-edit-img={EDIT_MODE ? "brand.logo" : undefined}>
+      <span className="logo-ring">R</span>ROOTS
+    </span>
+  );
+}
+
 export function Header({ content }) {
   const scrolled = useScrolled();
   const [menu, setMenu] = useState(false);
@@ -985,7 +1008,7 @@ export function Header({ content }) {
     <header className={`hdr ${scrolled ? "solid" : ""}`}>
       <div className="wrap">
         <a href="#top" className="logo">
-          <span className="logo-ring">R</span>ROOTS
+          <Brand logo={content?.brand?.logo} />
         </a>
         <nav className="nav">
           <a href="#vile">{t("nav_villas")}</a>
@@ -1215,6 +1238,7 @@ function Testimonials({ t: T, cfg }) {
   const items = allReviews ? (showAll ? allReviews : allReviews.slice(0, C.count || 6)) : T.items;
   const hasMore = allReviews && !showAll && allReviews.length > (C.count || 6);
   const rating = !EDIT_MODE && g && g.rating ? String(g.rating) : T.rating;
+  const reviewCount = !EDIT_MODE && g ? (g.total || (g.reviews ? g.reviews.length : 0)) : 0;
   return (
     <section>
       <div className="testi-band">
@@ -1230,6 +1254,7 @@ function Testimonials({ t: T, cfg }) {
               <div>
                 <div className="stars">{[0,1,2,3,4].map((i) => <span key={i}>{ICONS.star}</span>)}</div>
                 <span>{t("testi_rating")}</span>
+                {reviewCount ? <span className="rev-count">{t("reviews_count", { n: reviewCount })}</span> : null}
               </div>
             </div>
           </div>
@@ -1265,7 +1290,18 @@ function Testimonials({ t: T, cfg }) {
   );
 }
 
+// Extrage ID-ul unui clip din diverse forme de link YouTube (watch, youtu.be, embed, shorts).
+// Întoarce "" pentru link-uri de canal (ex: youtube.com/@rootsvillas) — acelea nu se pot încorpora.
+export function ytId(url) {
+  if (!url) return "";
+  const m = String(url).match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : "";
+}
+
 function Video({ video }) {
+  const [play, setPlay] = useState(false);
+  const id = ytId(video.youtubeUrl);
+  const poster = video.image || (id ? `https://i.ytimg.com/vi/${id}/maxresdefault.jpg` : "");
   return (
     <section className="sec">
       <div className="wrap">
@@ -1274,13 +1310,34 @@ function Video({ video }) {
           <h2 data-edit="video.title">{video.title}</h2>
           <p className="lede" data-edit="video.text">{video.text}</p>
         </div>
-        <a className="video-card rv rv-d1" href={video.youtubeUrl} target="_blank" rel="noreferrer" aria-label="Deschide videoclipul Roots pe YouTube">
-          <div className="vlabel"><span className="dot" />{video.label}</div>
-          <div className="ridgebg" style={{ position: "absolute", inset: "auto 0 0 0" }}><Ridge fill="#0C1F19" height={130} /></div>
-          <div className="playbtn">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5-11-6.5Z" /></svg>
-          </div>
-        </a>
+        <div className="video-card rv rv-d1">
+          {play && id ? (
+            <iframe
+              className="video-frame"
+              src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`}
+              title={video.title}
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <button
+              type="button"
+              className="video-poster"
+              onClick={() => (id ? setPlay(true) : window.open(video.youtubeUrl, "_blank", "noopener"))}
+              aria-label={id ? "Redă videoclipul Roots" : "Deschide videoclipul Roots pe YouTube"}
+            >
+              {poster ? (
+                <img className="video-thumb" src={poster} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="ridgebg" style={{ position: "absolute", inset: "auto 0 0 0" }}><Ridge fill="#0C1F19" height={130} /></div>
+              )}
+              <div className="vlabel"><span className="dot" />{video.label}</div>
+              <div className="playbtn">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5-11-6.5Z" /></svg>
+              </div>
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -1365,13 +1422,13 @@ function FinalCta({ contact }) {
   );
 }
 
-export function Footer({ contact }) {
+export function Footer({ contact, logo }) {
   return (
     <footer className="foot">
       <div className="wrap">
         <div className="foot-grid">
           <div>
-            <a href="#top" className="logo"><span className="logo-ring">R</span>ROOTS</a>
+            <Link to="/" className="logo"><Brand logo={logo} /></Link>
             <p style={{ maxWidth: "30ch" }}>{t("foot_tagline")}</p>
           </div>
           <div>
@@ -1608,7 +1665,9 @@ function AdminEditor({ section, content, set }) {
           <Fld label="Titlu" value={c.video.title} onChange={(v) => set("video.title", v)} />
           <Fld label="Descriere" value={c.video.text} onChange={(v) => set("video.text", v)} area rows={2} />
           <Fld label="Etichetă pe card" value={c.video.label} onChange={(v) => set("video.label", v)} />
+          <div className="hint">Pune linkul unui <b>clip</b> (ex: https://www.youtube.com/watch?v=... sau https://youtu.be/...) ca să se redea direct în pagină. Un link de canal (youtube.com/@rootsvillas) deschide YouTube într-un tab nou.</div>
           <Fld label="Link YouTube" value={c.video.youtubeUrl} onChange={(v) => set("video.youtubeUrl", v)} />
+          <Fld label="Imagine poster (URL, opțional)" value={c.video.image || ""} onChange={(v) => set("video.image", v)} />
         </>
       );
     case "faq":
@@ -1765,7 +1824,7 @@ export default function RootsVillas() {
       <FAQ faq={content.faq} />
       <LocationSec location={content.location} />
       <FinalCta contact={content.contact} />
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
       {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>

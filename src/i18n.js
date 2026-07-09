@@ -93,6 +93,7 @@ const D = {
   rules_eyebrow:{ ro: "Sejur fără griji", en: "A carefree stay", he: "שהות ללא דאגות", fr: "Un séjour sans souci" },
   testi_eyebrow:{ ro: "Oaspeții Roots", en: "Roots guests", he: "אורחי Roots", fr: "Les hôtes de Roots" },
   testi_rating: { ro: "rating mediu Google", en: "average Google rating", he: "דירוג גוגל ממוצע", fr: "note moyenne Google" },
+  reviews_count:{ ro: "{n} recenzii pe Google", en: "{n} reviews on Google", he: "{n} ביקורות בגוגל", fr: "{n} avis sur Google" },
   video_eyebrow:{ ro: "Atmosfera Roots", en: "The Roots vibe", he: "האווירה של Roots", fr: "L'ambiance Roots" },
   faq_eyebrow:  { ro: "Bine de știut", en: "Good to know", he: "טוב לדעת", fr: "Bon à savoir" },
   faq_title:    { ro: "Întrebări frecvente", en: "Frequently asked questions", he: "שאלות נפוצות", fr: "Questions fréquentes" },

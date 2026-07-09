@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CSS, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { HUB_URL } from "./HubEditor.jsx";
 import { t } from "./i18n.js";
 
@@ -32,11 +32,11 @@ body.t-aurora .acc-main h1,body.t-aurora .acc-book b{color:var(--ink)}
 body.t-aurora .acc-card input{background:rgba(255,255,255,.06);color:var(--ink)}
 `;
 
-function AccHeader() {
+function AccHeader({ logo }) {
   return (
     <header className="hdr solid" style={{ position: "fixed" }}>
       <div className="wrap">
-        <Link to="/" className="logo"><span className="logo-ring">R</span>ROOTS</Link>
+        <Link to="/" className="logo"><Brand logo={logo} /></Link>
         <nav className="nav">
           <Link to="/">{t("nav_home")}</Link>
           <LangSwitcher />
@@ -98,7 +98,7 @@ export default function AccountPage() {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <style>{ACC_CSS}</style>
-      <AccHeader />
+      <AccHeader logo={content.brand?.logo} />
       <main className="acc-main">
         <h1>{t("acc_title")}</h1>
         {!token || !acc ? (
@@ -142,7 +142,7 @@ export default function AccountPage() {
           </div>
         )}
       </main>
-      <Footer contact={content.contact} />
+      <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
     </div>
   );
