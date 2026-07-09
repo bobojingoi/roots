@@ -1360,10 +1360,15 @@ function VCardSlider({ slides }) {
 /* Modal „Vezi toate pozele": pozele vilei pe categorii (Exterior/Interior),
    cu descrierile lor — sursele sunt galeriile editabile ale paginii de vilă */
 function PhotosModal({ villa, page, onClose }) {
-  const groups = [
+  let groups = [
     { key: "ext", title: t("gal_ext"), items: ((page && page.galleryExterior) || []).filter((it) => it && it.img) },
     { key: "int", title: t("gal_int"), items: ((page && page.galleryInterior) || []).filter((it) => it && it.img) },
   ].filter((g) => g.items.length);
+  if (!groups.length) {
+    // galeriile pe categorii nu au încă poze — arătăm pozele din sliderul cardului
+    const slides = [villa.image, ...(villa.gallery || [])].filter(Boolean).map((img) => ({ img, caption: "" }));
+    if (slides.length) groups = [{ key: "all", title: villa.name, items: slides }];
+  }
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
