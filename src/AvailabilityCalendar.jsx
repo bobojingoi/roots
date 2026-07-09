@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { t } from "./i18n.js";
+import { track } from "./tracking.js";
 
 /* ============================================================
    Widget de rezervare — calendar cu selecție de interval,
@@ -188,6 +189,10 @@ export default function AvailabilityCalendar({
       });
       const json = await r.json();
       if (json && json.detail) console.warn("[rezervare] detaliu server:", json.detail);
+      if (json && json.ok) {
+        // conversii pentru Ads: rezervare reală = purchase, dry-run = lead
+        track(json.dryRun ? "generate_lead" : "purchase", { label: villaName, value: json.price || total });
+      }
       setResult(json);
     } catch (e) {
       setResult({ ok: false, error: "Eroare de rețea. Încearcă din nou sau scrie-ne pe WhatsApp." });
@@ -249,10 +254,10 @@ export default function AvailabilityCalendar({
               <div className="bk-cap">{t("max_persons", { n: capacity })}</div>
             </div>
             {hasRange && <Recap />}
-            <button className="bk-cta" disabled={!hasRange} onClick={() => setStep("form")}>
+            <button className="bk-cta" disabled={!hasRange} onClick={() => { setStep("form"); track("begin_checkout", { label: villaName, value: priceKnown ? total : undefined }); }}>
               {hasRange ? t("continue_book") : t("choose_period")}
             </button>
-            {hasRange && <p className="bk-soon">Sau <a href={waHref} target="_blank" rel="noreferrer">scrie-ne pe WhatsApp</a>.</p>}
+            {hasRange && <p className="bk-soon">Sau <a href={waHref} target="_blank" rel="noreferrer" onClick={() => track("contact", { label: villaName })}>scrie-ne pe WhatsApp</a>.</p>}
           </>
         )}
 
@@ -299,7 +304,7 @@ export default function AvailabilityCalendar({
             <div className="bk-done">
               <h4>{t("bk_almost")}</h4>
               <p>{t("bk_dry")}</p>
-              <a className="bk-cta" href={waHref} target="_blank" rel="noreferrer">{t("bk_send_wa")}</a>
+              <a className="bk-cta" href={waHref} target="_blank" rel="noreferrer" onClick={() => track("contact", { label: villaName })}>{t("bk_send_wa")}</a>
             </div>
           ) : (
             <div className="bk-done err">
@@ -307,7 +312,7 @@ export default function AvailabilityCalendar({
               <p>{(result && result.error) || ""} {t("bk_fail_p")}</p>
               <div className="bk-actions">
                 <button className="bk-back" onClick={clearSel}>{t("bk_other_dates")}</button>
-                <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer">{t("write_wa")}</a>
+                <a className="bk-cta grow" href={waHref} target="_blank" rel="noreferrer" onClick={() => track("contact", { label: villaName })}>{t("write_wa")}</a>
               </div>
             </div>
           )

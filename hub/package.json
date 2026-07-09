@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node seed.js",
-    "seed:brand": "node seed-brand.js"
+    "seed:brand": "node seed-brand.js",
+    "seed:tracking": "node seed-tracking.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {

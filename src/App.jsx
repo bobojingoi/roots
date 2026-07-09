@@ -1,12 +1,14 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
-import RootsVillas from "./RootsVillas.jsx";
+import RootsVillas, { loadHubRaw } from "./RootsVillas.jsx";
 import VillaPage from "./VillaPage.jsx";
 import WelcomePage from "./WelcomePage.jsx";
 import { BlogList, BlogPost } from "./BlogPage.jsx";
 import ReservePage from "./ReservePage.jsx";
 import TextPage from "./TextPage.jsx";
 import AccountPage from "./AccountPage.jsx";
+import CookieBar from "./CookieBar.jsx";
+import { initTracking, trackPageView } from "./tracking.js";
 import { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
@@ -48,11 +50,36 @@ function ClickTracker() {
   return null;
 }
 
+/* Marketing: GA4 + Meta Pixel + TikTok Pixel — ID-urile din Hub (secțiunea
+   `tracking`), încărcate doar după consimțământ. Page view la fiecare rută. */
+function MarketingTracking() {
+  const { pathname } = useLocation();
+  const [cfg, setCfg] = useState(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (EDIT_MODE) return; // în editor nu urmărim nimic
+    loadHubRaw()
+      .then((raw) => {
+        const c = (raw && raw.tracking) || null;
+        setCfg(c);
+        initTracking(c); // pornește imediat dacă acordul e deja salvat
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; } // prima afișare o trimite init-ul
+    trackPageView(pathname);
+  }, [pathname]);
+  if (EDIT_MODE || !cfg) return null;
+  return <CookieBar cfg={cfg} />;
+}
+
 export default function App() {
   return (
     <>
       <ScrollToTop />
       <ClickTracker />
+      <MarketingTracking />
       <Routes>
         <Route path="/" element={<RootsVillas />} />
         <Route path="/vila-redwood" element={<VillaPage villaId="redwood" />} />

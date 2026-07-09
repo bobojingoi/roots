@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
 import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
+import { track } from "./tracking.js";
 
 /* ============================================================
    ROOTS VILLAS — site + CMS
@@ -136,6 +137,7 @@ const WELCOME_SHOP_DIRS = [
 
 export const DEFAULT_CONTENT = {
   brand: { logo: "" },
+  tracking: { ga4: "", metaPixel: "", tiktokPixel: "" },
   seo: {
     title: "ROOTS Villas Brașov — Două vile private cu ciubăr și saună",
     description:
@@ -381,6 +383,7 @@ export function hubToSite(h) {
   const out = {};
   const txt = (x) => (typeof x === "string" ? x : (x && x.text) || "");
   if (h.brand) out.brand = { ...DEFAULT_CONTENT.brand, ...h.brand };
+  if (h.tracking) out.tracking = { ...DEFAULT_CONTENT.tracking, ...h.tracking };
   if (h.seo) out.seo = { ...DEFAULT_CONTENT.seo, ...h.seo };
   if (h.hero) out.hero = { ...DEFAULT_CONTENT.hero, ...h.hero };
   if (h.about) out.about = { title: h.about.title || "", text1: h.about.p1 || "", text2: h.about.p2 || "" };
@@ -1624,8 +1627,8 @@ export function Footer({ contact, logo }) {
 export function Fabs({ contact }) {
   return (
     <div className="fabs">
-      <a className="fab fab-wa" href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp">{ICONS.wa}</a>
-      <a className="fab fab-call" href={`tel:${contact.phone.replace(/\s/g, "")}`} aria-label="Sună-ne">{ICONS.phone}</a>
+      <a className="fab fab-wa" href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" onClick={() => track("contact", { label: "fab_whatsapp" })}>{ICONS.wa}</a>
+      <a className="fab fab-call" href={`tel:${contact.phone.replace(/\s/g, "")}`} aria-label="Sună-ne" onClick={() => track("contact", { label: "fab_call" })}>{ICONS.phone}</a>
     </div>
   );
 }
