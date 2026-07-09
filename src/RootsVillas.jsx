@@ -138,7 +138,9 @@ const WELCOME_SHOP_DIRS = [
 ];
 
 export const DEFAULT_CONTENT = {
-  brand: { logo: "" },
+  // overlay-ul hero: de unde pornește (jos/sus/colturi/plin), cât se întinde (0–100),
+  // opacitate (0–100) și culoare — editabile din Hub admin → Setări site → Logo & Brand
+  brand: { logo: "", heroOverlayFrom: "jos", heroOverlayHeight: 85, heroOverlayOpacity: 80, heroOverlayColor: "#0C1F19" },
   tracking: { ga4: "", metaPixel: "", tiktokPixel: "" },
   extraReviews: [],
   seo: {
@@ -566,8 +568,8 @@ section{position:relative}
 /* ---- hero: scena de seară ---- */
 .hero{min-height:100svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
   background:linear-gradient(180deg,#0B1626 0%,#152B3D 30%,#3D4A56 52%,#8A5A46 68%,#C4713C 80%,#E88940 92%)}
-.hero-photo{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.55;mix-blend-mode:luminosity}
-.hero-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,22,38,.25),rgba(11,22,38,.05) 45%,rgba(12,31,25,.82) 100%)}
+.hero-photo{position:absolute;inset:0;background-size:cover;background-position:center}
+.hero-veil{position:absolute;inset:0} /* fundalul vine inline, din setările Logo & Brand (admin) */
 .ridge{position:absolute;left:0;right:0;pointer-events:none}
 .ridge svg{display:block;width:100%;height:auto}
 .ridge-far{bottom:120px;opacity:.5}
@@ -586,8 +588,6 @@ section{position:relative}
 .fade-up.d2{animation-delay:.7s}
 @keyframes rise{to{transform:none}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-.scroll-hint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:4;width:24px;height:38px;border:1.5px solid rgba(255,255,255,.5);border-radius:14px}
-.scroll-hint::after{content:"";position:absolute;top:7px;left:50%;width:3px;height:7px;margin-left:-1.5px;border-radius:3px;background:var(--gold);animation:drip 1.8s infinite}
 @keyframes drip{0%{opacity:0;transform:translateY(0)}30%{opacity:1}100%{opacity:0;transform:translateY(12px)}}
 
 /* embers */
@@ -1099,17 +1099,33 @@ export function Header({ content }) {
   );
 }
 
-function Hero({ hero }) {
+/* Overlay-ul pozei din hero — administrabil din Hub (secțiunea Logo & Brand):
+   heroOverlayFrom (jos/sus/colturi/plin), heroOverlayHeight (0–100 = cât se întinde),
+   heroOverlayOpacity (0–100), heroOverlayColor (hex). */
+function overlayStyle(b) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec((b && b.heroOverlayColor) || "");
+  const n = m ? parseInt(m[1], 16) : 0x0c1f19;
+  const rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  const op = Math.max(0, Math.min(100, Number(b && b.heroOverlayOpacity) || 0)) / 100;
+  const h = Math.max(0, Math.min(100, Number(b && b.heroOverlayHeight) || 0));
+  const from = (b && b.heroOverlayFrom) || "jos";
+  if (!op || !h) return { background: "none" };
+  const solid = `rgba(${rgb},${op})`;
+  const clear = `rgba(${rgb},0)`;
+  if (from === "sus") return { background: `linear-gradient(180deg, ${solid} 0%, ${clear} ${h}%)` };
+  if (from === "colturi") return { background: `radial-gradient(ellipse at center, ${clear} ${100 - h}%, ${solid} 100%)` };
+  if (from === "plin") return { background: solid };
+  return { background: `linear-gradient(0deg, ${solid} 0%, ${clear} ${h}%)` }; // jos (implicit)
+}
+
+function Hero({ hero, brand }) {
   return (
     <section className="hero" id="top">
       {hero.image && <div className="hero-photo" style={{ backgroundImage: `url(${hero.image})` }} />}
-      <div className="hero-veil" />
+      <div className="hero-veil" style={overlayStyle(brand)} />
       <div className="fireglow" />
       <Embers />
-      <div className="ridge ridge-far"><Ridge fill="#16342A" height={120} /></div>
-      <div className="ridge ridge-near"><Ridge fill="#0C1F19" height={170} /></div>
       <div className="hero-inner wrap">
-        <div className="hero-eyebrow fade-up" style={{ animationDelay: ".3s" }} data-edit="hero.eyebrow">{hero.eyebrow}</div>
         <h1 style={{ fontSize: { s: "clamp(30px,4.8vw,52px)", m: "clamp(36px,6vw,68px)", l: "clamp(42px,7.2vw,84px)", xl: "clamp(46px,8.4vw,104px)" }[hero.titleSize] || "clamp(36px,6vw,68px)" }}>
           <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
           <span className="h1-line"><span className="warm" data-edit="hero.titleB">{hero.titleB}</span></span>
@@ -1117,13 +1133,11 @@ function Hero({ hero }) {
         <p className="hero-sub fade-up" data-edit="hero.subtitle">{hero.subtitle}</p>
         <div className="hero-ctas fade-up d2">
           <Link to="/rezervare" className="btn btn-ember"><span data-edit="hero.ctaPrimary">{hero.ctaPrimary}</span> {ICONS.arrow}</Link>
-          <a href="#vile" className="btn btn-ghost"><span data-edit="hero.ctaSecondary">{hero.ctaSecondary}</span></a>
         </div>
       </div>
       {EDIT_MODE && (
         <button type="button" className="hub-imgbtn" data-edit-img="hero.image">📷 Imagine de fundal</button>
       )}
-      <div className="scroll-hint" aria-hidden="true" />
     </section>
   );
 }
@@ -2053,7 +2067,7 @@ export default function RootsVillas() {
       <style>{CSS}</style>
       <ThemeStyle content={content} />
       <Header content={content} />
-      <Hero hero={content.hero} />
+      <Hero hero={content.hero} brand={content.brand} />
       <About about={content.about} />
       <Villas villas={content.villas} contact={content.contact} />
       <RootDivider />
