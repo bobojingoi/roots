@@ -400,6 +400,7 @@ export function hubToSite(h) {
       description: v.description || "",
       features: (v.features || []).map(txt),
       image: v.cover || v.image || "",
+      gallery: v.gallery || [], // BRUT, cu găuri — indicii trebuie să corespundă draftului din Hub
       accent: i === 0 ? "ember" : "gold",
     }));
   if (h.editorial && Array.isArray(h.editorial.blocks))
@@ -445,13 +446,32 @@ export async function loadHubRaw() {
   return mergeLang(j.content || {});
 }
 
-/* pentru limbile non-RO, secțiunile traduse (cheie@limbă) înlocuiesc originalul */
+/* pentru limbile non-RO, secțiunea tradusă acoperă originalul CÂMP CU CÂMP:
+   câmpurile care nu există în traducere (ex. galerii sau imagini adăugate după
+   generarea traducerilor) cad pe valoarea de bază — media nu rămâne „înghețată" */
+function deepLang(base, over) {
+  if (over === undefined) return base;
+  if (Array.isArray(over)) {
+    if (!Array.isArray(base)) return over;
+    return over.map((item, i) => deepLang(base[i], item));
+  }
+  if (over && typeof over === "object") {
+    const isObj = base && typeof base === "object" && !Array.isArray(base);
+    const out = {};
+    for (const k of new Set([...Object.keys(isObj ? base : {}), ...Object.keys(over)])) {
+      out[k] = deepLang(isObj ? base[k] : undefined, over[k]);
+    }
+    return out;
+  }
+  return over;
+}
 function mergeLang(content) {
   if (LANG === "ro") return content;
   const out = {};
   for (const [k, v] of Object.entries(content)) {
     if (k.includes("@")) continue;
-    out[k] = content[k + "@" + LANG] || v;
+    const tr = content[k + "@" + LANG];
+    out[k] = tr ? deepLang(v, tr) : v;
   }
   return out;
 }
@@ -510,6 +530,21 @@ export const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 .roots{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--ivory);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+/* blocurile CMS golite din editor dispar de pe site (și butoanele/containerele
+   care le conțin — reguli separate, ca un browser fără :has să nu le arunce pe toate) */
+.roots [data-edit]:empty{display:none}
+.roots a:has(>[data-edit]:empty){display:none}
+.roots button:has(>[data-edit]:empty){display:none}
+.roots .feat:has(>span[data-edit]:empty){display:none}
+.roots .pill:has(>span[data-edit]:empty){display:none}
+.roots .rule:has(>p[data-edit]:empty){display:none}
+.roots .fac-item:has(b[data-edit]:empty){display:none}
+.roots .faq-item:has(.faq-q>span[data-edit]:empty){display:none}
+.roots .loc-point:has(>span[data-edit]:empty){display:none}
+/* imagini separate desktop / mobil: două elemente, câte unul vizibil per breakpoint */
+.pic-desk{display:block}
+.pic-mob{display:none}
+@media(max-width:760px){.pic-desk{display:none}.pic-mob{display:block}}
 .roots ::selection{background:var(--ember);color:#fff}
 .serif{font-family:'Fraunces',serif}
 .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
@@ -653,9 +688,22 @@ section{position:relative}
 @media(max-width:860px){.villa-grid{grid-template-columns:1fr}}
 .vcard{background:rgba(251,247,239,.05);border:1px solid rgba(251,247,239,.12);border-radius:var(--r);overflow:hidden;transition:transform .45s cubic-bezier(.2,.7,.2,1),box-shadow .45s,border-color .45s}
 .vcard:hover{transform:translateY(-8px);border-color:rgba(233,184,114,.4);box-shadow:0 30px 60px rgba(0,0,0,.35)}
-.vcard-media{height:250px;position:relative;overflow:hidden;background:linear-gradient(160deg,#1B4033,#0C1F19)}
+.vcard-media{height:340px;position:relative;overflow:hidden;background:linear-gradient(160deg,#1B4033,#0C1F19)}
+@media(max-width:760px){.vcard-media{height:260px}}
 .vcard-media .ph{position:absolute;inset:0;background-size:cover;background-position:center;transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
 .vcard:hover .vcard-media .ph{transform:scale(1.06)}
+/* slider în cardul vilei */
+.vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.vslides::-webkit-scrollbar{display:none}
+.vslide{flex:0 0 100%;scroll-snap-align:center;background-size:cover;background-position:center}
+.vs-arr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:38px;height:38px;border-radius:50%;border:none;background:rgba(12,31,25,.55);color:#fff;font-size:20px;line-height:1;cursor:pointer;backdrop-filter:blur(6px);display:grid;place-items:center;transition:background .2s}
+.vs-arr:hover{background:rgba(12,31,25,.85)}
+.vs-arr.left{left:12px}.vs-arr.right{right:12px}
+.vs-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:6px}
+.vs-dots span{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);transition:background .2s}
+.vs-dots span.on{background:var(--gold)}
+.vs-add{position:absolute;bottom:12px;right:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
+.pic-mob-btn{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
 .vcard-media .glow{position:absolute;bottom:-70px;left:50%;transform:translateX(-50%);width:320px;height:170px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.55),transparent 70%)}
 .vcard-tag{position:absolute;top:16px;left:16px;background:rgba(12,31,25,.6);backdrop-filter:blur(8px);border:1px solid rgba(233,184,114,.35);color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border-radius:100px}
 .vcard-body{padding:30px 30px 34px}
@@ -1058,6 +1106,51 @@ export const Embers = () => {
   );
 };
 
+/* Loader „copacul crește din rădăcini": rădăcinile se desenează, trunchiul urcă,
+   apoi coroana de brad apare strat cu strat — în buclă cât se încarcă pagina.
+   Poartă propriul <style> ca să poată fi folosit înaintea CSS-ului principal. */
+const TL_CSS = `
+.treeload{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:'Manrope',system-ui,sans-serif}
+.treeload .tl-box{text-align:center}
+.treeload svg{overflow:visible}
+.treeload .tl-roots path{stroke-dasharray:34;stroke-dashoffset:34;animation:tlRoots 2.6s ease-out infinite}
+.treeload .tl-trunk{transform-origin:60px 118px;transform:scaleY(0);animation:tlTrunk 2.6s ease-out infinite}
+.treeload .tl-l1,.treeload .tl-l2,.treeload .tl-l3{opacity:0;transform:translateY(8px) scale(.6)}
+.treeload .tl-l1{transform-origin:60px 106px;animation:tlLayer1 2.6s ease-out infinite}
+.treeload .tl-l2{transform-origin:60px 78px;animation:tlLayer2 2.6s ease-out infinite}
+.treeload .tl-l3{transform-origin:60px 54px;animation:tlLayer3 2.6s ease-out infinite}
+.treeload .tl-label{display:block;margin-top:16px;font-size:14px;font-weight:600;color:#7A8B80}
+@keyframes tlRoots{0%{stroke-dashoffset:34}22%{stroke-dashoffset:0}88%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes tlTrunk{0%,14%{transform:scaleY(0)}38%{transform:scaleY(1)}88%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
+/* secvențierea straturilor e în procente (nu animation-delay) — cu delay, buclele
+   se decalează și vârful bradului rămâne „plutind" fără trunchi la reluare */
+@keyframes tlLayer1{0%,34%{opacity:0;transform:translateY(8px) scale(.6)}50%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
+@keyframes tlLayer2{0%,42%{opacity:0;transform:translateY(8px) scale(.6)}58%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
+@keyframes tlLayer3{0%,50%{opacity:0;transform:translateY(8px) scale(.6)}66%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
+@media(prefers-reduced-motion:reduce){.treeload *{animation:none!important;opacity:1!important;transform:none!important;stroke-dashoffset:0!important}}
+`;
+export function TreeLoader({ label = "Se încarcă…" }) {
+  return (
+    <div className="treeload" role="status" aria-label={label}>
+      <style>{TL_CSS}</style>
+      <div className="tl-box">
+        <svg viewBox="0 0 120 140" width="96" height="112" aria-hidden="true">
+          <g className="tl-roots" stroke="#8A5A3C" strokeWidth="3" fill="none" strokeLinecap="round">
+            <path d="M60 118 C56 126 46 128 38 132" />
+            <path d="M60 118 C64 126 74 128 82 132" />
+            <path d="M60 118 C60 125 60 129 60 134" />
+          </g>
+          <rect className="tl-trunk" x="56" y="88" width="8" height="30" rx="3" fill="#8A5A3C" />
+          <path className="tl-l1" d="M60 62 L34 106 H86 Z" fill="#1E5C43" />
+          <path className="tl-l2" d="M60 40 L38 78 H82 Z" fill="#247052" />
+          <path className="tl-l3" d="M60 20 L42 54 H78 Z" fill="#2E8562" />
+        </svg>
+        <span className="tl-label">{label}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ============================ PUBLIC SITE ============================ */
 // Logo partajat: imagine dacă e setată în Admin (brand.logo), altfel textul „R ROOTS".
 // În mod editare zona e clickabilă (data-edit-img) ca să încarci/schimbi logo-ul.
@@ -1130,10 +1223,10 @@ function overlayStyle(b) {
 function Hero({ hero, brand }) {
   return (
     <section className="hero" id="top">
-      {hero.image && <div className="hero-photo" style={{ backgroundImage: `url(${hero.image})` }} />}
+      {hero.image && <div className="hero-photo pic-desk" style={{ backgroundImage: `url(${hero.image})` }} />}
+      {(hero.imageMobile || hero.image) && <div className="hero-photo pic-mob" style={{ backgroundImage: `url(${hero.imageMobile || hero.image})` }} />}
       <div className="hero-veil" style={overlayStyle(brand)} />
       <div className="fireglow" />
-      <Embers />
       <div className="hero-inner wrap">
         <h1 style={{ fontSize: { s: "clamp(30px,4.8vw,52px)", m: "clamp(36px,6vw,68px)", l: "clamp(42px,7.2vw,84px)", xl: "clamp(46px,8.4vw,104px)" }[hero.titleSize] || "clamp(36px,6vw,68px)" }}>
           <span className="h1-line"><span data-edit="hero.titleA">{hero.titleA}</span></span>
@@ -1145,7 +1238,10 @@ function Hero({ hero, brand }) {
         </div>
       </div>
       {EDIT_MODE && (
-        <button type="button" className="hub-imgbtn" data-edit-img="hero.image">📷 Imagine de fundal</button>
+        <>
+          <button type="button" className="hub-imgbtn" data-edit-img="hero.image">📷 Imagine desktop</button>
+          <button type="button" className="hub-imgbtn mob" data-edit-img="hero.imageMobile">📱 Imagine mobil</button>
+        </>
       )}
     </section>
   );
@@ -1174,12 +1270,58 @@ function About({ about }) {
   );
 }
 
+/* Slider pe cardul vilei: cover + galeria (villas.items.N.gallery) — swipe cu
+   scroll-snap, săgeți și puncte; în editor fiecare slide se schimbă din picker. */
+function VCardSlider({ slides }) {
+  const ref = useRef(null);
+  const [cur, setCur] = useState(0);
+  // RTL-safe: scrollIntoView în loc de scrollTo(left) și Math.abs pe scrollLeft
+  const go = (e, n) => {
+    e.preventDefault(); e.stopPropagation();
+    const el = ref.current;
+    if (!el) return;
+    const i = Math.max(0, Math.min(slides.length - 1, n));
+    if (el.children[i]) el.children[i].scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  };
+  const onScroll = () => {
+    const el = ref.current;
+    if (el) setCur(Math.round(Math.abs(el.scrollLeft) / Math.max(1, el.clientWidth)));
+  };
+  return (
+    <>
+      <div className="vslides" ref={ref} onScroll={onScroll}>
+        {slides.map((s, i) => (
+          <div
+            className="vslide"
+            key={i}
+            style={{ backgroundImage: `url(${s.url})` }}
+            data-edit-img={EDIT_MODE ? s.path : undefined}
+          />
+        ))}
+      </div>
+      {slides.length > 1 && (
+        <>
+          <button type="button" className="vs-arr left" onClick={(e) => go(e, cur - 1)} aria-label="Înapoi">‹</button>
+          <button type="button" className="vs-arr right" onClick={(e) => go(e, cur + 1)} aria-label="Înainte">›</button>
+          <div className="vs-dots" aria-hidden="true">{slides.map((_, i) => <span key={i} className={i === cur ? "on" : ""} />)}</div>
+        </>
+      )}
+    </>
+  );
+}
+
 function VillaCard({ villa, delay, contact, idx }) {
+  // slide-urile păstrează CALEA originală din draft (cover / gallery.N cu N brut),
+  // ca „Fără imagine" pe un slide să nu decaleze editarea celorlalte
+  const slides = [
+    { url: villa.image, path: `villas.items.${idx}.cover` },
+    ...(villa.gallery || []).map((g, gi) => ({ url: g, path: `villas.items.${idx}.gallery.${gi}` })),
+  ].filter((s) => s.url);
   return (
     <article className={`vcard rv ${delay}`}>
-      <div className="vcard-media" data-edit-img={`villas.items.${idx}.cover`} title="Click pentru a alege imaginea">
-        {villa.image ? (
-          <div className="ph" style={{ backgroundImage: `url(${villa.image})` }} />
+      <div className="vcard-media" data-edit-img={!slides.length && EDIT_MODE ? `villas.items.${idx}.cover` : undefined} title={!slides.length && EDIT_MODE ? "Click pentru a alege imaginea" : undefined}>
+        {slides.length ? (
+          <VCardSlider slides={slides} />
         ) : (
           <>
             <div style={{ position: "absolute", inset: "auto 0 0 0" }}>
@@ -1189,6 +1331,9 @@ function VillaCard({ villa, delay, contact, idx }) {
           </>
         )}
         <span className="vcard-tag">{t("villa_tag", { n: villa.id === "redwood" ? "01" : "02" })}</span>
+        {EDIT_MODE && slides.length > 0 && (
+          <button type="button" className="vs-add" data-edit-img={`villas.items.${idx}.gallery.${(villa.gallery || []).length}`}>＋ foto</button>
+        )}
       </div>
       <div className="vcard-body">
         <h3 data-edit={`villas.items.${idx}.name`}>{villa.name}</h3>
@@ -1264,13 +1409,21 @@ function Common({ common }) {
               ))}
             </div>
           </div>
-          <div className="common-art rv rv-d1" data-edit-img="common.image" title="Click pentru a alege imaginea">
-            {common.image ? <div className="ph" style={{ backgroundImage: `url(${common.image})` }} /> : (
+          <div className="common-art rv rv-d1" data-edit-img="common.image" title="Click pentru a alege imaginea (desktop)">
+            {common.image ? (
+              <>
+                <div className="ph pic-desk" style={{ backgroundImage: `url(${common.image})` }} />
+                <div className="ph pic-mob" style={{ backgroundImage: `url(${common.imageMobile || common.image})` }} />
+              </>
+            ) : (
               <>
                 <div className="sun" />
                 <div style={{ position: "absolute", inset: "auto 0 0 0" }}><Ridge fill="#0C1F19" height={150} /></div>
                 <div style={{ position: "absolute", inset: "auto 0 60px 0", opacity: .45 }}><Ridge fill="#1B4033" height={130} /></div>
               </>
+            )}
+            {EDIT_MODE && common.image && (
+              <button type="button" className="pic-mob-btn" data-edit-img="common.imageMobile" onClick={(e) => e.stopPropagation()}>📱 mobil</button>
             )}
           </div>
         </div>

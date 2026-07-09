@@ -29,8 +29,16 @@ body.hub-edit [data-edit]:focus{outline:2px solid #E8722C;background:rgba(232,11
 .hub-editbar .st{color:#9fd9c3}
 body.hub-edit [data-edit-img]{outline:2px dashed rgba(21,122,85,.75);outline-offset:-2px;cursor:pointer}
 body.hub-edit [data-edit-img]:hover{outline-style:solid;outline-color:#157a55}
+/* câmpurile golite rămân vizibile în editor ca placeholder recompletabil */
+body.hub-edit [data-edit]:empty{display:revert!important;min-width:50px;min-height:1em}
+body.hub-edit a:has(>[data-edit]:empty),body.hub-edit button:has(>[data-edit]:empty){display:revert!important}
+body.hub-edit [data-edit]:empty::before{content:"· gol — scrie aici sau lasă șters ·";opacity:.45;font-size:12px;font-style:italic}
+.hub-fielddel{position:fixed;z-index:100001;width:26px;height:26px;border-radius:50%;border:none;background:#c0392b;color:#fff;
+  font:700 15px/1 'Manrope',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.hub-fielddel:hover{background:#e74c3c;transform:scale(1.1)}
 .hub-imgbtn{position:absolute;top:96px;right:22px;z-index:9;border:none;border-radius:100px;padding:10px 16px;
   background:#157a55;color:#fff;font:700 13px 'Manrope',sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.hub-imgbtn.mob{top:146px}
 .hub-picker{position:fixed;inset:0;z-index:100000;background:rgba(14,31,25,.55);display:grid;place-items:center;padding:20px}
 .hub-picker-box{background:#fff;border-radius:18px;max-width:720px;width:100%;max-height:80vh;overflow:auto;padding:18px;
   font-family:'Manrope',system-ui,sans-serif;color:#14201b}
@@ -198,6 +206,36 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     return () => document.removeEventListener("focusout", onBlur);
   }, [commit]);
 
+  /* butonul „×" de golire: apare lângă blocul de text focusat; golit = ascuns pe
+     site (CSS :empty), dar rămâne placeholder editabil în editor */
+  const [delBtn, setDelBtn] = useState(null); // { path, top, left }
+  useEffect(() => {
+    const onFocus = (e) => {
+      const el = e.target.closest && e.target.closest("[data-edit]");
+      if (!el) { setDelBtn(null); return; }
+      const r = el.getBoundingClientRect();
+      setDelBtn({ path: el.getAttribute("data-edit"), top: Math.max(4, r.top - 12), left: Math.min(window.innerWidth - 30, r.right - 2) });
+    };
+    const hide = () => setDelBtn(null);
+    // ascunde × când focusul pleacă în afara oricărui bloc editabil
+    const onFocusOut = () => {
+      setTimeout(() => {
+        const ae = document.activeElement;
+        if (!ae || !(ae.closest && ae.closest("[data-edit]"))) setDelBtn(null);
+      }, 80);
+    };
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onFocusOut);
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onFocusOut);
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("resize", hide);
+    };
+  }, []);
+
   const call = async (method, path, body) => {
     const r = await fetch(HUB_URL + path, {
       method,
@@ -318,6 +356,23 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
           )}
         </div>
       </div>
+    )}
+    {delBtn && (
+      <button
+        type="button"
+        className="hub-fielddel"
+        title="Golește blocul (dispare de pe site; rămâne placeholder în editor)"
+        style={{ top: delBtn.top, left: delBtn.left }}
+        onMouseDown={(ev) => {
+          ev.preventDefault();
+          commit(delBtn.path, "");
+          const el = document.querySelector(`[data-edit="${delBtn.path}"]`);
+          if (el) el.innerText = "";
+          setDelBtn(null);
+        }}
+      >
+        ×
+      </button>
     )}
     <div className="hub-editbar">
       ✏️ Mod editare — click pe textele conturate

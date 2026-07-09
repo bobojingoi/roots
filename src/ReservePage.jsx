@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
+import { CSS, Brand, TreeLoader, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { t } from "./i18n.js";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
@@ -28,7 +28,7 @@ export default function ReservePage() {
   const [villaId, setVillaId] = useState(initial);
 
   if (!loaded) {
-    return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#FBF7EF", fontFamily: "sans-serif", color: "#122B22" }}>Se încarcă…</div>;
+    return <TreeLoader label={t("loading")} />;
   }
 
   const both = villaId === "both";

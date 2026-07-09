@@ -395,7 +395,7 @@ app.get('/api/v1/posts', async (_req, res) => {
   res.json({ posts: r.rows });
 });
 app.get('/api/v1/posts/:slug', async (req, res) => {
-  const r = await pool.query('SELECT slug, title, excerpt, cover, body, seo_title, seo_description, published_at FROM posts WHERE slug = $1 AND published_at IS NOT NULL', [req.params.slug]);
+  const r = await pool.query('SELECT slug, title, excerpt, cover, body, blocks, seo_title, seo_description, published_at FROM posts WHERE slug = $1 AND published_at IS NOT NULL', [req.params.slug]);
   if (!r.rows.length) return res.status(404).json({ error: 'Articol inexistent' });
   res.setHeader('Cache-Control', 'public, max-age=60');
   res.json({ post: r.rows[0] });
@@ -406,13 +406,13 @@ app.get('/api/v1/admin/posts', requireAuth, async (_req, res) => {
   res.json({ posts: r.rows });
 });
 app.post('/api/v1/admin/posts', requireAuth, async (req, res) => {
-  const { title, slug, excerpt, cover, body, seo_title, seo_description } = req.body || {};
+  const { title, slug, excerpt, cover, body, blocks, seo_title, seo_description } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Titlul e obligatoriu' });
   const finalSlug = (slug || title).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
   try {
     const r = await pool.query(
-      `INSERT INTO posts (title, slug, excerpt, cover, body, seo_title, seo_description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [title, finalSlug, excerpt || '', cover || '', body || '', seo_title || '', seo_description || '']
+      `INSERT INTO posts (title, slug, excerpt, cover, body, blocks, seo_title, seo_description) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [title, finalSlug, excerpt || '', cover || '', body || '', Array.isArray(blocks) && blocks.length ? JSON.stringify(blocks) : null, seo_title || '', seo_description || '']
     );
     await emit('PostCreated', { slug: finalSlug, by: req.user.email });
     res.json({ ok: true, post: r.rows[0] });
@@ -421,12 +421,15 @@ app.post('/api/v1/admin/posts', requireAuth, async (req, res) => {
   }
 });
 app.put('/api/v1/admin/posts/:id', requireAuth, async (req, res) => {
-  const { title, slug, excerpt, cover, body, seo_title, seo_description } = req.body || {};
+  const { title, slug, excerpt, cover, body, blocks, seo_title, seo_description } = req.body || {};
+  // blocks se trimite mereu din admin: array gol = articolul revine pe body simplu
+  const blocksVal = blocks === undefined ? undefined : (Array.isArray(blocks) && blocks.length ? JSON.stringify(blocks) : null);
   const r = await pool.query(
     `UPDATE posts SET title=COALESCE($2,title), slug=COALESCE($3,slug), excerpt=COALESCE($4,excerpt), cover=COALESCE($5,cover),
-       body=COALESCE($6,body), seo_title=COALESCE($7,seo_title), seo_description=COALESCE($8,seo_description), updated_at=now()
+       body=COALESCE($6,body), blocks=CASE WHEN $9 THEN $10::jsonb ELSE blocks END,
+       seo_title=COALESCE($7,seo_title), seo_description=COALESCE($8,seo_description), updated_at=now()
      WHERE id=$1 RETURNING *`,
-    [req.params.id, title, slug, excerpt, cover, body, seo_title, seo_description]
+    [req.params.id, title, slug, excerpt, cover, body, seo_title, seo_description, blocksVal !== undefined, blocksVal === undefined ? null : blocksVal]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Articol inexistent' });
   res.json({ ok: true, post: r.rows[0] });

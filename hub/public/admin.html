@@ -909,8 +909,42 @@ async function renderBlog() {
         <button class="btn s" onclick="editPost('${p.id}')">Editează</button>
       </div>`).join('') || '<div class="card">Niciun articol încă.</div>'}`;
 }
-function newPost() { POST = { id: null, title: '', slug: '', excerpt: '', cover: '', body: '', seo_title: '', seo_description: '', published_at: null }; renderPostEditor(); }
-function editPost(id) { POST = { ...POSTS.find((p) => p.id === id) }; renderPostEditor(); }
+function newPost() { POST = { id: null, title: '', slug: '', excerpt: '', cover: '', body: '', blocks: [], seo_title: '', seo_description: '', published_at: null }; renderPostEditor(); }
+function editPost(id) { POST = { ...POSTS.find((p) => p.id === id) }; if (!Array.isArray(POST.blocks)) POST.blocks = POST.blocks || []; renderPostEditor(); }
+
+/* ---- blocuri de conținut ---- */
+const BLOCK_LABELS = { text: '📝 Text', images: '🖼️ Poze', slider: '🎞️ Slider', compare: '⚖️ Comparație', checklist: '✅ Checklist' };
+function addBlock(type) {
+  if (!Array.isArray(POST.blocks)) POST.blocks = [];
+  const tpl = type === 'text' ? { type, md: '' }
+    : type === 'images' || type === 'slider' ? { type, urls: [] }
+    : type === 'compare' ? { type, title_a: '', title_b: '', rows: [] }
+    : { type, title: '', items: [] };
+  POST.blocks.push(tpl);
+  renderPostEditor();
+}
+function delBlock(i) { POST.blocks.splice(i, 1); renderPostEditor(); }
+function mvBlock(i, d) { const j = i + d; if (j < 0 || j >= POST.blocks.length) return; [POST.blocks[i], POST.blocks[j]] = [POST.blocks[j], POST.blocks[i]]; renderPostEditor(); }
+const NL = String.fromCharCode(10);
+function setLines(i, key, val) { POST.blocks[i][key] = val.split(NL).map((s) => s.trim()).filter(Boolean); }
+function setRows(i, val) { POST.blocks[i].rows = val.split(NL).map((s) => s.trim()).filter(Boolean).map((s) => { const p = s.split('|'); return { a: (p[0] || '').trim(), b: (p[1] || '').trim() }; }); }
+function blockHtml(b, i) {
+  let inner = '';
+  if (b.type === 'text') inner = `<textarea class="f" rows="6" placeholder="Markdown: ## titlu, **bold**, - listă" oninput="POST.blocks[${i}].md=this.value">${esc(b.md || '')}</textarea>`;
+  else if (b.type === 'images' || b.type === 'slider') inner = `<label class="f">URL-uri imagini — câte unul pe rând (copiază din Galerie media)</label><textarea class="f" rows="4" oninput="setLines(${i},'urls',this.value)">${esc((b.urls || []).join(NL))}</textarea>`;
+  else if (b.type === 'compare') inner = `
+    <div style="display:flex;gap:10px"><input class="f" placeholder="Titlu coloana A" value="${esc(b.title_a || '')}" oninput="POST.blocks[${i}].title_a=this.value" />
+    <input class="f" placeholder="Titlu coloana B" value="${esc(b.title_b || '')}" oninput="POST.blocks[${i}].title_b=this.value" /></div>
+    <label class="f">Rânduri „A | B" — câte unul pe rând</label><textarea class="f" rows="4" placeholder="Ping-pong și videoproiector | Biliard și cramă" oninput="setRows(${i},this.value)">${esc((b.rows || []).map((r) => r.a + ' | ' + r.b).join(NL))}</textarea>`;
+  else if (b.type === 'checklist') inner = `<input class="f" placeholder="Titlul listei (opțional)" value="${esc(b.title || '')}" oninput="POST.blocks[${i}].title=this.value" />
+    <label class="f">Elemente — câte unul pe rând</label><textarea class="f" rows="4" oninput="setLines(${i},'items',this.value)">${esc((b.items || []).join(NL))}</textarea>`;
+  return `<div class="card" style="padding:14px 16px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="margin-right:auto">${BLOCK_LABELS[b.type] || b.type}</b>
+      <button class="btn s" onclick="mvBlock(${i},-1)" title="Mută sus">↑</button>
+      <button class="btn s" onclick="mvBlock(${i},1)" title="Mută jos">↓</button>
+      <button class="btn d" onclick="delBlock(${i})">×</button></div>
+    ${inner}</div>`;
+}
 function pf(k, label, area, rows) {
   const v = esc(POST[k] || '');
   return `<label class="f">${label}</label>` + (area
@@ -926,7 +960,17 @@ function renderPostEditor() {
       ${pf('slug', 'Slug (URL) — gol = generat din titlu')}
       ${pf('excerpt', 'Rezumat (apare în listă)', true, 2)}
       ${pf('cover', 'Imagine copertă (URL din Galerie media)')}
-      ${pf('body', 'Conținut (Markdown: ## titlu, **bold**, - listă)', true, 14)}
+    </div>
+    <div class="card">
+      <div class="sec-head" style="margin-bottom:10px"><div><h1 style="font-size:18px">Blocuri de conținut</h1>
+        <div class="lead">Articolul se construiește din blocuri; dacă nu adaugi niciunul, se folosește textul simplu de mai jos.</div></div></div>
+      ${(POST.blocks || []).map((b, i) => blockHtml(b, i)).join('')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${Object.entries(BLOCK_LABELS).map(([k, v]) => `<button class="btn s" onclick="addBlock('${k}')">+ ${v}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      ${pf('body', 'Text simplu — folosit DOAR dacă nu există blocuri (Markdown: ## titlu, **bold**, - listă)', true, 10)}
       ${pf('seo_title', 'SEO title (opțional)')}
       ${pf('seo_description', 'SEO description (opțional)', true, 2)}
     </div>

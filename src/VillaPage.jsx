@@ -8,6 +8,7 @@ import {
   Ridge,
   Embers,
   Brand,
+  TreeLoader,
   Footer,
   Fabs,
   useScrolled,
@@ -145,7 +146,8 @@ export const VILLA_CSS = `
 .vg-wrap{position:relative}
 .vg-track{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px;scrollbar-width:none;-ms-overflow-style:none}
 .vg-track::-webkit-scrollbar{display:none}
-.vg-card{flex:0 0 clamp(260px,44%,430px);scroll-snap-align:start}
+.vg-card{flex:0 0 clamp(260px,44%,430px);scroll-snap-align:start;position:relative}
+.vg-card .pic-mob-btn{top:12px;bottom:auto} /* nu peste figcaption-ul editabil */
 .vg-card img,.vg-ph{width:100%;height:290px;object-fit:cover;border-radius:20px;display:block}
 .vg-ph{position:relative;background:linear-gradient(160deg,#1B4033,#0C1F19);overflow:hidden}
 .vg-ph .vg-glow{position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:250px;height:130px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.5),transparent 70%)}
@@ -229,7 +231,15 @@ function Gallery({ title, items, basePath }) {
             {items.map((it, i) => (
               <figure className="vg-card" key={i} data-edit-idx={basePath ? i : undefined}>
                 {it.img ? (
-                  <img src={it.img} alt={it.caption} loading="lazy" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined} />
+                  <>
+                    <picture>
+                      {it.imgMobile ? <source media="(max-width:760px)" srcSet={it.imgMobile} /> : null}
+                      <img src={it.img} alt={it.caption} loading="lazy" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined} />
+                    </picture>
+                    {EDIT_MODE && basePath ? (
+                      <button type="button" className="pic-mob-btn" data-edit-img={`${basePath}.${i}.imgMobile`}>📱 mobil</button>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="vg-ph" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined}>
                     <div className="vg-glow" />
@@ -253,11 +263,7 @@ export default function VillaPage({ villaId }) {
   useReveal();
 
   if (!loaded) {
-    return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#FBF7EF", fontFamily: "sans-serif", color: "#122B22" }}>
-        Se încarcă…
-      </div>
-    );
+    return <TreeLoader label={t("loading")} />;
   }
 
   const villa = (content.villas || []).find((v) => v.id === villaId);
@@ -287,14 +293,18 @@ export default function VillaPage({ villaId }) {
 
       {/* HERO */}
       <section className="vhero">
-        {page.heroImage && <div className="vhero-photo" style={{ backgroundImage: `url(${page.heroImage})` }} />}
+        {page.heroImage && <div className="vhero-photo pic-desk" style={{ backgroundImage: `url(${page.heroImage})` }} />}
+        {(page.heroImageMobile || page.heroImage) && <div className="vhero-photo pic-mob" style={{ backgroundImage: `url(${page.heroImageMobile || page.heroImage})` }} />}
         <div className="vhero-veil" />
         <Embers />
         <div className="ridge ridge-near" style={{ position: "absolute", inset: "auto 0 0 0" }}>
           <Ridge fill="#0C1F19" height={150} />
         </div>
         {EDIT_MODE && (
-          <button type="button" className="hub-imgbtn" data-edit-img={`${sk}.heroImage`}>📷 Imagine de fundal</button>
+          <>
+            <button type="button" className="hub-imgbtn" data-edit-img={`${sk}.heroImage`}>📷 Imagine desktop</button>
+            <button type="button" className="hub-imgbtn mob" data-edit-img={`${sk}.heroImageMobile`}>📱 Imagine mobil</button>
+          </>
         )}
         <div className="wrap vhero-inner">
           <h1>{villa.name}</h1>
@@ -339,7 +349,7 @@ export default function VillaPage({ villaId }) {
                       <span className="fac-ico">{ICONS[FAC_ICON[group.cat]] || ICONS.people}</span>
                       <div>
                         <b data-edit={`${sk}.facilities.${gi}.items.${i}.t`}>{it.t}</b>
-                        {it.s && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}
+                        {(it.s || EDIT_MODE) && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}
                       </div>
                     </div>
                   ))}

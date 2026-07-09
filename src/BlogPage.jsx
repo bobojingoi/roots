@@ -33,16 +33,49 @@ const BLOG_CSS = `
 .post-back{display:inline-flex;align-items:center;gap:8px;margin-top:40px;color:var(--pine);font-weight:700;text-decoration:none}
 .post-back:hover{color:var(--ember)}
 .blog-empty{text-align:center;color:var(--ink-soft);padding:60px 0}
+/* blocuri articol */
+.pb-imgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:26px 0}
+.pb-imgs img{width:100%;height:260px;object-fit:cover;border-radius:16px;display:block}
+.pb-slider{position:relative;margin:26px 0}
+.pb-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:16px;-webkit-overflow-scrolling:touch}
+.pb-track::-webkit-scrollbar{display:none}
+.pb-track img{flex:0 0 88%;height:380px;object-fit:cover;border-radius:16px;scroll-snap-align:center}
+@media(max-width:600px){.pb-track img{height:240px}}
+.pb-arr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;border-radius:50%;border:none;background:rgba(12,31,25,.6);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(6px)}
+.pb-arr.left{left:12px}.pb-arr.right{right:12px}
+.pb-dots{display:flex;gap:6px;justify-content:center;margin-top:12px}
+.pb-dots span{width:7px;height:7px;border-radius:50%;background:rgba(30,42,36,.25)}
+.pb-dots span.on{background:var(--ember)}
+.pb-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 0}
+@media(max-width:600px){.pb-compare{grid-template-columns:1fr}}
+.pb-col{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.pb-col h4{font-family:'Fraunces',serif;font-weight:500;font-size:21px;color:var(--pine);margin-bottom:12px}
+.pb-col ul{list-style:none}
+.pb-col li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14.5px;line-height:1.5}
+.pb-col li:last-child{border-bottom:0}
+.pb-check{background:var(--sand,#F4EDE0);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin:26px 0}
+.pb-check h4{font-family:'Fraunces',serif;font-weight:500;font-size:21px;color:var(--pine);margin-bottom:12px}
+.pb-check ul{list-style:none}
+.pb-check li{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:15px;line-height:1.6}
+.pb-check li .ck{color:#2E7D4F;font-weight:800;flex-shrink:0}
 `;
 
 /* markdown minim: ## titluri, - liste, **bold**, *italic*, [text](url) */
 export function mdToHtml(md) {
   const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // doar http(s) sau căi relative; ghilimelele se codează — altfel un URL cu " ar
+  // putea evada din atributul href și injecta handlere (stored XSS)
+  const safeHref = (u) => (/^(https?:\/\/|\/)/i.test(u) ? u.replace(/"/g, "%22").replace(/'/g, "%27") : null);
   const inline = (t) =>
     t
       .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
       .replace(/\*([^*]+)\*/g, "<i>$1</i>")
-      .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, txt, url) => {
+        const href = safeHref(url);
+        if (!href) return m;
+        const ext = /^https?:/i.test(href);
+        return `<a href="${href}"${ext ? ' target="_blank" rel="noreferrer"' : ""}>${txt}</a>`;
+      });
   const lines = esc(md || "").split(/\r?\n/);
   let html = "", inList = false, para = [];
   const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
@@ -77,6 +110,66 @@ function BlogHeader({ logo }) {
 }
 
 const fmtDate = (d) => new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "long", year: "numeric" });
+
+/* ---- blocurile articolului (text/poze/slider/comparație/checklist) ---- */
+function BlockSlider({ urls }) {
+  const ref = React.useRef(null);
+  const [cur, setCur] = useState(0);
+  // RTL-safe: scrollIntoView + Math.abs (în ebraică scrollLeft e negativ)
+  const go = (n) => {
+    const el = ref.current;
+    if (!el) return;
+    const i = Math.max(0, Math.min(urls.length - 1, n));
+    if (el.children[i]) el.children[i].scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  };
+  const onScroll = () => {
+    const el = ref.current;
+    if (!el || !el.firstChild) return;
+    setCur(Math.round(Math.abs(el.scrollLeft) / Math.max(1, el.firstChild.clientWidth + 12)));
+  };
+  return (
+    <div className="pb-slider">
+      <div className="pb-track" ref={ref} onScroll={onScroll}>
+        {urls.map((u, i) => <img key={i} src={u} alt="" loading="lazy" />)}
+      </div>
+      {urls.length > 1 && (
+        <>
+          <button type="button" className="pb-arr left" onClick={() => go(cur - 1)} aria-label="Înapoi">‹</button>
+          <button type="button" className="pb-arr right" onClick={() => go(cur + 1)} aria-label="Înainte">›</button>
+          <div className="pb-dots" aria-hidden="true">{urls.map((_, i) => <span key={i} className={i === cur ? "on" : ""} />)}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PostBlocks({ blocks }) {
+  return (
+    <>
+      {blocks.map((b, i) => {
+        if (!b || !b.type) return null;
+        if (b.type === "text") return <div key={i} className="post-body" dangerouslySetInnerHTML={{ __html: mdToHtml(b.md || "") }} />;
+        if (b.type === "images") return (
+          <div key={i} className="pb-imgs">{(b.urls || []).map((u, j) => <img key={j} src={u} alt="" loading="lazy" />)}</div>
+        );
+        if (b.type === "slider") return <BlockSlider key={i} urls={b.urls || []} />;
+        if (b.type === "compare") return (
+          <div key={i} className="pb-compare">
+            <div className="pb-col"><h4>{b.title_a}</h4><ul>{(b.rows || []).map((r, j) => <li key={j}>{r.a}</li>)}</ul></div>
+            <div className="pb-col"><h4>{b.title_b}</h4><ul>{(b.rows || []).map((r, j) => <li key={j}>{r.b}</li>)}</ul></div>
+          </div>
+        );
+        if (b.type === "checklist") return (
+          <div key={i} className="pb-check">
+            {b.title ? <h4>{b.title}</h4> : null}
+            <ul>{(b.items || []).map((it, j) => <li key={j}><span className="ck">✓</span>{it}</li>)}</ul>
+          </div>
+        );
+        return null;
+      })}
+    </>
+  );
+}
 
 export function BlogList() {
   const { content } = useHubContent();
@@ -155,7 +248,11 @@ export function BlogPost() {
             {post.cover && <div className="post-hero" style={{ backgroundImage: `url(${post.cover})` }} />}
             <h1>{post.title}</h1>
             <div className="post-meta">{fmtDate(post.published_at)} · Roots Villas</div>
-            <div className="post-body" dangerouslySetInnerHTML={{ __html: mdToHtml(post.body) }} />
+            {Array.isArray(post.blocks) && post.blocks.length ? (
+              <PostBlocks blocks={post.blocks} />
+            ) : (
+              <div className="post-body" dangerouslySetInnerHTML={{ __html: mdToHtml(post.body) }} />
+            )}
             <Link className="post-back" to="/blog">{t("blog_all")}</Link>
           </article>
         )}

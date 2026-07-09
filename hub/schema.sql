@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS posts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_posts_pub ON posts(published_at DESC);
+-- blocuri de conținut (text/poze/slider/comparație/checklist); NULL = doar body markdown
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS blocks JSONB;
 
 -- roluri flexibile (admin/client/orice)
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
