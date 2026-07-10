@@ -648,10 +648,16 @@ app.post('/api/v1/admin/membership/requests/:id/decide', requirePerm('membership
   if (approve) {
     const settings = await membership.getMembershipSettings(pool);
     const pts = reqRow.type === 'photo_tag' ? settings.photo_tag_points : settings.review_points;
-    // idempotent: (type, source_ref=id-ul cererii) e în indexul unic
-    await membership.addPoints(pool, reqRow.account_id, pts, reqRow.type, {
-      sourceRef: reqRow.id, description: reqRow.type === 'photo_tag' ? 'Poză cu #rootsvillas' : 'Review', createdBy: req.user.email,
-    });
+    try {
+      // idempotent: (type, source_ref=id-ul cererii) e în indexul unic
+      await membership.addPoints(pool, reqRow.account_id, pts, reqRow.type, {
+        sourceRef: reqRow.id, description: reqRow.type === 'photo_tag' ? 'Poză cu #rootsvillas' : 'Review', createdBy: req.user.email,
+      });
+    } catch (e) {
+      // punctele n-au intrat → readucem cererea la pending ca adminul să poată reîncerca
+      await pool.query("UPDATE points_requests SET status = 'pending' WHERE id = $1", [reqRow.id]).catch(() => {});
+      throw e;
+    }
   }
   emit('PointsRequestDecided', { approve, by: req.user.email });
   res.json({ ok: true });
@@ -679,11 +685,17 @@ app.post('/api/v1/admin/redemptions/:id/status', requirePerm('membership'), mb(a
   if (!r.rows.length) return res.status(404).json({ error: 'Revendicare inexistentă sau deja procesată' });
   const rd = r.rows[0];
   if (status === 'cancelled') {
-    // refund idempotent (redeem_refund + source_ref în indexul unic) care NU umflă lifetime/tier
-    await membership.addPoints(pool, rd.account_id, rd.points_spent, 'redeem_refund', {
-      sourceRef: rd.id, countsForLifetime: false,
-      description: 'Retur puncte — revendicare anulată', createdBy: req.user.email,
-    });
+    try {
+      // refund idempotent (redeem_refund + source_ref în indexul unic) care NU umflă lifetime/tier
+      await membership.addPoints(pool, rd.account_id, rd.points_spent, 'redeem_refund', {
+        sourceRef: rd.id, countsForLifetime: false,
+        description: 'Retur puncte — revendicare anulată', createdBy: req.user.email,
+      });
+    } catch (e) {
+      // refundul n-a intrat → readucem revendicarea la pending ca adminul să poată reîncerca
+      await pool.query("UPDATE redemptions SET status = 'pending' WHERE id = $1", [rd.id]).catch(() => {});
+      throw e;
+    }
     await pool.query('UPDATE rewards SET stock = stock + 1 WHERE id = $1 AND stock IS NOT NULL', [rd.reward_id]);
   }
   res.json({ ok: true });
