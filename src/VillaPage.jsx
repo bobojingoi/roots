@@ -5,8 +5,8 @@ import { t } from "./i18n.js";
 import {
   CSS,
   ICONS,
+  iconsFor,
   Ridge,
-  Embers,
   Brand,
   NavLogin,
   TreeLoader,
@@ -22,11 +22,11 @@ import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 
 /* stiluri specifice paginii de vilă (peste design system-ul comun) */
 export const VILLA_CSS = `
-/* ---- villa hero ---- */
+/* ---- villa hero: poza curată + gradient negru de jos în sus (fără efecte) ---- */
 .vhero{position:relative;min-height:74vh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
-  background:linear-gradient(180deg,#0B1626 0%,#152B3D 42%,#3D4A56 66%,#8A5A46 88%,#C4713C 100%)}
-.vhero-photo{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.6;mix-blend-mode:luminosity}
-.vhero-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,22,38,.35),rgba(11,22,38,.1) 40%,rgba(12,31,25,.85) 100%)}
+  background:linear-gradient(180deg,#16211C 0%,#0C1F19 100%)} /* fallback când lipsește poza */
+.vhero-photo{position:absolute;inset:0;background-size:cover;background-position:center}
+.vhero-veil{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.28) 34%,rgba(0,0,0,0) 62%)}
 .vhero-inner{position:relative;z-index:3;width:100%;padding-bottom:150px} /* titlul stă mai sus, departe de cardul calendarului; lateralele vin din .wrap */
 @media(max-width:760px){.vhero-inner{padding-bottom:120px}}
 .vhero h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(40px,7vw,80px);line-height:1.02;letter-spacing:-.02em}
@@ -162,7 +162,7 @@ export const VILLA_CSS = `
 .vg-ph .vg-glow{position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:250px;height:130px;border-radius:50%;background:radial-gradient(ellipse,rgba(240,138,60,.5),transparent 70%)}
 .vg-ph svg{position:absolute;inset:auto 0 0 0;display:block;width:100%}
 .vg-card figcaption{margin-top:14px;font-size:14.5px;font-weight:600;color:var(--ink)}
-.vg-arrow{position:absolute;top:145px;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.16);font-size:22px;color:var(--pine);cursor:pointer;z-index:3;display:grid;place-items:center;transition:transform .2s}
+.vg-arrow{position:absolute;top:200px;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;border:none;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.16);font-size:22px;color:var(--pine);cursor:pointer;z-index:3;display:grid;place-items:center;transition:transform .2s} /* 200px = jumătatea imaginii de 400px — săgețile stau pe mijlocul pozelor */
 .vg-arrow:hover{transform:translateY(-50%) scale(1.08)}
 .vg-arrow.left{left:-12px}.vg-arrow.right{right:-12px}
 @media(max-width:640px){.vg-arrow{display:none}}
@@ -195,13 +195,6 @@ export const VILLA_CSS = `
 .vpol-col li{font-size:14px;line-height:1.5;color:var(--ink-soft);padding:9px 0;border-bottom:1px solid var(--line)}
 .vpol-cta{text-align:center;margin-top:48px}
 `;
-
-const FAC_ICON = {
-  "Spații de dormit": "bed",
-  "Relaxare și exterior": "tub",
-  "Socializare și distracție": "play",
-  "Confort și bucătărie": "fire",
-};
 
 function VHeader({ contact, logo }) {
   const scrolled = useScrolled();
@@ -243,7 +236,8 @@ function Gallery({ title, items: rawItems, basePath }) {
         ) : null}
         <div className="vg-wrap rv rv-d1">
           <button className="vg-arrow left" onClick={() => scroll(-1)} aria-label="Înapoi">‹</button>
-          <div className="vg-track" ref={ref} data-edit-list={basePath || undefined}>
+          {/* data-edit-drag: în editor pozele se reordonează prin drag & drop (HubEditor) */}
+          <div className="vg-track" ref={ref} data-edit-list={basePath || undefined} data-edit-drag={EDIT_MODE && basePath ? "" : undefined}>
             {items.map((it, i) => (
               <figure className="vg-card" key={i} data-edit-idx={basePath ? i : undefined}>
                 {it.img ? (
@@ -257,7 +251,7 @@ function Gallery({ title, items: rawItems, basePath }) {
                     ) : null}
                   </>
                 ) : (
-                  <div className="vg-ph" data-edit-img={basePath ? `${basePath}.${i}.img` : undefined}>
+                  <div className="vg-ph" draggable={EDIT_MODE && basePath ? true : undefined} data-edit-img={basePath ? `${basePath}.${i}.img` : undefined}>
                     <div className="vg-glow" />
                     <Ridge fill="rgba(233,184,114,.18)" height={100} />
                   </div>
@@ -312,10 +306,6 @@ export default function VillaPage({ villaId }) {
         {page.heroImage && <div className="vhero-photo pic-desk" style={{ backgroundImage: `url(${page.heroImage})` }} />}
         {(page.heroImageMobile || page.heroImage) && <div className="vhero-photo pic-mob" style={{ backgroundImage: `url(${page.heroImageMobile || page.heroImage})` }} />}
         <div className="vhero-veil" />
-        <Embers />
-        <div className="ridge ridge-near" style={{ position: "absolute", inset: "auto 0 0 0" }}>
-          <Ridge fill="#0C1F19" height={150} />
-        </div>
         {EDIT_MODE && (
           <>
             <button type="button" className="hub-imgbtn" data-edit-img={`${sk}.heroImage`}>📷 Imagine desktop</button>
@@ -357,9 +347,9 @@ export default function VillaPage({ villaId }) {
               <div className="fac-group rv" key={gi} data-edit-idx={gi}>
                 <h4 className="fac-cat" data-edit={`${sk}.facilities.${gi}.cat`}>{group.cat}</h4>
                 <div className="fac-grid" data-edit-list={`${sk}.facilities.${gi}.items`}>
-                  {group.items.map((it, i) => (
+                  {group.items.map((it, i, all) => (
                     <div className="fac-item" key={i} data-edit-idx={i}>
-                      <span className="fac-ico">{ICONS[FAC_ICON[group.cat]] || ICONS.people}</span>
+                      <span className="fac-ico">{ICONS[iconsFor(all.map((x) => x.t))[i]]}</span>
                       <div>
                         <b data-edit={`${sk}.facilities.${gi}.items.${i}.t`}>{it.t}</b>
                         {(it.s || EDIT_MODE) && <small data-edit={`${sk}.facilities.${gi}.items.${i}.s`}>{it.s}</small>}

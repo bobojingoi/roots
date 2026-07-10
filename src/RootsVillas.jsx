@@ -452,12 +452,19 @@ export async function loadHubRaw() {
 
 /* pentru limbile non-RO, secțiunea tradusă acoperă originalul CÂMP CU CÂMP:
    câmpurile care nu există în traducere (ex. galerii sau imagini adăugate după
-   generarea traducerilor) cad pe valoarea de bază — media nu rămâne „înghețată" */
+   generarea traducerilor) cad pe valoarea de bază — media nu rămâne „înghețată".
+   - array tradus mai SCURT decât baza: elementele de bază în plus se afișează
+     (pozele urcate după traducere nu dispar pe EN/HE/FR)
+   - "" în traducere peste o valoare de bază nevidă = netradus → cade pe bază
+     (seed-urile au lăsat img:"" în galeriile traduse) */
 function deepLang(base, over) {
   if (over === undefined) return base;
+  if (over === "" && typeof base === "string" && base !== "") return base;
   if (Array.isArray(over)) {
     if (!Array.isArray(base)) return over;
-    return over.map((item, i) => deepLang(base[i], item));
+    const out = over.map((item, i) => deepLang(base[i], item));
+    for (let i = over.length; i < base.length; i++) out.push(base[i]);
+    return out;
   }
   if (over && typeof over === "object") {
     const isObj = base && typeof base === "object" && !Array.isArray(base);
@@ -497,8 +504,16 @@ export const ICONS = {
   quiet: <Ic d={<><path d="M4 9v6h3l4 4V5L7 9H4Z" /><path d="M16 9l5 6M21 9l-5 6" /></>} />,
   party: <Ic d={<><path d="M5 21 8.5 9.5 14.5 15.5 3 19" /><path d="M14 3l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6.6-2ZM19.5 9.5l.4 1.4 1.4.4-1.4.4-.4 1.4-.4-1.4-1.4-.4 1.4-.4.4-1.4Z" /></>} />,
   pet: <Ic d={<><circle cx="7" cy="9" r="1.6" /><circle cx="12" cy="7" r="1.6" /><circle cx="17" cy="9" r="1.6" /><path d="M12 12c-2.8 0-5 2.2-4.4 4.6.4 1.6 2 2.4 4.4 2.4s4-.8 4.4-2.4C17 14.2 14.8 12 12 12Z" /></>} />,
-  play: <Ic d={<><path d="M4 18h4l3-9 3 9h4" /><path d="M8 18v2M16 18v2M12 6V4M9.5 6.5 8 5M14.5 6.5 16 5" /></>} />,
+  play: <Ic d={<><path d="M4.5 20 7.5 5M19.5 20 16.5 5M7 5.2h10" /><path d="M10.2 5.2v7M13.8 5.2v7M8.8 12.6h6.4" /></>} />,
   sport: <Ic d={<><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17M3.5 12h17" /><path d="M6 5.5c1.6 1.8 2.6 4 2.6 6.5S7.6 16.7 6 18.5M18 5.5c-1.6 1.8-2.6 4-2.6 6.5s1 4.7 2.6 6.5" /></>} />,
+  game: <Ic d={<><rect x="3.5" y="8" width="17" height="9.5" rx="4.7" /><path d="M8.2 10.8v3.4M6.5 12.5h3.4M15.2 11.4h.01M17.6 13.6h.01" /></>} />,
+  wifi: <Ic d={<><path d="M4 9.5a12.5 12.5 0 0 1 16 0M6.8 12.8a8 8 0 0 1 10.4 0M9.6 16a4 4 0 0 1 4.8 0" /><circle cx="12" cy="18.8" r=".9" /></>} />,
+  tv: <Ic d={<><rect x="3.5" y="5.5" width="17" height="11.5" rx="2" /><path d="M9 20.5h6M12 17v3.5" /></>} />,
+  kitchen: <Ic d={<><path d="M5 11h14v4.5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V11Z" /><path d="M3.5 11h17M12 8.5V7M8.5 8.7 8 7.4M15.5 8.7l.5-1.3" /></>} />,
+  grill: <Ic d={<><path d="M5.5 8a6.5 6.5 0 0 0 13 0h-13Z" /><path d="M7.2 13.5 5.5 19M16.8 13.5 18.5 19M12 14.5V17" /><path d="M8.5 4.5v1M12 4v1M15.5 4.5v1" /></>} />,
+  sauna: <Ic d={<><path d="M4 19h16M6 19v-4.5h8.5a3.5 3.5 0 0 1 3.5 3.5V19" /><path d="M8 9c0-1 .7-1.4.7-2.4M12 9c0-1 .7-1.4.7-2.4M16 9c0-1 .7-1.4.7-2.4" /></>} />,
+  leaf: <Ic d={<><path d="M6 18C6 10.5 11 5.8 19 5.3c.5 8-4.2 13.2-13 12.7Z" /><path d="M6 18c2.8-3.8 5.8-6.4 9.6-8.4" /></>} />,
+  snow: <Ic d={<><path d="M12 4v16M5.1 8l13.8 8M18.9 8 5.1 16" /><path d="M12 4l-1.8 1.8M12 4l1.8 1.8M12 20l-1.8-1.8M12 20l1.8-1.8" /></>} />,
   parking: <Ic d={<><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9.5 16.5V7.5H13a2.7 2.7 0 1 1 0 5.4H9.5" /></>} />,
   pin: <Ic d={<><path d="M12 21s-6.5-5.4-6.5-10.4A6.5 6.5 0 0 1 12 4a6.5 6.5 0 0 1 6.5 6.6C18.5 15.6 12 21 12 21Z" /><circle cx="12" cy="10.5" r="2.3" /></>} />,
   phone: <Ic d={<path d="M5 4h4l1.5 4.5L8 10a13 13 0 0 0 6 6l1.5-2.5L20 15v4a1.5 1.5 0 0 1-1.7 1.5C10.5 19.6 4.4 13.5 3.5 5.7A1.5 1.5 0 0 1 5 4Z" />} />,
@@ -517,8 +532,41 @@ export const ICONS = {
   seo: <Ic size={18} d={<><circle cx="10.5" cy="10.5" r="6" /><path d="m15 15 5.5 5.5" /><path d="M8 10.5h5M10.5 8v5" /></>} />,
 };
 
-const FEATURE_ICON_ORDER = ["people", "key", "bed", "tub", "fire", "play"];
-const COMMON_ICON_ORDER = ["play", "sport", "parking"];
+/* icoana potrivită după conținutul textului (RO/EN/FR + câteva cuvinte HE);
+   fără potrivire → următoarea icoană nefolosită din listă, ca vecinii să difere */
+const ICON_KEYWORDS = [
+  ["bed", /dormit|\bpat\b|paturi|bedroom|chambre|\blit\b|חדר/i],
+  ["sauna", /saun|סאונה/i],
+  ["tub", /ciub[ăa]r|jacuzzi|hot ?tub|baie|bain|băi|ג[׳'′]קוזי|אמבט/i],
+  ["grill", /gr[ăa]tar|grill|bbq|barbecue|גריל/i],
+  ["fire", /\bfoc\b|firepit|[șs]emineu|lemne|\bfeu\b|מדורה/i],
+  ["kitchen", /buc[ăa]t[ăa]r|kitchen|cuisine|espresso|cafea|coffee|מטבח/i],
+  ["wifi", /wi-?fi|internet/i],
+  ["tv", /\btv\b|televizor|proiector|projector|netflix|ecran|écran|מקרן/i],
+  ["play", /joac[ăa]|copii|playground|leag[ăa]n|aire de jeux|enfants|ילדים/i],
+  ["game", /biliard|billard|billiard|ping|play.?station|\bps.?5\b|jocuri|games|jeux|משחק|ביליארד/i],
+  ["sport", /sport|teren|court|baschet|basket|fotbal|volei|ספורט|מגרש/i],
+  ["parking", /parc[aă]|parking|alee|all[ée]e|alley|garaj|garage|חניה/i],
+  ["snow", /aer condi|air.?cond|climatizare/i],
+  ["leaf", /teras[ăa]|gr[ăa]din|curte|garden|terrace|jardin|exterior|חצר/i],
+  ["people", /persoane|oaspe[țt]i|guests|personnes|capacitate|אורחים/i],
+  ["quiet", /lini[șs]te|quiet/i],
+  ["pet", /animale|\bpet\b|c[âa]ine/i],
+  ["key", /check|acces|cheie|self/i],
+];
+// fallback: întâi icoanele generice, cele puternic semantice (pat/ciubăr/foc) la coadă
+const ICON_FALLBACK = ["people", "key", "leaf", "wifi", "tv", "game", "play", "sport", "grill", "kitchen", "sauna", "snow", "parking", "bed", "tub", "fire"];
+export function iconsFor(texts) {
+  const used = new Set();
+  return (texts || []).map((raw) => {
+    const s = String(raw || "");
+    const hit = ICON_KEYWORDS.find(([, re]) => re.test(s));
+    let key = hit && hit[0];
+    if (!key) key = ICON_FALLBACK.find((k) => !used.has(k)) || "people";
+    used.add(key);
+    return key;
+  });
+}
 
 /* ============================ STYLES ============================ */
 export const CSS = `
@@ -716,6 +764,8 @@ section{position:relative}
 .vs-dots span.on{background:var(--gold)}
 .vs-add{position:absolute;bottom:12px;right:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
 .vs-add.multi{bottom:52px;background:#0e5e40}
+.vs-add.top{top:12px;bottom:auto}
+.vs-add.top.multi{top:52px;bottom:auto}
 .pic-mob-btn{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:8px 14px;background:#157a55;color:#fff;font:700 12px 'Manrope',sans-serif;cursor:pointer}
 /* butonul + modalul „Vezi toate pozele" */
 .vcard-photos{position:absolute;bottom:12px;left:12px;z-index:4;border:none;border-radius:100px;padding:9px 16px;background:rgba(12,31,25,.62);backdrop-filter:blur(8px);border:1px solid rgba(233,184,114,.35);color:#fff;font:700 12.5px 'Manrope',sans-serif;cursor:pointer;transition:background .2s}
@@ -1345,8 +1395,16 @@ function VCardSlider({ slides }) {
       </div>
       {slides.length > 1 && (
         <>
-          <button type="button" className="vs-arr left" onClick={(e) => go(e, cur - 1)} aria-label="Înapoi">‹</button>
-          <button type="button" className="vs-arr right" onClick={(e) => go(e, cur + 1)} aria-label="Înainte">›</button>
+          {/* săgețile sunt fixate FIZIC stânga/dreapta; în RTL indexul crește spre stânga */}
+          {(() => {
+            const step = document.documentElement.dir === "rtl" ? -1 : 1;
+            return (
+              <>
+                <button type="button" className="vs-arr left" onClick={(e) => go(e, cur - step)} aria-label="Înapoi">‹</button>
+                <button type="button" className="vs-arr right" onClick={(e) => go(e, cur + step)} aria-label="Înainte">›</button>
+              </>
+            );
+          })()}
           <div className="vs-dots" aria-hidden="true">{slides.map((_, i) => <span key={i} className={i === cur ? "on" : ""} />)}</div>
         </>
       )}
@@ -1459,9 +1517,9 @@ function VillaCard({ villa, delay, contact, idx, page }) {
         <div className="tagline" data-edit={`villas.items.${idx}.tagline`}>{villa.tagline}</div>
         <p className="desc" data-edit={`villas.items.${idx}.description`}>{villa.description}</p>
         <div className="feat-list" data-edit-list={`villas.items.${idx}.features`}>
-          {villa.features.map((f, i) => (
+          {villa.features.map((f, i, all) => (
             <div className="feat" key={i} data-edit-idx={i}>
-              {ICONS[FEATURE_ICON_ORDER[i % FEATURE_ICON_ORDER.length]]}
+              {ICONS[iconsFor(all)[i]]}
               <span data-edit={`villas.items.${idx}.features.${i}`}>{f}</span>
             </div>
           ))}
@@ -1514,6 +1572,13 @@ function Editorial({ editorial }) {
 }
 
 function Common({ common }) {
+  // slider din common.slides [{url, mob}]; imaginea unică veche (common.image)
+  // rămâne primul slide ca să nu „dispară" când se adaugă poze noi
+  const slides = [
+    ...(common.image ? [{ url: common.image, mob: common.imageMobile || "", path: "common.image", mobPath: "common.imageMobile" }] : []),
+    ...(common.slides || []).map((s, i) => ({ url: (s && s.url) || "", mob: (s && s.mob) || "", path: `common.slides.${i}.url`, mobPath: `common.slides.${i}.mob` })),
+  ].filter((s) => s.url && s.url !== "");
+  const pillIcons = iconsFor(common.features);
   return (
     <section id="spatii">
       <div className="common">
@@ -1524,16 +1589,13 @@ function Common({ common }) {
             <p className="lede" data-edit="common.text">{common.text}</p>
             <div className="pill-list" data-edit-list="common.features">
               {common.features.map((f, i) => (
-                <div className="pill" key={i} data-edit-idx={i}>{ICONS[COMMON_ICON_ORDER[i % COMMON_ICON_ORDER.length]]}<span data-edit={`common.features.${i}`}>{f}</span></div>
+                <div className="pill" key={i} data-edit-idx={i}>{ICONS[pillIcons[i]]}<span data-edit={`common.features.${i}`}>{f}</span></div>
               ))}
             </div>
           </div>
-          <div className="common-art rv rv-d1" data-edit-img="common.image" title="Click pentru a alege imaginea (desktop)">
-            {common.image ? (
-              <>
-                <div className="ph pic-desk" style={{ backgroundImage: `url(${common.image})` }} />
-                <div className="ph pic-mob" style={{ backgroundImage: `url(${common.imageMobile || common.image})` }} />
-              </>
+          <div className="common-art rv rv-d1" data-edit-img={!slides.length ? "common.image" : undefined} title={!slides.length && EDIT_MODE ? "Click pentru a alege imaginea (desktop)" : undefined}>
+            {slides.length ? (
+              <VCardSlider slides={slides} />
             ) : (
               <>
                 <div className="sun" />
@@ -1541,8 +1603,12 @@ function Common({ common }) {
                 <div style={{ position: "absolute", inset: "auto 0 60px 0", opacity: .45 }}><Ridge fill="#1B4033" height={130} /></div>
               </>
             )}
-            {EDIT_MODE && common.image && (
-              <button type="button" className="pic-mob-btn" data-edit-img="common.imageMobile" onClick={(e) => e.stopPropagation()}>📱 mobil</button>
+            {EDIT_MODE && (
+              <>
+                {/* sus, ca să nu calce peste punctele sliderului și butonul 📱 de jos */}
+                <button type="button" className="vs-add top" data-edit-img={`common.slides.${(common.slides || []).length}.url`}>＋ foto slider</button>
+                <button type="button" className="vs-add top multi" data-edit-imgs="common.slides" data-edit-imgs-field="url">⬆ mai multe poze</button>
+              </>
             )}
           </div>
         </div>

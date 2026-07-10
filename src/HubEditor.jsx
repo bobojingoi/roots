@@ -55,6 +55,10 @@ body.hub-edit [data-edit]:empty::before{content:"· gol — scrie aici sau lasă
 .hub-picker-grid img{width:100%;height:96px;object-fit:cover;border-radius:10px;cursor:pointer;border:3px solid transparent}
 .hub-picker-grid img:hover{border-color:#157a55}
 body.hub-edit [data-edit-idx]{position:relative}
+/* reordonare prin drag & drop (containerele cu data-edit-drag) —
+   cursor grab doar pe ce chiar pornește drag-ul (imaginea/placeholder-ul) */
+body.hub-edit [data-edit-drag] [data-edit-idx] img,body.hub-edit [data-edit-drag] [draggable="true"]{cursor:grab}
+body.hub-edit [data-edit-drag] .hub-dragover{outline:3px solid #157a55!important;outline-offset:3px;border-radius:12px}
 .hub-delbtn{position:absolute;top:-10px;right:-10px;z-index:50;width:26px;height:26px;border-radius:50%;border:none;
   background:#c0392b;color:#fff;font:700 15px/1 'Manrope',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .hub-delbtn:hover{background:#e74c3c;transform:scale(1.1)}
@@ -147,16 +151,35 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         let o = next[section];
         if (o == null) return prev; // secțiunea trebuie să existe în draft
         // containerele intermediare lipsă se creează (ex. galleryMobile pe secțiuni vechi):
-        // cheia următoare numerică => array, altfel obiect
+        // cheia următoare numerică => array, altfel obiect.
+        // Dacă pe traseu se ADAUGĂ un element de array (ex. „+ foto" pe index nou),
+        // reținem locul, ca traducerile să primească un element gol la aceeași poziție.
+        let append = null; // { upto, index } — array-ul e la keys[1..upto-1], elementul nou la keys[upto]
         for (let i = 1; i < keys.length - 1; i++) {
           const k = keys[i];
-          if (o[k] == null) o[k] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+          if (o[k] == null) {
+            if (!append && Array.isArray(o) && /^\d+$/.test(k) && Number(k) >= o.length) append = { upto: i, index: Number(k) };
+            o[k] = /^\d+$/.test(keys[i + 1]) ? [] : {};
+          }
           o = o[k];
         }
         const last = keys[keys.length - 1];
+        if (!append && Array.isArray(o) && /^\d+$/.test(last) && Number(last) >= o.length) append = { upto: keys.length - 1, index: Number(last) };
         if (String(o[last] ?? "") === value) return prev;
         o[last] = value;
         setDirty((d) => new Set(d).add(section));
+        if (append) {
+          // pe @lang intră "" (element final) sau {} (obiect nou) — pe site cad pe română
+          const filler = append.upto === keys.length - 1 ? "" : {};
+          for (const sect of Object.keys(next).filter((k) => k.startsWith(section + "@"))) {
+            let lo = next[sect];
+            for (let i = 1; i < append.upto && lo != null; i++) lo = lo[keys[i]];
+            if (Array.isArray(lo) && lo.length === append.index) {
+              lo.push(JSON.parse(JSON.stringify(filler)));
+              setDirty((d) => new Set(d).add(sect));
+            }
+          }
+        }
         return next;
       });
     },
@@ -189,26 +212,136 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     return () => clearInterval(iv);
   }, []);
 
-  const arrayOp = useCallback(
-    (path, op, idx) => {
+  /* aplică o mutație pe array-ul de bază de la `path` și, în oglindă, pe
+     variantele de limbă ale secțiunii (villa_redwood@en etc.), ca listele
+     traduse să rămână aliniate index cu index cu originalul.
+     - oglindirea rulează DOAR când array-ul @lang are aceeași lungime cu baza
+       (altfel indicii ar muta alt conținut) — la lungimi diferite limba e sărită
+     - pe @lang elementele noi intră GOALE ("" / {}) — pe site cad pe română
+       prin deepLang, nu clonează traduceri vechi
+     - dirty se marchează numai pe secțiunile chiar modificate */
+  const mutateArray = useCallback(
+    (path, fnBase, fnLang) => {
       setHubRaw((prev) => {
         const next = JSON.parse(JSON.stringify(prev || {}));
         const keys = path.split(".");
-        let o = next[keys[0]];
-        for (let i = 1; i < keys.length; i++) o = o == null ? null : o[keys[i]];
-        if (!Array.isArray(o)) return prev;
-        if (op === "add") {
-          const tpl = o.length ? JSON.parse(JSON.stringify(o[o.length - 1])) : "";
-          o.push(tpl);
-        } else {
-          o.splice(idx, 1);
-        }
+        // pe secțiunea de bază containerele lipsă se creează (ex. common.slides nou)
+        const at = (sect, ensure) => {
+          let o = next[sect];
+          if (o == null) return null;
+          for (let i = 1; i < keys.length; i++) {
+            const k = keys[i];
+            if (o[k] == null) {
+              if (!ensure) return null;
+              o[k] = i === keys.length - 1 ? [] : /^\d+$/.test(keys[i + 1]) ? [] : {};
+            }
+            o = o[k];
+          }
+          return Array.isArray(o) ? o : null;
+        };
+        const base = at(keys[0], true);
+        if (!base) return prev;
+        const baseLenBefore = base.length;
+        if (fnBase(base) === false) return prev;
         setDirty((d) => new Set(d).add(keys[0]));
+        for (const sect of Object.keys(next).filter((k) => k.startsWith(keys[0] + "@"))) {
+          const o = at(sect, false);
+          if (!o || o.length !== baseLenBefore) continue; // desincronizat — nu atingem
+          if ((fnLang || fnBase)(o) !== false) setDirty((d) => new Set(d).add(sect));
+        }
         return next;
       });
     },
     [setHubRaw]
   );
+
+  // element „gol" cu forma template-ului: obiect gol sau string gol
+  const emptyLike = (tpl) => (tpl && typeof tpl === "object" && !Array.isArray(tpl) ? {} : "");
+
+  const arrayOp = useCallback(
+    (path, op, idx) => {
+      if (op === "add") {
+        mutateArray(
+          path,
+          (o) => { o.push(o.length ? JSON.parse(JSON.stringify(o[o.length - 1])) : ""); },
+          (o) => { o.push(emptyLike(o[o.length - 1])); }
+        );
+      } else {
+        mutateArray(path, (o) => {
+          if (idx < 0 || idx >= o.length) return false;
+          o.splice(idx, 1);
+        });
+      }
+    },
+    [mutateArray]
+  );
+
+  /* reordonare drag & drop pe containerele cu data-edit-drag */
+  const arrayMove = useCallback(
+    (path, from, to) => {
+      if (from === to) return;
+      mutateArray(path, (o) => {
+        if (from < 0 || from >= o.length || to < 0 || to >= o.length) return false;
+        o.splice(to, 0, o.splice(from, 1)[0]);
+      });
+    },
+    [mutateArray]
+  );
+
+  useEffect(() => {
+    let drag = null; // { path, from, cont }
+    const clearMarks = () => document.querySelectorAll(".hub-dragover").forEach((el) => el.classList.remove("hub-dragover"));
+    const itemOf = (e) => {
+      const item = e.target && e.target.closest && e.target.closest("[data-edit-idx]");
+      return item && item.closest("[data-edit-drag]") ? item : null;
+    };
+    const onDragStart = (e) => {
+      const item = itemOf(e);
+      if (!item) return;
+      // drag pornit din text editabil = selecție de text, nu reordonare
+      if (e.target.closest && e.target.closest("[data-edit]")) { e.preventDefault(); return; }
+      const cont = item.closest("[data-edit-drag]");
+      drag = { path: cont.getAttribute("data-edit-list"), from: Number(item.getAttribute("data-edit-idx")), cont };
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", ""); } catch { /* IE-ism */ }
+    };
+    const onDragOver = (e) => {
+      if (!drag) return;
+      const item = itemOf(e);
+      if (!item || item.closest("[data-edit-drag]") !== drag.cont) {
+        // cât ține reordonarea, textele editabile nu sunt ținte de drop
+        // (altfel browserul ar insera imaginea/URL-ul în contenteditable)
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "none";
+        return;
+      }
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      clearMarks();
+      item.classList.add("hub-dragover");
+    };
+    const onDrop = (e) => {
+      if (!drag) return;
+      e.preventDefault(); // un drag de reordonare nu are voie să insereze conținut nicăieri
+      const item = itemOf(e);
+      if (item && item.closest("[data-edit-drag]") === drag.cont) {
+        arrayMove(drag.path, drag.from, Number(item.getAttribute("data-edit-idx")));
+      }
+      clearMarks();
+      drag = null;
+    };
+    const onDragEnd = () => { clearMarks(); drag = null; };
+    document.addEventListener("dragstart", onDragStart);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("drop", onDrop);
+    document.addEventListener("dragend", onDragEnd);
+    return () => {
+      document.removeEventListener("dragstart", onDragStart);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("drop", onDrop);
+      document.removeEventListener("dragend", onDragEnd);
+    };
+  }, [arrayMove]);
 
   // la ieșirea din câmp, textul intră în draft
   useEffect(() => {
@@ -323,21 +456,13 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     setStatus(urls.length ? `${urls.length} poze adăugate ✓ — nu uita să publici` : "");
     if (urls.length) {
       const { path, field } = target;
-      setHubRaw((prev) => {
-        const next = JSON.parse(JSON.stringify(prev || {}));
-        const keys = path.split(".");
-        let o = next[keys[0]];
-        if (o == null) return prev;
-        for (let i = 1; i < keys.length; i++) {
-          const k = keys[i];
-          if (o[k] == null) o[k] = i === keys.length - 1 ? [] : /^\d+$/.test(keys[i + 1]) ? [] : {};
-          o = o[k];
-        }
-        if (!Array.isArray(o)) return prev;
-        for (const u of urls) o.push(field ? { [field]: u } : u);
-        setDirty((d) => new Set(d).add(keys[0]));
-        return next;
-      });
+      // pozele intră în secțiunea de bază; traducerile aliniate primesc
+      // elemente goale la aceleași poziții (pe site cad pe română)
+      mutateArray(
+        path,
+        (o) => { for (const u of urls) o.push(field ? { [field]: u } : u); },
+        (o) => { for (let i = 0; i < urls.length; i++) o.push(field ? {} : ""); }
+      );
     }
     setTimeout(() => setStatus(""), 3500);
     setUploading(false);
