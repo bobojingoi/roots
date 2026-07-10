@@ -274,6 +274,7 @@ function renderNav() {
     h += `<button class="nav-i ${TAB === 'discounts' ? 'on' : ''}" onclick="go('discounts')">${ICONS.doc} Reduceri (coduri)</button>`;
   }
   if (can('membership')) h += `<button class="nav-i ${TAB === 'membership' ? 'on' : ''}" onclick="go('membership')">${ICONS.users} Membership</button>`;
+  if (can('smart')) h += `<div class="nav-cap">Smart</div><button class="nav-i ${TAB === 'smart' ? 'on' : ''}" onclick="go('smart')">${ICONS.home} Smart Roots</button>`;
   if (can('sistem')) {
     h += `<div class="nav-cap">Sistem</div>`;
     h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.user} Utilizatori</button>`;
@@ -374,6 +375,7 @@ async function renderMain() {
   if (TAB === 'offers') { renderOffers(); return; }
   if (TAB === 'discounts') { renderDiscounts(); return; }
   if (TAB === 'membership') { renderMembership(); return; }
+  if (TAB === 'smart') { renderSmart(); return; }
   if (TAB === 'noaccess') {
     $('main').innerHTML = '<div class="card">Contul tău nu are acces la nicio zonă din admin. Cere owner-ului să îți aloce permisiuni (Sistem → Roluri &amp; acces).</div>';
     return;
@@ -981,6 +983,185 @@ async function addDiscount() {
 async function toggleDiscount(id, active) { await api('/api/v1/admin/discount-codes/' + id, { method: 'PUT', body: JSON.stringify({ active }) }); renderDiscounts(); }
 async function delDiscount(id) { if (!confirm('Ștergi codul?')) return; await api('/api/v1/admin/discount-codes/' + id, { method: 'DELETE' }); renderDiscounts(); }
 
+/* ============ Smart Roots (gateway Home Assistant) ============ */
+let SM_TAB = 'control';
+const SM_VILLA_LABEL = { redwood: 'Vila Redwood', sequoia: 'Vila Sequoia' };
+const SM_STATE_LABEL = { on: 'Pornit', off: 'Oprit', heat: 'Încălzire', locked: 'Încuiat', unlocked: 'Descuiat', open: 'Deschisă', closed: 'Închisă', unavailable: 'Indisponibil' };
+function smNav() {
+  const tabs = [['control', 'Dispozitive & control'], ...(ME && (ME.role === 'owner' || ME.role === 'admin') ? [['grants', 'Acces oaspeți'], ['instances', 'Instanțe HA']] : [])];
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${tabs.map(([k, l]) =>
+    `<button class="btn ${SM_TAB === k ? 'p' : 's'}" onclick="SM_TAB='${k}';renderSmart()">${l}</button>`).join('')}</div>`;
+}
+function smStateBadge(d) {
+  const on = ['on', 'heat', 'open', 'unlocked'].includes(d.state);
+  const txt = d.type === 'climate' && d.attributes && d.attributes.temperature != null
+    ? `${SM_STATE_LABEL[d.state] || d.state} · setat ${d.attributes.temperature}°C${d.attributes.current_temperature != null ? ` · acum ${d.attributes.current_temperature}°C` : ''}`
+    : d.type === 'sensor'
+      ? `${d.state}${d.attributes && d.attributes.unit_of_measurement ? ' ' + d.attributes.unit_of_measurement : ''}`
+      : SM_STATE_LABEL[d.state] || d.state;
+  return `<span class="badge ${on ? 'pub' : 'mod'}">${esc(txt)}</span>`;
+}
+function smControls(villa, d) {
+  const a = d.actions || [];
+  let h = '';
+  const onish = ['on', 'heat'].includes(d.state);
+  if (a.includes('turn_on') && a.includes('turn_off')) h += `<button class="btn ${onish ? 's' : 'p'}" onclick="smCmd('${villa}','${d.id}','${onish ? 'turn_off' : 'turn_on'}')">${onish ? 'Oprește' : 'Pornește'}</button>`;
+  else if (a.includes('turn_on')) h += `<button class="btn p" onclick="smCmd('${villa}','${d.id}','turn_on')">Pornește</button>`;
+  if (a.includes('set_temperature')) {
+    // atributele HA sunt JSON arbitrar în live — coerciție numerică, nu interpolare brută
+    const rawT = Number(d.attributes && d.attributes.temperature);
+    const cur = Number.isFinite(rawT) ? rawT : 21;
+    h += `<span style="display:inline-flex;gap:6px;align-items:center"><input type="number" step="0.5" min="10" max="30" value="${cur}" id="smt-${d.id}" style="width:74px;padding:8px;border:1px solid var(--line);border-radius:8px" /><button class="btn s" onclick="smCmd('${villa}','${d.id}','set_temperature',document.getElementById('smt-${d.id}').value)">Setează °C</button></span>`;
+  }
+  if (a.includes('lock')) h += `<button class="btn s" onclick="smCmd('${villa}','${d.id}','${d.state === 'locked' ? 'unlock' : 'lock'}')">${d.state === 'locked' ? 'Descuie' : 'Încuie'}</button>`;
+  if (a.includes('open')) h += `<button class="btn ${d.state === 'open' ? 's' : 'p'}" onclick="smCmd('${villa}','${d.id}','${d.state === 'open' ? 'close' : 'open'}')">${d.state === 'open' ? 'Închide' : 'Deschide'}</button>`;
+  return h || '<span class="hint">doar citire</span>';
+}
+async function smCmd(villa, id, action, value) {
+  try {
+    await api(`/api/v1/villas/${villa}/devices/${id}/command`, { method: 'POST', body: JSON.stringify({ action, value }) });
+    toast('Comandă trimisă');
+  } catch (e) { toast(e.message, true); }
+  renderSmart();
+}
+async function renderSmart() {
+  const isAdmin = ME && (ME.role === 'owner' || ME.role === 'admin');
+  if (SM_TAB === 'grants' && isAdmin) { renderSmGrants(); return; }
+  if (SM_TAB === 'instances' && isAdmin) { renderSmInstances(); return; }
+  let dash;
+  try { dash = await api('/api/v1/me/dashboard'); }
+  catch (e) { $('main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
+  const mockNote = `<div class="hint" style="margin-bottom:10px">Instanțele fără Home Assistant conectat rulează în mod DEMO (mock): comenzile schimbă o stare simulată, ca să vezi fluxul cap-coadă. Conectezi HA real din tabul „Instanțe HA".</div>`;
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Smart Roots</h1><div class="lead">Controlul dispozitivelor din vile — prin hub, cu permisiuni pe rol. Fiecare comandă e auditată.</div></div></div>
+    ${smNav()}${mockNote}
+    ${dash.access_code ? `<div class="card" style="margin-bottom:14px"><b>Codul tău de acces:</b> <code style="font-size:18px;letter-spacing:2px">${esc(dash.access_code)}</code><div class="hint">Codul universal pentru ușile vilelor — nu îl da mai departe.</div></div>` : ''}
+    ${dash.villas.map((v) => `
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <b style="font-size:16px">${esc(SM_VILLA_LABEL[v.villa] || v.villa)}</b>
+          ${isAdmin ? `<button class="btn s" onclick="smAddDevice('${v.villa}')">＋ Dispozitiv</button>` : ''}
+        </div>
+        ${v.devices.length ? v.devices.map((d) => `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)">
+            <div style="flex:1;min-width:200px"><b>${esc(d.label)}</b>
+              <div class="hint">${esc(d.type)}${d.entity_id ? ' · ' + esc(d.entity_id) : ''} · ${esc(d.safety_class)}</div></div>
+            ${smStateBadge(d)}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${smControls(v.villa, d)}</div>
+            ${isAdmin ? `<button class="btn s" onclick="smEditDevice('${d.id}')" title="Editează">✎</button>` : ''}
+          </div>`).join('') : '<div class="hint">Niciun dispozitiv încă.</div>'}
+      </div>`).join('')}`;
+}
+const SM_TYPES = ['light', 'hottub', 'climate', 'lock', 'gate', 'sensor'];
+const SM_CLASSES = ['comfort', 'operational', 'restricted'];
+const SM_TYPE_CAPS = { light: ['turn_on', 'turn_off', 'toggle'], hottub: ['turn_on', 'turn_off'], climate: ['turn_on', 'turn_off', 'set_temperature'], lock: ['lock', 'unlock'], gate: ['open', 'close'], sensor: [] };
+async function smAddDevice(villa) {
+  const label = prompt('Eticheta dispozitivului (ex. Lumini terasă):'); if (!label) return;
+  const entity = prompt('entity_id din Home Assistant (ex. light.terasa):'); if (!entity) return;
+  const type = prompt('Tip (' + SM_TYPES.join(' / ') + '):', 'light'); if (!SM_TYPES.includes(type)) return toast('Tip invalid', true);
+  const cls = prompt('Clasa de siguranță (comfort / operational / restricted):', 'comfort'); if (!SM_CLASSES.includes(cls)) return toast('Clasă invalidă', true);
+  try {
+    await api('/api/v1/admin/smart/devices', { method: 'POST', body: JSON.stringify({ villa, label, ha_entity_id: entity, type, safety_class: cls, capabilities: SM_TYPE_CAPS[type] }) });
+    toast('Dispozitiv adăugat'); renderSmart();
+  } catch (e) { toast(e.message, true); }
+}
+async function smEditDevice(id) {
+  const j = await api('/api/v1/admin/smart/devices');
+  const d = j.devices.find((x) => x.id === id); if (!d) return;
+  const label = prompt('Etichetă:', d.label); if (label === null) return;
+  const entity = prompt('entity_id HA:', d.ha_entity_id); if (entity === null) return;
+  const cls = prompt('Clasa de siguranță (comfort / operational / restricted):', d.safety_class); if (!SM_CLASSES.includes(cls)) return toast('Clasă invalidă', true);
+  const active = confirm('Dispozitivul rămâne ACTIV? (Cancel = îl dezactivezi sau îl poți șterge după)');
+  try {
+    await api('/api/v1/admin/smart/devices/' + id, { method: 'PUT', body: JSON.stringify({ label, ha_entity_id: entity, safety_class: cls, active }) });
+    if (!active && confirm('Îl ștergi de tot?')) await api('/api/v1/admin/smart/devices/' + id, { method: 'DELETE' });
+    toast('Salvat'); renderSmart();
+  } catch (e) { toast(e.message, true); }
+}
+async function renderSmGrants() {
+  const j = await api('/api/v1/access/guest');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Acces oaspeți</h1><div class="lead">Magic-link + PIN legate de rezervare — valabile de la check-in (16:00) până la check-out (12:00), apoi expiră singure.</div></div></div>
+    ${smNav()}
+    <div class="card" style="margin-bottom:14px">
+      <b>Emite acces pentru o rezervare</b>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+        <div><label class="f">ID rezervare (Smoobu)</label><input class="f" id="smg-booking" placeholder="ex. 12345678" style="min-width:180px" /></div>
+        <button class="btn p" onclick="smGrantBooking()">Generează link + PIN</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <div><label class="f">Sau manual — vilă</label><select class="f" id="smg-villa"><option value="redwood">Redwood</option><option value="sequoia">Sequoia</option></select></div>
+        <div><label class="f">Nume oaspete</label><input class="f" id="smg-name" /></div>
+        <div><label class="f">De la</label><input class="f" id="smg-from" type="datetime-local" /></div>
+        <div><label class="f">Până la</label><input class="f" id="smg-to" type="datetime-local" /></div>
+        <button class="btn s" onclick="smGrantManual()">Generează manual</button>
+      </div>
+      <div id="smg-out" style="margin-top:10px"></div>
+    </div>
+    ${j.grants.map((g) => `
+      <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;margin-bottom:8px">
+        <div style="flex:1;min-width:220px"><b>${esc(g.guest_name || g.booking_id || 'oaspete')}</b>
+          <div class="hint">${esc(SM_VILLA_LABEL[g.villa] || g.villa)} · ${new Date(g.valid_from).toLocaleString('ro-RO')} → ${new Date(g.valid_to).toLocaleString('ro-RO')} · PIN ${esc(g.pin || '—')} (demo)</div></div>
+        <span class="badge ${g.revoked ? 'mod' : g.active_now ? 'pub' : 'mod'}">${g.revoked ? 'revocat' : g.active_now ? 'activ acum' : 'inactiv'}</span>
+        <button class="btn s" onclick="navigator.clipboard.writeText('${esc(g.link)}');toast('Link copiat')">Copiază link</button>
+        ${!g.revoked ? `<button class="btn d" onclick="smRevoke('${g.id}')">Revocă</button>` : ''}
+      </div>`).join('') || '<div class="card">Niciun grant încă.</div>'}`;
+}
+function smShowGrant(j) {
+  document.getElementById('smg-out').innerHTML =
+    `<div class="hint" style="font-size:14px">Link: <a href="${esc(j.link)}" target="_blank" rel="noopener">${esc(j.link)}</a> — trimite-l oaspetelui.
+     <br>PIN generat: <b>${esc(j.grant.pin)}</b> — ⚠️ DEMO: până la integrarea igloohome, PIN-ul NU deschide ușa (nu-l trimite încă).</div>`;
+}
+async function smGrantBooking() {
+  const bookingId = document.getElementById('smg-booking').value.trim();
+  if (!bookingId) return toast('Scrie ID-ul rezervării', true);
+  try { const j = await api('/api/v1/access/guest', { method: 'POST', body: JSON.stringify({ bookingId }) }); smShowGrant(j); renderSmGrantsSoon(); }
+  catch (e) { toast(e.message, true); }
+}
+async function smGrantManual() {
+  const villa = document.getElementById('smg-villa').value;
+  const guestName = document.getElementById('smg-name').value.trim();
+  const from = document.getElementById('smg-from').value, to = document.getElementById('smg-to').value;
+  if (!from || !to) return toast('Completează intervalul', true);
+  try { const j = await api('/api/v1/access/guest', { method: 'POST', body: JSON.stringify({ villa, guestName, from, to }) }); smShowGrant(j); renderSmGrantsSoon(); }
+  catch (e) { toast(e.message, true); }
+}
+let smgTimer = null;
+function renderSmGrantsSoon() { clearTimeout(smgTimer); smgTimer = setTimeout(renderSmGrants, 2500); }
+async function smRevoke(id) {
+  if (!confirm('Revoci accesul acestui oaspete?')) return;
+  try { await api('/api/v1/access/guest/' + id + '/revoke', { method: 'POST' }); toast('Revocat'); renderSmGrants(); }
+  catch (e) { toast(e.message, true); }
+}
+async function renderSmInstances() {
+  const j = await api('/api/v1/admin/smart/instances');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Instanțe Home Assistant</h1><div class="lead">Câte o instanță HA per vilă. Tokenul NU se introduce aici — se pune în variabila de mediu indicată (Vercel → Settings → Environment Variables), apoi redeploy.</div></div></div>
+    ${smNav()}
+    ${j.instances.map((i) => `
+      <div class="card" style="margin-bottom:14px">
+        <b>${esc(SM_VILLA_LABEL[i.villa] || i.villa)}</b>
+        <span class="badge ${i.status === 'live' ? 'pub' : 'mod'}" style="margin-left:8px">${i.status === 'live' ? 'LIVE' : 'DEMO (mock)'}</span>
+        ${i.token_env ? `<span class="hint" style="margin-left:8px">token env: <code>${esc(i.token_env)}</code> — ${i.token_present ? 'setat ✓' : 'LIPSEȘTE din env'}</span>` : ''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+          <div style="flex:1;min-width:240px"><label class="f">URL de bază (Nabu Casa / tunel)</label><input class="f" id="smi-url-${i.villa}" value="${esc(i.base_url || '')}" placeholder="https://xxxx.ui.nabu.casa" /></div>
+          <div><label class="f">Variabila env cu tokenul</label><input class="f" id="smi-env-${i.villa}" value="${esc(i.token_env || '')}" placeholder="HA_${i.villa.toUpperCase()}_TOKEN" /></div>
+          <div><label class="f">Mod</label><select class="f" id="smi-status-${i.villa}"><option value="mock" ${i.status !== 'live' ? 'selected' : ''}>DEMO (mock)</option><option value="live" ${i.status === 'live' ? 'selected' : ''}>LIVE</option></select></div>
+          <button class="btn p" onclick="smSaveInstance('${i.villa}')">Salvează</button>
+        </div>
+      </div>`).join('')}`;
+}
+async function smSaveInstance(villa) {
+  try {
+    await api('/api/v1/admin/smart/instances/' + villa, { method: 'PUT', body: JSON.stringify({
+      base_url: document.getElementById('smi-url-' + villa).value.trim(),
+      token_env: document.getElementById('smi-env-' + villa).value.trim(),
+      status: document.getElementById('smi-status-' + villa).value,
+    }) });
+    toast('Instanță salvată'); renderSmInstances();
+  } catch (e) { toast(e.message, true); }
+}
+
 /* ============ membership & puncte ============ */
 let MB_TAB = 'settings', MB = {};
 const MB_TABS = [['settings', 'Setări puncte'], ['rewards', 'Recompense'], ['requests', 'Cereri'], ['redemptions', 'Revendicări'], ['accounts', 'Conturi']];
@@ -1223,6 +1404,7 @@ async function renderUsers() {
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
         <div><b>${esc(u.email)}</b><div class="hint" style="margin-top:2px">${esc(u.name || '')}${u.phone ? ' · ' + esc(u.phone) : ''}${u.source ? ' · 📣 ' + esc(u.source) : ''}</div></div>
         <input class="f" style="max-width:150px" value="${esc(u.role)}" list="roleList" onchange="updUser('${u.id}',{role:this.value})" title="rol" />
+        <input class="f" style="max-width:130px" value="${esc(u.access_code || '')}" placeholder="cod acces ușă" onchange="updUser('${u.id}',{access_code:this.value})" title="Codul universal de acces (Smart Roots) — gol = fără cod" />
         <div style="display:flex;gap:8px">
           <button class="btn s" onclick="resetUserPass('${u.id}')">Resetează parola</button>
           <button class="btn d" onclick="delUser('${u.id}','${esc(u.email)}')">Șterge</button>
@@ -1458,10 +1640,11 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
     } catch (e) { SECTIONS = []; }
     // deschide primul tab la care rolul are acces
     if (!can('panou')) {
-      const first = ['continut', 'rezervari', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media'].find(can);
+      const first = ['continut', 'rezervari', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
       TAB = first === 'continut' ? 'sec:' + (SECTIONS[0] ? SECTIONS[0].section_key : 'hero')
         : first === 'rezervari' ? 'bookings' : first === 'clienti' ? 'guests'
         : first === 'recenzii' ? 'greviews' : first === 'blog' ? 'blog'
+        : first === 'oferte' ? 'offers'
         : first === 'media' ? 'media' : first || 'panou';
       if (!first) TAB = 'noaccess';
     }

@@ -7,6 +7,7 @@ import { BlogList, BlogPost } from "./BlogPage.jsx";
 import ReservePage from "./ReservePage.jsx";
 import TextPage from "./TextPage.jsx";
 import AccountPage from "./AccountPage.jsx";
+import SmartPage from "./SmartPage.jsx";
 import CookieBar from "./CookieBar.jsx";
 import { initTracking, trackPageView } from "./tracking.js";
 import { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
@@ -70,7 +71,8 @@ function MarketingTracking() {
     if (first.current) { first.current = false; return; } // prima afișare o trimite init-ul
     trackPageView(pathname);
   }, [pathname]);
-  if (EDIT_MODE || !cfg) return null;
+  // pe pagina magic-link (/smart) nu urmărim nimic — nici bannerul nu are sens acolo
+  if (EDIT_MODE || !cfg || pathname.startsWith("/smart")) return null;
   return <CookieBar cfg={cfg} />;
 }
 
@@ -94,6 +96,7 @@ export default function App() {
         <Route path="/politica-cookies" element={<TextPage sectionKey="legal_cookies" />} />
         <Route path="/termeni-si-conditii" element={<TextPage sectionKey="legal_terms" />} />
         <Route path="/cont" element={<AccountPage />} />
+        <Route path="/smart" element={<SmartPage />} />
         <Route path="*" element={<RootsVillas />} />
       </Routes>
     </>

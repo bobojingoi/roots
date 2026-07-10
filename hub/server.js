@@ -9,6 +9,8 @@ const express = require('express');
 const { pool, initDb } = require('./db');
 const { emit } = require('./events');
 const membership = require('./points');
+const smart = require('./smart');
+const ha = require('./integrations/homeassistant');
 const storage = require('./storage');
 const smoobu = require('./smoobu');
 const {
@@ -34,7 +36,7 @@ app.use((req, res, next) => {
   if (origin && CORS_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Guest-Token');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   }
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -183,11 +185,12 @@ const PERM_AREAS = [
   ['media', 'Galerie media'],
   ['oferte', 'Oferte & Reduceri'],
   ['membership', 'Membership & Puncte'],
+  ['smart', 'Smart Roots (dispozitive)'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
   admin: [...AREA_KEYS],
-  curatenie: ['panou', 'rezervari'],
+  curatenie: ['panou', 'rezervari', 'smart'],
   turist: [],
 };
 let permsCache = null; // { at, value }
@@ -733,6 +736,327 @@ app.post('/api/v1/admin/membership/award-stays', requirePerm('membership'), mb(a
   res.json({ ok: true, ...(await membership.awardStayPoints(pool)) });
 }));
 
+/* ============ SMART ROOTS (gateway Home Assistant, conștient de roluri) ============
+   Principii: hub-ul e singurul client HA; allowlist server-side (hub/smart.js),
+   fail-closed; oaspetele intră cu magic-link (X-Guest-Token) scoped pe vila lui
+   și pe fereastra rezervării; totul se auditează în events_log. */
+const VILLAS = ['redwood', 'sequoia'];
+const validVilla = (v) => VILLAS.includes(String(v || '').toLowerCase());
+
+// rolul Smart al unui utilizator autentificat (staff). Owner/admin = admin;
+// orice alt rol (inclusiv curatenie) DOAR dacă are zona 'smart' bifată în
+// Roluri & acces — debifarea chiar revocă accesul pe API, nu doar tabul.
+async function smartStaffRole(req) {
+  if (!req.user) return null;
+  if (req.user.role === 'owner' || req.user.role === 'admin') return 'admin';
+  if (['turist', 'client'].includes(req.user.role)) return null; // oaspeții intră doar cu magic-link
+  const perms = await getRolePerms();
+  return (perms[req.user.role] || []).includes('smart') ? 'cleaning' : null;
+}
+
+// grant de oaspete valid ACUM — DOAR din header (nu din query, ca tokenul să
+// nu ajungă în logurile de request); rezervările anulate pierd accesul imediat
+async function guestGrant(req) {
+  const token = String(req.headers['x-guest-token'] || '').trim();
+  if (!token || token.length < 20) return null;
+  const r = await pool.query(
+    `SELECT ag.* FROM access_grants ag
+       LEFT JOIN bookings b ON ag.booking_id IS NOT NULL AND b.smoobu_id = ag.booking_id
+      WHERE ag.token = $1 AND NOT ag.revoked AND now() BETWEEN ag.valid_from AND ag.valid_to
+        AND (ag.booking_id IS NULL OR b.id IS NULL OR b.status NOT IN ('cancelled', 'blocked'))`,
+    [token]
+  );
+  return r.rows[0] || null;
+}
+
+// contextul Smart al cererii: { role, villaScope, who, rlKey } — null = fără acces
+async function smartContext(req) {
+  const staff = await smartStaffRole(req);
+  if (staff) return { role: staff, villaScope: null, who: req.user.email, rlKey: 'u:' + req.user.id };
+  const grant = await guestGrant(req);
+  if (grant) return { role: 'guest', villaScope: grant.villa, who: `guest:${grant.guest_name || grant.booking_id || grant.id}`, rlKey: 'g:' + grant.id, grant };
+  return null;
+}
+
+// rate-limit simplu pe comenzi (best-effort per instanță serverless)
+const smartCmdHits = new Map();
+function smartCmdLimited(key) {
+  const now = Date.now();
+  if (smartCmdHits.size > 500) smartCmdHits.clear(); // plasă anti-creștere pe instanțe longevive
+  const h = (smartCmdHits.get(key) || []).filter((t) => now - t < 60e3);
+  h.push(now);
+  smartCmdHits.set(key, h);
+  return h.length > 30;
+}
+
+// dispozitivele vizibile rolului, cu stare live
+app.get('/api/v1/villas/:villa/devices', mb(async (req, res) => {
+  const villa = String(req.params.villa || '').toLowerCase();
+  if (!validVilla(villa)) return res.status(404).json({ error: 'Vilă necunoscută' });
+  const ctx = await smartContext(req);
+  if (!ctx) return res.status(401).json({ error: 'Autentificare necesară' });
+  if (ctx.villaScope && ctx.villaScope !== villa) return res.status(403).json({ error: 'Accesul tău e limitat la vila rezervării' });
+  const r = await pool.query('SELECT * FROM devices WHERE villa = $1 AND active ORDER BY sort, created_at', [villa]);
+  const visible = r.rows.filter((d) => smart.canSee(ctx.role, d));
+  const states = await ha.getStates(pool, villa, visible.map((d) => d.ha_entity_id));
+  res.json({
+    villa,
+    role: ctx.role,
+    devices: visible.map((d) => smart.publicDevice(ctx.role, d, states[d.ha_entity_id])),
+  });
+}));
+
+// comandă către un dispozitiv — verificată, limitată, auditată; refuz = 403
+app.post('/api/v1/villas/:villa/devices/:id/command', mb(async (req, res) => {
+  const villa = String(req.params.villa || '').toLowerCase();
+  if (!validVilla(villa)) return res.status(404).json({ error: 'Vilă necunoscută' });
+  if (!isUuid(req.params.id)) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  const ctx = await smartContext(req);
+  if (!ctx) return res.status(401).json({ error: 'Autentificare necesară' });
+  if (ctx.villaScope && ctx.villaScope !== villa) return res.status(403).json({ error: 'Accesul tău e limitat la vila rezervării' });
+  if (smartCmdLimited(ctx.rlKey)) return res.status(429).json({ error: 'Prea multe comenzi — încearcă peste un minut' });
+  const { action, value } = req.body || {};
+  const d = await pool.query('SELECT * FROM devices WHERE id = $1 AND villa = $2 AND active', [req.params.id, villa]);
+  if (!d.rows.length) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  const device = d.rows[0];
+  const check = smart.checkCommand(ctx.role, device, String(action || ''), value);
+  if (!check.ok) return res.status(403).json({ error: check.error });
+  let result;
+  try {
+    result = await ha.callService(pool, villa, device.ha_entity_id, String(action), check.value);
+  } catch (e) {
+    // detaliul tehnic rămâne în audit + loguri; non-adminul primește mesaj generic
+    console.error('[smart] comandă eșuată:', villa, device.label, action, e.message);
+    await emit('SmartCommandFailed', { villa, device: device.label, action, by: ctx.who, error: e.message });
+    return res.status(502).json({ error: ctx.role === 'admin' ? 'Comanda nu a ajuns la vilă: ' + e.message : 'Vila nu răspunde momentan — mai încearcă o dată.' });
+  }
+  await emit('SmartCommand', { villa, device: device.label, action, value: check.value ?? null, by: ctx.who, role: ctx.role, mode: result.mode });
+  const states = await ha.getStates(pool, villa, [device.ha_entity_id]);
+  res.json({ ok: true, mode: result.mode, device: smart.publicDevice(ctx.role, device, states[device.ha_entity_id]) });
+}));
+
+// sesiunea oaspetelui (pagina /smart de pe site): cine e, până când, ce vede
+app.get('/api/v1/guest/session', mb(async (req, res) => {
+  const grant = await guestGrant(req);
+  if (!grant) return res.status(401).json({ error: 'Link invalid, expirat sau revocat' });
+  const r = await pool.query('SELECT * FROM devices WHERE villa = $1 AND active ORDER BY sort, created_at', [grant.villa]);
+  const visible = r.rows.filter((d) => smart.canSee('guest', d));
+  const states = await ha.getStates(pool, grant.villa, visible.map((d) => d.ha_entity_id));
+  res.json({
+    villa: grant.villa,
+    guest_name: grant.guest_name || '',
+    // PIN-ul NU se trimite încă oaspetelui: e placeholder până la integrarea
+    // igloohome — un PIN care nu deschide ușa ar fi mai rău decât niciunul
+    valid_to: grant.valid_to,
+    devices: visible.map((d) => smart.publicDevice('guest', d, states[d.ha_entity_id])),
+  });
+}));
+
+// dashboard adaptat rolului (staff)
+app.get('/api/v1/me/dashboard', requireAuth, mb(async (req, res) => {
+  const role = await smartStaffRole(req);
+  if (!role) return res.status(403).json({ error: 'Rolul tău nu are acces la Smart Roots' });
+  const out = { role, villas: [] };
+  for (const villa of VILLAS) {
+    const r = await pool.query('SELECT * FROM devices WHERE villa = $1 AND active ORDER BY sort, created_at', [villa]);
+    const visible = r.rows.filter((d) => smart.canSee(role, d));
+    if (!visible.length) { out.villas.push({ villa, devices: [] }); continue; }
+    const states = await ha.getStates(pool, villa, visible.map((d) => d.ha_entity_id));
+    out.villas.push({ villa, devices: visible.map((d) => smart.publicDevice(role, d, states[d.ha_entity_id])) });
+  }
+  if (role === 'cleaning') {
+    const u = await pool.query('SELECT access_code FROM users WHERE id = $1', [req.user.id]);
+    out.access_code = (u.rows[0] && u.rows[0].access_code) || null;
+  }
+  res.json(out);
+}));
+
+/* ---------- admin: instanțe HA + dispozitive + granturi ---------- */
+app.get('/api/v1/admin/smart/instances', requireOwner, mb(async (_req, res) => {
+  const r = await pool.query('SELECT * FROM ha_instances ORDER BY villa');
+  const list = VILLAS.map((villa) => {
+    const row = r.rows.find((x) => x.villa === villa) || { villa, base_url: '', token_env: '', remote_method: 'nabucasa', status: 'mock' };
+    // tokenul NU se întoarce niciodată — doar DACĂ env-ul e setat (și doar HA_*)
+    return { ...row, token_present: Boolean(row.token_env && /^HA_/.test(row.token_env) && process.env[row.token_env]) };
+  });
+  res.json({ instances: list });
+}));
+app.put('/api/v1/admin/smart/instances/:villa', requireOwner, mb(async (req, res) => {
+  const villa = String(req.params.villa || '').toLowerCase();
+  if (!validVilla(villa)) return res.status(404).json({ error: 'Vilă necunoscută' });
+  const b = req.body || {};
+  const status = ['mock', 'live'].includes(b.status) ? b.status : 'mock';
+  // base_url doar https (comenzile pleacă cu Bearer către el); token_env doar
+  // variabile dedicate HA_* — altfel ar fi o primitivă de exfiltrare a env-ului
+  const baseUrl = String(b.base_url || '').trim().replace(/\/+$/, '') || null;
+  if (baseUrl && !/^https:\/\/[a-z0-9.-]+/i.test(baseUrl)) return res.status(400).json({ error: 'URL-ul de bază trebuie să fie https://…' });
+  const tokenEnv = String(b.token_env || '').trim().replace(/[^A-Za-z0-9_]/g, '').toUpperCase() || null;
+  if (tokenEnv && !/^HA_[A-Z0-9_]+$/.test(tokenEnv)) return res.status(400).json({ error: 'Variabila de token trebuie să înceapă cu HA_ (ex. HA_REDWOOD_TOKEN)' });
+  const r = await pool.query(
+    `INSERT INTO ha_instances (villa, base_url, token_env, remote_method, status, updated_at)
+     VALUES ($1,$2,$3,$4,$5,now())
+     ON CONFLICT (villa) DO UPDATE SET base_url=$2, token_env=$3, remote_method=$4, status=$5, updated_at=now()
+     RETURNING *`,
+    [villa, baseUrl, tokenEnv, String(b.remote_method || 'nabucasa').slice(0, 40), status]
+  );
+  await emit('SmartInstanceUpdated', { villa, status, by: req.user.email });
+  const row = r.rows[0];
+  res.json({ ok: true, instance: { ...row, token_present: Boolean(row.token_env && /^HA_/.test(row.token_env) && process.env[row.token_env]) } });
+}));
+
+app.get('/api/v1/admin/smart/devices', requireOwner, mb(async (_req, res) => {
+  const r = await pool.query('SELECT * FROM devices ORDER BY villa, sort, created_at');
+  res.json({ devices: r.rows });
+}));
+const DEVICE_TYPES = ['light', 'hottub', 'climate', 'lock', 'gate', 'sensor'];
+const SAFETY_CLASSES = ['comfort', 'operational', 'restricted'];
+// politica se decide pe `type`, execuția pe domeniul din entity_id — cele două
+// TREBUIE să fie coerente, altfel o greșeală de config ocolește allowlist-ul
+const TYPE_DOMAINS = {
+  light: ['light', 'switch'],
+  hottub: ['switch', 'climate', 'water_heater'],
+  climate: ['climate'],
+  lock: ['lock'],
+  gate: ['cover', 'switch'],
+  sensor: ['sensor', 'binary_sensor'],
+};
+function typeMatchesEntity(type, entityId) {
+  const domain = String(entityId || '').split('.')[0];
+  return (TYPE_DOMAINS[type] || []).includes(domain);
+}
+function deviceFields(b) {
+  const caps = Array.isArray(b.capabilities) ? b.capabilities.map(String).slice(0, 12) : null;
+  return {
+    label: b.label != null ? String(b.label).trim().slice(0, 80) : null,
+    ha_entity_id: b.ha_entity_id != null ? String(b.ha_entity_id).trim().slice(0, 120) : null,
+    type: DEVICE_TYPES.includes(b.type) ? b.type : null,
+    safety_class: SAFETY_CLASSES.includes(b.safety_class) ? b.safety_class : null,
+    capabilities: caps,
+    sort: Number.isFinite(Number(b.sort)) ? Math.round(Number(b.sort)) : null,
+    active: typeof b.active === 'boolean' ? b.active : null,
+  };
+}
+app.post('/api/v1/admin/smart/devices', requireOwner, mb(async (req, res) => {
+  const b = req.body || {};
+  const villa = String(b.villa || '').toLowerCase();
+  if (!validVilla(villa)) return res.status(400).json({ error: 'Vilă necunoscută' });
+  const f = deviceFields(b);
+  if (!f.label || !f.ha_entity_id || !f.type) return res.status(400).json({ error: 'Etichetă, entity_id și tip obligatorii' });
+  if (!typeMatchesEntity(f.type, f.ha_entity_id)) return res.status(400).json({ error: `Tipul „${f.type}" nu se potrivește cu domeniul entity_id-ului (așteptat: ${TYPE_DOMAINS[f.type].join(' / ')}.…)` });
+  try {
+    const r = await pool.query(
+      `INSERT INTO devices (villa, ha_entity_id, type, label, capabilities, safety_class, sort)
+       VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7,0)) RETURNING *`,
+      [villa, f.ha_entity_id, f.type, f.label, JSON.stringify(f.capabilities || []), f.safety_class || 'comfort', f.sort]
+    );
+    await emit('SmartDeviceAdded', { villa, label: f.label, by: req.user.email });
+    res.json({ ok: true, device: r.rows[0] });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Există deja un dispozitiv cu acest entity_id la vila asta' });
+    throw e;
+  }
+}));
+app.put('/api/v1/admin/smart/devices/:id', requireOwner, mb(async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  const f = deviceFields(req.body || {});
+  const cur = await pool.query('SELECT type, ha_entity_id FROM devices WHERE id = $1', [req.params.id]);
+  if (!cur.rows.length) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  // perechea REZULTATĂ (după COALESCE) trebuie să rămână coerentă tip↔domeniu
+  const nextType = f.type || cur.rows[0].type;
+  const nextEntity = f.ha_entity_id || cur.rows[0].ha_entity_id;
+  if (!typeMatchesEntity(nextType, nextEntity)) return res.status(400).json({ error: `Tipul „${nextType}" nu se potrivește cu domeniul entity_id-ului (așteptat: ${(TYPE_DOMAINS[nextType] || []).join(' / ')}.…)` });
+  let r;
+  try {
+    r = await pool.query(
+      `UPDATE devices SET label=COALESCE($2,label), ha_entity_id=COALESCE($3,ha_entity_id), type=COALESCE($4,type),
+         safety_class=COALESCE($5,safety_class), capabilities=COALESCE($6,capabilities),
+         sort=COALESCE($7,sort), active=COALESCE($8,active)
+       WHERE id=$1 RETURNING *`,
+      [req.params.id, f.label, f.ha_entity_id, f.type, f.safety_class,
+       f.capabilities ? JSON.stringify(f.capabilities) : null, f.sort, f.active]
+    );
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Există deja un dispozitiv cu acest entity_id la vila asta' });
+    throw e;
+  }
+  if (!r.rows.length) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  await emit('SmartDeviceUpdated', { label: r.rows[0].label, by: req.user.email });
+  res.json({ ok: true, device: r.rows[0] });
+}));
+app.delete('/api/v1/admin/smart/devices/:id', requireOwner, mb(async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(404).json({ error: 'Dispozitiv inexistent' });
+  const r = await pool.query('DELETE FROM devices WHERE id = $1 RETURNING label', [req.params.id]);
+  if (r.rows.length) await emit('SmartDeviceDeleted', { label: r.rows[0].label, by: req.user.email });
+  res.json({ ok: true });
+}));
+
+/* granturi de oaspete: legate de o rezervare (fereastra 16:00 → 12:00,
+   Europe/Bucharest) sau manuale (interval explicit) */
+const SMART_LINK_BASE = (process.env.SITE_URL || 'https://roots-opal.vercel.app').replace(/\/+$/, '');
+function villaFromBookingName(name) {
+  if (/redwood/i.test(name || '')) return 'redwood';
+  if (/sequoia/i.test(name || '')) return 'sequoia';
+  return null;
+}
+app.post('/api/v1/access/guest', requireOwner, mb(async (req, res) => {
+  const b = req.body || {};
+  let villa, from, to, guestName, bookingId = null;
+  if (b.bookingId) {
+    const r = await pool.query(
+      `SELECT b.*, g.name AS guest_name,
+              ((b.arrival::text || ' 16:00')::timestamp AT TIME ZONE 'Europe/Bucharest') AS vfrom,
+              ((b.departure::text || ' 12:00')::timestamp AT TIME ZONE 'Europe/Bucharest') AS vto
+         FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
+        WHERE b.smoobu_id = $1 OR b.id::text = $1`,
+      [String(b.bookingId).trim()]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Rezervarea nu există în CRM (rulează sync Smoobu)' });
+    const bk = r.rows[0];
+    if (['cancelled', 'blocked'].includes(bk.status)) return res.status(400).json({ error: 'Rezervarea e anulată' });
+    villa = villaFromBookingName(bk.villa);
+    if (!villa) return res.status(400).json({ error: 'Nu recunosc vila rezervării: ' + bk.villa });
+    from = bk.vfrom; to = bk.vto; guestName = bk.guest_name || ''; bookingId = String(bk.smoobu_id || bk.id);
+  } else {
+    villa = String(b.villa || '').toLowerCase();
+    if (!validVilla(villa)) return res.status(400).json({ error: 'Vilă necunoscută' });
+    // datetime-local vine FĂRĂ timezone — îl interpretăm ca oră a României
+    // (new Date() l-ar citi ca UTC pe Vercel → fereastră decalată cu 2-3h)
+    const naive = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+    if (!naive.test(String(b.from || '')) || !naive.test(String(b.to || ''))) return res.status(400).json({ error: 'Interval invalid' });
+    const tz = await pool.query(
+      `SELECT ($1::timestamp AT TIME ZONE 'Europe/Bucharest') AS f,
+              ($2::timestamp AT TIME ZONE 'Europe/Bucharest') AS t`,
+      [String(b.from).slice(0, 16), String(b.to).slice(0, 16)]
+    );
+    from = tz.rows[0].f; to = tz.rows[0].t;
+    if (!(new Date(from) < new Date(to))) return res.status(400).json({ error: 'Interval invalid' });
+    guestName = String(b.guestName || '').trim().slice(0, 120);
+  }
+  const token = crypto.randomBytes(24).toString('base64url');
+  const pin = String(crypto.randomInt(100000, 1000000)); // PIN igloohome — placeholder până la integrarea reală
+  const r2 = await pool.query(
+    `INSERT INTO access_grants (booking_id, villa, guest_name, token, pin, valid_from, valid_to, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [bookingId, villa, guestName, token, pin, from, to, req.user.email]
+  );
+  await emit('SmartGrantCreated', { villa, guest: guestName, booking: bookingId, by: req.user.email });
+  res.json({ ok: true, grant: r2.rows[0], link: `${SMART_LINK_BASE}/smart?g=${token}` });
+}));
+app.get('/api/v1/access/guest', requireOwner, mb(async (_req, res) => {
+  const r = await pool.query(
+    `SELECT *, (NOT revoked AND now() BETWEEN valid_from AND valid_to) AS active_now
+       FROM access_grants ORDER BY created_at DESC LIMIT 100`
+  );
+  res.json({ grants: r.rows.map((g) => ({ ...g, link: `${SMART_LINK_BASE}/smart?g=${g.token}` })) });
+}));
+app.post('/api/v1/access/guest/:id/revoke', requireOwner, mb(async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(404).json({ error: 'Grant inexistent' });
+  const r = await pool.query('UPDATE access_grants SET revoked = true WHERE id = $1 RETURNING villa, guest_name', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Grant inexistent' });
+  await emit('SmartGrantRevoked', { villa: r.rows[0].villa, guest: r.rows[0].guest_name, by: req.user.email });
+  res.json({ ok: true });
+}));
+
 /* contul clientului: datele lui + rezervările legate de emailul lui */
 app.get('/api/v1/my-account', requireAuth, async (req, res) => {
   const u = await pool.query('SELECT name, email, role, discount_code FROM users WHERE id = $1', [req.user.id]);
@@ -911,7 +1235,7 @@ app.delete('/api/v1/media/:id', requireOwner, async (req, res) => {
 
 /* ============ UTILIZATORI (owner/admin) ============ */
 app.get('/api/v1/admin/users', requireOwner, async (_req, res) => {
-  const r = await pool.query('SELECT id, email, name, role, phone, source, created_at FROM users ORDER BY created_at');
+  const r = await pool.query('SELECT id, email, name, role, phone, source, access_code, created_at FROM users ORDER BY created_at');
   res.json({ users: r.rows });
 });
 app.post('/api/v1/admin/users', requireOwner, async (req, res) => {
@@ -933,9 +1257,14 @@ app.patch('/api/v1/admin/users/:id', requireOwner, async (req, res) => {
   const { name, role, password } = req.body || {};
   const cleanRole = role ? String(role).toLowerCase().trim().replace(/[^a-z0-9_-]/g, '') : null;
   const hash = password ? await hashPassword(password) : null;
+  // codul universal de acces (Smart Roots) — fix per persoană, editabil/revocabil de owner
+  const hasCode = Object.prototype.hasOwnProperty.call(req.body || {}, 'access_code');
+  const accessCode = hasCode ? String(req.body.access_code || '').trim().slice(0, 20) || null : null;
   const r = await pool.query(
-    'UPDATE users SET name = COALESCE($2, name), role = COALESCE($3, role), password_hash = COALESCE($4, password_hash) WHERE id = $1 RETURNING id, email, name, role',
-    [req.params.id, name || null, cleanRole, hash]
+    `UPDATE users SET name = COALESCE($2, name), role = COALESCE($3, role), password_hash = COALESCE($4, password_hash),
+       access_code = CASE WHEN $6 THEN $5 ELSE access_code END
+     WHERE id = $1 RETURNING id, email, name, role, access_code`,
+    [req.params.id, name || null, cleanRole, hash, accessCode, hasCode]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Utilizator inexistent' });
   emit('UserUpdated', { email: r.rows[0].email, by: req.user.email });

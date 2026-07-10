@@ -11,6 +11,7 @@
     "seed:tracking": "node seed-tracking.js",
     "seed:extra-reviews": "node seed-extra-reviews.js",
     "seed:brasov-post": "node seed-brasov-post.js",
+    "seed:smart": "node seed-smart.js",
     "test:points": "node test-points.js"
   },
   "engines": { "node": ">=20" },

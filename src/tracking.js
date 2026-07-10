@@ -25,10 +25,18 @@ function inject(src) {
   document.head.appendChild(s);
 }
 
+/* Pagina /smart e magic-link (token în URL) — nu trimitem NIMIC către terți
+   de pe ea, ca URL-ul cu token să nu ajungă la GA/Meta/TikTok. */
+function onSmartPage() {
+  // startsWith: și "/smart/" (trailing slash) e tot pagina magic-link
+  try { return window.location.pathname.startsWith("/smart"); } catch { return false; }
+}
+
 /* Pornește platformele configurate. Idempotent; rulează doar cu consimțământ. */
 export function initTracking(cfg) {
   if (cfg) CFG = cfg;
   if (loaded || !CFG) return;
+  if (onSmartPage()) return;
   if (getConsent() !== "yes") return;
   const ga4 = (CFG.ga4 || "").trim();
   const metaPixel = (CFG.metaPixel || "").trim();
@@ -78,7 +86,7 @@ export function initTracking(cfg) {
 
 /* Page view la schimbarea rutei în SPA (prima afișare o trimit config/init). */
 export function trackPageView(path) {
-  if (!loaded) return;
+  if (!loaded || onSmartPage()) return;
   try {
     if (window.gtag) window.gtag("event", "page_view", { page_path: path, page_location: window.location.href, page_title: document.title });
     if (window.fbq) window.fbq("track", "PageView");

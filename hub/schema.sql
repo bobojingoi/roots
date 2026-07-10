@@ -216,6 +216,47 @@ CREATE TABLE IF NOT EXISTS points_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ================= SMART ROOTS (gateway Home Assistant) =================
+-- o instanță HA per vilă; tokenul NU stă în DB, ci în env (token_env = numele variabilei)
+CREATE TABLE IF NOT EXISTS ha_instances (
+  villa TEXT PRIMARY KEY,               -- redwood | sequoia
+  base_url TEXT,                        -- https://xxxx.ui.nabu.casa (fără / final)
+  token_env TEXT,                       -- ex. HA_REDWOOD_TOKEN
+  remote_method TEXT NOT NULL DEFAULT 'nabucasa',
+  status TEXT NOT NULL DEFAULT 'mock',  -- mock | live
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- dispozitivele expuse prin hub (entity_id-urile HA, editabile din admin)
+CREATE TABLE IF NOT EXISTS devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  villa TEXT NOT NULL,
+  ha_entity_id TEXT NOT NULL,
+  type TEXT NOT NULL,                   -- light | hottub | climate | lock | gate | sensor
+  label TEXT NOT NULL,
+  capabilities JSONB NOT NULL DEFAULT '[]'::jsonb,  -- acțiunile suportate fizic
+  safety_class TEXT NOT NULL DEFAULT 'comfort',     -- comfort | operational | restricted
+  sort INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (villa, ha_entity_id)
+);
+-- acces oaspeți: magic-link legat de rezervare, valabil doar în fereastra șederii
+CREATE TABLE IF NOT EXISTS access_grants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id TEXT,
+  villa TEXT NOT NULL,
+  guest_name TEXT,
+  token TEXT UNIQUE NOT NULL,
+  pin TEXT,
+  valid_from TIMESTAMPTZ NOT NULL,
+  valid_to TIMESTAMPTZ NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT false,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- codul universal de acces al personalului (fix per persoană, revocabil)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS access_code TEXT;
+
 -- heatmap: click-uri anonime de pe site (fără date personale)
 CREATE TABLE IF NOT EXISTS page_events (
   id BIGSERIAL PRIMARY KEY,
