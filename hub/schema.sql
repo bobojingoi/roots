@@ -172,7 +172,17 @@ CREATE TABLE IF NOT EXISTS points_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_ptx_account ON points_transactions(account_id, created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ptx_unique_source ON points_transactions(type, source_ref) WHERE source_ref IS NOT NULL AND type IN ('spend_reservation','referral_bonus_new');
+-- idempotență pe TOATE tipurile cu sursă unică (v2 înlocuiește indexul inițial)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ptx_unique_source_v2 ON points_transactions(type, source_ref)
+  WHERE source_ref IS NOT NULL AND type IN ('spend_reservation','referral_bonus_new','referral_bonus_inviter','photo_tag','review','redeem_refund');
+DROP INDEX IF EXISTS idx_ptx_unique_source;
+-- plasă de siguranță: balanța nu poate deveni negativă (ne-fatal la bootstrap)
+DO $$ BEGIN
+  ALTER TABLE membership_accounts ADD CONSTRAINT chk_mb_balance_nonneg CHECK (points_balance >= 0);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN check_violation THEN RAISE WARNING 'chk_mb_balance_nonneg omis: există balanțe negative — de corectat manual';
+END $$;
 -- catalog de recompense (cazare / cramă)
 CREATE TABLE IF NOT EXISTS rewards (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

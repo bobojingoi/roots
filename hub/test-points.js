@@ -1,6 +1,6 @@
 // test-points.js — testele regulilor de calcul membership (rulare: npm run test:points)
 const assert = require('assert');
-const { pointsForSpend, tierFor, tierProgress, DEFAULT_MEMBERSHIP, genReferralCode } = require('./points');
+const { pointsForSpend, tierFor, tierProgress, DEFAULT_MEMBERSHIP, genReferralCode, genVoucherCode } = require('./points');
 
 let passed = 0;
 function t(name, fn) {
@@ -75,6 +75,12 @@ t('bara de progres: procente și puncte până la următorul tier', () => {
 t('codul de referral are formatul RV-XXXXXX și variază', () => {
   const a = genReferralCode(), b = genReferralCode();
   assert.match(a, /^RV-[A-HJ-NP-Z2-9]{6}$/);
+  assert.notStrictEqual(a, b);
+});
+/* codul de voucher: 8 caractere (entropie mai mare decât referral-ul) */
+t('codul de voucher are formatul RW-XXXXXXXX și variază', () => {
+  const a = genVoucherCode(), b = genVoucherCode();
+  assert.match(a, /^RW-[A-HJ-NP-Z2-9]{8}$/);
   assert.notStrictEqual(a, b);
 });
 

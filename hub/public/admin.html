@@ -204,7 +204,9 @@ async function api(path, opts = {}) {
   if (!r.ok) throw new Error(j.error || 'Eroare');
   return j;
 }
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// linkuri din date de utilizator: doar http(s), altfel nu randăm <a> (anti javascript:)
+const safeHref = (u) => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : null);
 
 /* ============ nav ============ */
 const SITE = location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://roots-opal.vercel.app';
@@ -1055,7 +1057,7 @@ async function renderMembership() {
       ${j.requests.map((q) => `
         <div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap">
           <div style="flex:1;min-width:220px"><b>${esc(q.email)}</b>
-            <div class="hint">${q.type === 'photo_tag' ? '📷 Poză #rootsvillas' : '⭐ Review'}${q.url ? ` · <a href="${esc(q.url)}" target="_blank" rel="noopener">link</a>` : ''}${q.note ? ' · ' + esc(q.note) : ''} · ${new Date(q.created_at).toLocaleDateString('ro-RO')}</div></div>
+            <div class="hint">${q.type === 'photo_tag' ? '📷 Poză #rootsvillas' : '⭐ Review'}${safeHref(q.url) ? ` · <a href="${esc(safeHref(q.url))}" target="_blank" rel="noopener">link</a>` : (q.url ? ' · ' + esc(q.url) : '')}${q.note ? ' · ' + esc(q.note) : ''} · ${new Date(q.created_at).toLocaleDateString('ro-RO')}</div></div>
           <span class="badge ${q.status === 'approved' ? 'pub' : 'mod'}">${q.status}</span>
           ${q.status === 'pending' ? `
             <div style="display:flex;gap:8px">
