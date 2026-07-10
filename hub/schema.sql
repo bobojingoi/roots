@@ -149,6 +149,63 @@ CREATE TABLE IF NOT EXISTS discount_codes (
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_code TEXT;
 
+-- ================= MEMBERSHIP & PUNCTE (Task 3.1) =================
+-- cont de membru 1:1 cu user; tier-ul se DERIVĂ din lifetime_points la citire
+CREATE TABLE IF NOT EXISTS membership_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  points_balance INT NOT NULL DEFAULT 0,
+  lifetime_points INT NOT NULL DEFAULT 0,
+  referral_code TEXT UNIQUE NOT NULL,
+  referred_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- istoricul fiecărei mișcări de puncte
+CREATE TABLE IF NOT EXISTS points_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES membership_accounts(id) ON DELETE CASCADE,
+  amount INT NOT NULL,
+  type TEXT NOT NULL, -- spend_reservation | referral_bonus_new | referral_bonus_inviter | photo_tag | review | redeem | admin_adjust
+  source_ref TEXT,
+  description TEXT,
+  created_by TEXT NOT NULL DEFAULT 'system',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ptx_account ON points_transactions(account_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ptx_unique_source ON points_transactions(type, source_ref) WHERE source_ref IS NOT NULL AND type IN ('spend_reservation','referral_bonus_new');
+-- catalog de recompense (cazare / cramă)
+CREATE TABLE IF NOT EXISTS rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  photo TEXT,
+  category TEXT NOT NULL, -- accommodation | cellar
+  points_cost INT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  stock INT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- revendicări de recompense (voucher)
+CREATE TABLE IF NOT EXISTS redemptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES membership_accounts(id) ON DELETE CASCADE,
+  reward_id UUID NOT NULL REFERENCES rewards(id),
+  points_spent INT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | fulfilled | cancelled
+  code TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- cereri de puncte (poză #rootsvillas / review) validate manual de admin
+CREATE TABLE IF NOT EXISTS points_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES membership_accounts(id) ON DELETE CASCADE,
+  type TEXT NOT NULL, -- photo_tag | review
+  url TEXT,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- heatmap: click-uri anonime de pe site (fără date personale)
 CREATE TABLE IF NOT EXISTS page_events (
   id BIGSERIAL PRIMARY KEY,

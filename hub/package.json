@@ -10,7 +10,8 @@
     "seed:brand": "node seed-brand.js",
     "seed:tracking": "node seed-tracking.js",
     "seed:extra-reviews": "node seed-extra-reviews.js",
-    "seed:brasov-post": "node seed-brasov-post.js"
+    "seed:brasov-post": "node seed-brasov-post.js",
+    "test:points": "node test-points.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {

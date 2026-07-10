@@ -266,11 +266,12 @@ function renderNav() {
   if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
   if (can('blog')) h += `<div class="nav-cap">Blog</div><button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
   if (can('media')) h += `<div class="nav-cap">Bibliotecă</div><button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
+  if (can('oferte') || can('membership')) h += `<div class="nav-cap">Marketing</div>`;
   if (can('oferte')) {
-    h += `<div class="nav-cap">Marketing</div>`;
     h += `<button class="nav-i ${TAB === 'offers' ? 'on' : ''}" onclick="go('offers')">${ICONS.star} Oferte</button>`;
     h += `<button class="nav-i ${TAB === 'discounts' ? 'on' : ''}" onclick="go('discounts')">${ICONS.doc} Reduceri (coduri)</button>`;
   }
+  if (can('membership')) h += `<button class="nav-i ${TAB === 'membership' ? 'on' : ''}" onclick="go('membership')">${ICONS.users} Membership</button>`;
   if (can('sistem')) {
     h += `<div class="nav-cap">Sistem</div>`;
     h += `<button class="nav-i ${TAB === 'users' ? 'on' : ''}" onclick="go('users')">${ICONS.user} Utilizatori</button>`;
@@ -370,6 +371,7 @@ async function renderMain() {
   if (TAB === 'roles') { renderRoles(); return; }
   if (TAB === 'offers') { renderOffers(); return; }
   if (TAB === 'discounts') { renderDiscounts(); return; }
+  if (TAB === 'membership') { renderMembership(); return; }
   if (TAB === 'noaccess') {
     $('main').innerHTML = '<div class="card">Contul tău nu are acces la nicio zonă din admin. Cere owner-ului să îți aloce permisiuni (Sistem → Roluri &amp; acces).</div>';
     return;
@@ -976,6 +978,177 @@ async function addDiscount() {
 }
 async function toggleDiscount(id, active) { await api('/api/v1/admin/discount-codes/' + id, { method: 'PUT', body: JSON.stringify({ active }) }); renderDiscounts(); }
 async function delDiscount(id) { if (!confirm('Ștergi codul?')) return; await api('/api/v1/admin/discount-codes/' + id, { method: 'DELETE' }); renderDiscounts(); }
+
+/* ============ membership & puncte ============ */
+let MB_TAB = 'settings', MB = {};
+const MB_TABS = [['settings', 'Setări puncte'], ['rewards', 'Recompense'], ['requests', 'Cereri'], ['redemptions', 'Revendicări'], ['accounts', 'Conturi']];
+const MB_TIER = { silver: 'Silver', gold: 'Gold', platinum: 'Platinum' };
+function mbNav() {
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+    ${MB_TABS.map(([k, l]) => `<button class="btn ${MB_TAB === k ? 'p' : 's'}" onclick="MB_TAB='${k}';renderMembership()">${l}</button>`).join('')}
+  </div>`;
+}
+async function renderMembership() {
+  if (MB_TAB === 'settings') {
+    const j = await api('/api/v1/admin/membership/settings');
+    MB.settings = j.settings;
+    const s = j.settings;
+    const fld = (k, label, hint) => `<label class="f">${label}</label><input class="f" type="number" value="${s[k]}" oninput="MB.settings['${k}']=this.value" />${hint ? `<div class="hint">${hint}</div>` : ''}`;
+    $('main').innerHTML = `
+      <div class="sec-head"><div><h1>Membership & Puncte</h1><div class="lead">Toate ratele sunt configurabile — se aplică la calculele viitoare, nu retroactiv.</div></div></div>
+      ${mbNav()}
+      <div class="card">
+        ${fld('lei_per_point', 'Câți LEI = 1 punct', `Acum: ${s.lei_per_point} lei = 1 punct (ex. rezervare de 10.000 lei → ${Math.floor(10000 / s.lei_per_point)} puncte)`)}
+        ${fld('referral_points_new', 'Puncte pentru contul NOU creat cu un cod')}
+        ${fld('referral_points_inviter', 'Puncte pentru INVITATOR, per cont nou')}
+        <label class="f" style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          <input type="checkbox" ${s.referral_requires_booking ? 'checked' : ''} onchange="MB.settings.referral_requires_booking=this.checked" style="width:18px;height:18px" />
+          Bonusul invitatorului se acordă doar după PRIMA rezervare a noului cont (anti conturi false)
+        </label>
+        ${fld('photo_tag_points', 'Puncte per poză cu #rootsvillas (validată manual)')}
+        ${fld('review_points', 'Puncte per review (validat manual)')}
+        ${fld('tier_gold', 'Prag GOLD (puncte lifetime)')}
+        ${fld('tier_platinum', 'Prag PLATINUM (puncte lifetime)')}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn p" onclick="mbSaveSettings(this)">Salvează setările</button>
+        <button class="btn s" onclick="mbAwardStays(this)">Acordă punctele sejururilor încheiate acum</button>
+      </div>`;
+    return;
+  }
+  if (MB_TAB === 'rewards') {
+    const j = await api('/api/v1/admin/rewards');
+    MB.rewards = j.rewards;
+    $('main').innerHTML = `
+      <div class="sec-head"><div><h1>Catalog recompense</h1><div class="lead">Se cumpără cu puncte: cazare la Roots sau produse din cramă.</div></div></div>
+      ${mbNav()}
+      <div class="card">
+        <b>Recompensă nouă</b>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">
+          <input class="f" id="rwTitle" placeholder="titlu (ex: O noapte la Roots)" />
+          <select class="f" id="rwCat"><option value="accommodation">Cazare</option><option value="cellar">Cramă</option></select>
+          <input class="f" id="rwCost" type="number" placeholder="cost în puncte" />
+          <input class="f" id="rwStock" type="number" placeholder="stoc (gol = nelimitat)" />
+        </div>
+        <input class="f" id="rwPhoto" placeholder="poză (URL din Galerie media)" style="margin-top:10px" />
+        <textarea class="f" id="rwDesc" rows="2" placeholder="descriere" style="margin-top:10px"></textarea>
+        <button class="btn p" style="margin-top:10px" onclick="mbAddReward()">Adaugă</button>
+      </div>
+      ${MB.rewards.map((r) => `
+        <div class="card" style="display:flex;align-items:center;gap:14px;padding:12px 16px;flex-wrap:wrap">
+          ${r.photo ? `<img src="${esc(r.photo)}" style="width:72px;height:54px;object-fit:cover;border-radius:8px" />` : '<div style="width:72px;height:54px;border-radius:8px;background:#e8ede9"></div>'}
+          <div style="flex:1;min-width:200px"><b>${esc(r.title)}</b>
+            <div class="hint">${r.category === 'cellar' ? '🍷 Cramă' : '🏡 Cazare'} · ${r.points_cost} puncte${r.stock != null ? ' · stoc ' + r.stock : ''}</div></div>
+          <span class="badge ${r.active ? 'pub' : 'mod'}">${r.active ? 'Activ' : 'Oprit'}</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn s" onclick="mbToggleReward('${r.id}', ${r.active ? 'false' : 'true'})">${r.active ? 'Oprește' : 'Activează'}</button>
+            <button class="btn d" onclick="mbDelReward('${r.id}')">Șterge</button>
+          </div>
+        </div>`).join('') || '<div class="card">Nicio recompensă încă.</div>'}`;
+    return;
+  }
+  if (MB_TAB === 'requests') {
+    const j = await api('/api/v1/admin/membership/requests');
+    $('main').innerHTML = `
+      <div class="sec-head"><div><h1>Cereri de puncte</h1><div class="lead">Poze cu #rootsvillas și review-uri — validezi și alimentezi contul cu punctele din setări.</div></div></div>
+      ${mbNav()}
+      ${j.requests.map((q) => `
+        <div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px"><b>${esc(q.email)}</b>
+            <div class="hint">${q.type === 'photo_tag' ? '📷 Poză #rootsvillas' : '⭐ Review'}${q.url ? ` · <a href="${esc(q.url)}" target="_blank" rel="noopener">link</a>` : ''}${q.note ? ' · ' + esc(q.note) : ''} · ${new Date(q.created_at).toLocaleDateString('ro-RO')}</div></div>
+          <span class="badge ${q.status === 'approved' ? 'pub' : 'mod'}">${q.status}</span>
+          ${q.status === 'pending' ? `
+            <div style="display:flex;gap:8px">
+              <button class="btn p" onclick="mbDecide('${q.id}', true)">Acordă puncte</button>
+              <button class="btn d" onclick="mbDecide('${q.id}', false)">Respinge</button>
+            </div>` : ''}
+        </div>`).join('') || '<div class="card">Nicio cerere.</div>'}`;
+    return;
+  }
+  if (MB_TAB === 'redemptions') {
+    const j = await api('/api/v1/admin/redemptions');
+    $('main').innerHTML = `
+      <div class="sec-head"><div><h1>Revendicări</h1><div class="lead">Vouchere generate cu puncte — marchează onorat la livrare; anularea returnează punctele.</div></div></div>
+      ${mbNav()}
+      ${j.redemptions.map((r) => `
+        <div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px"><b>${esc(r.title)}</b> · <span style="letter-spacing:.06em">${esc(r.code)}</span>
+            <div class="hint">${esc(r.email)} · ${r.points_spent} puncte · ${new Date(r.created_at).toLocaleDateString('ro-RO')}</div></div>
+          <span class="badge ${r.status === 'fulfilled' ? 'pub' : 'mod'}">${r.status}</span>
+          ${r.status === 'pending' ? `
+            <div style="display:flex;gap:8px">
+              <button class="btn p" onclick="mbRedeemStatus('${r.id}', 'fulfilled')">Onorat</button>
+              <button class="btn d" onclick="mbRedeemStatus('${r.id}', 'cancelled')">Anulează (retur puncte)</button>
+            </div>` : ''}
+        </div>`).join('') || '<div class="card">Nicio revendicare.</div>'}`;
+    return;
+  }
+  // accounts
+  const j = await api('/api/v1/admin/membership/accounts');
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Conturi de membri</h1><div class="lead">Balanță, tier, cod de referral; ajustare manuală cu motiv.</div></div></div>
+    ${mbNav()}
+    <div class="card">
+      <b>Ajustare manuală</b>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">
+        <input class="f" id="adjEmail" placeholder="email utilizator" />
+        <input class="f" id="adjAmount" type="number" placeholder="puncte (+/−)" />
+        <input class="f" id="adjReason" placeholder="motiv (obligatoriu)" />
+        <button class="btn p" onclick="mbAdjust()">Aplică</button>
+      </div>
+    </div>
+    ${j.accounts.map((a) => `
+      <div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px"><b>${esc(a.email)}</b>
+          <div class="hint">${esc(a.name || '')} · cod ${esc(a.referral_code)}${a.referred_by ? ' · invitat cu ' + esc(a.referred_by) : ''}</div></div>
+        <span class="badge pub">${MB_TIER[a.tier] || a.tier}</span>
+        <div style="text-align:right"><b>${a.points_balance} p</b><div class="hint">lifetime ${a.lifetime_points}</div></div>
+        <button class="btn s" onclick="mbShowTx('${a.id}', '${esc(a.email)}')">Istoric</button>
+      </div>`).join('') || '<div class="card">Niciun membru încă.</div>'}
+    <div class="card vlist" id="mbTx" style="display:none;margin-top:14px"></div>`;
+}
+async function mbSaveSettings(btn) {
+  btn.disabled = true;
+  try { await api('/api/v1/admin/membership/settings', { method: 'PUT', body: JSON.stringify(MB.settings) }); toast('Setări salvate'); renderMembership(); }
+  catch (e) { toast(e.message); }
+  btn.disabled = false;
+}
+async function mbAwardStays(btn) {
+  btn.disabled = true;
+  try { const j = await api('/api/v1/admin/membership/award-stays', { method: 'POST', body: '{}' }); toast(`Verificate: ${j.checked} · acordate: ${j.awarded}`); }
+  catch (e) { toast(e.message); }
+  btn.disabled = false;
+}
+async function mbAddReward() {
+  try {
+    await api('/api/v1/admin/rewards', { method: 'POST', body: JSON.stringify({
+      title: $('rwTitle').value, category: $('rwCat').value, points_cost: $('rwCost').value,
+      stock: $('rwStock').value, photo: $('rwPhoto').value, description: $('rwDesc').value,
+    }) });
+    toast('Recompensă adăugată'); renderMembership();
+  } catch (e) { toast(e.message); }
+}
+async function mbToggleReward(id, active) { await api('/api/v1/admin/rewards/' + id, { method: 'PUT', body: JSON.stringify({ active }) }); renderMembership(); }
+async function mbDelReward(id) { if (!confirm('Ștergi recompensa?')) return; await api('/api/v1/admin/rewards/' + id, { method: 'DELETE' }); renderMembership(); }
+async function mbDecide(id, approve) { try { await api('/api/v1/admin/membership/requests/' + id + '/decide', { method: 'POST', body: JSON.stringify({ approve }) }); toast(approve ? 'Puncte acordate' : 'Respinsă'); renderMembership(); } catch (e) { toast(e.message); } }
+async function mbRedeemStatus(id, status) { try { await api('/api/v1/admin/redemptions/' + id + '/status', { method: 'POST', body: JSON.stringify({ status }) }); toast('Actualizat'); renderMembership(); } catch (e) { toast(e.message); } }
+async function mbAdjust() {
+  try {
+    await api('/api/v1/admin/membership/adjust', { method: 'POST', body: JSON.stringify({ email: $('adjEmail').value, amount: $('adjAmount').value, reason: $('adjReason').value }) });
+    toast('Ajustat'); renderMembership();
+  } catch (e) { toast(e.message); }
+}
+async function mbShowTx(accountId, email) {
+  const j = await api('/api/v1/admin/membership/accounts/' + accountId + '/transactions');
+  const el = $('mbTx');
+  el.style.display = 'block';
+  el.innerHTML = `<b>Istoric — ${esc(email)}</b>` + (j.transactions.map((t2) => `
+    <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #edf0ee;font-size:13.5px">
+      <span>${esc(t2.description || t2.type)}<span class="hint" style="margin-left:8px">${new Date(t2.created_at).toLocaleDateString('ro-RO')}</span></span>
+      <b style="color:${t2.amount > 0 ? '#157a55' : '#c0392b'}">${t2.amount > 0 ? '+' : ''}${t2.amount}</b>
+    </div>`).join('') || '<div class="hint">Nicio tranzacție.</div>');
+  el.scrollIntoView({ behavior: 'smooth' });
+}
 
 /* ============ roluri & acces (doar owner) ============ */
 let ROLES_DATA = null; // { areas: [[cheie, etichetă]], perms: { rol: [chei] } }

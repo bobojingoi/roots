@@ -8,6 +8,7 @@ const express = require('express');
 
 const { pool, initDb } = require('./db');
 const { emit } = require('./events');
+const membership = require('./points');
 const storage = require('./storage');
 const smoobu = require('./smoobu');
 const {
@@ -181,6 +182,7 @@ const PERM_AREAS = [
   ['blog', 'Articole blog'],
   ['media', 'Galerie media'],
   ['oferte', 'Oferte & Reduceri'],
+  ['membership', 'Membership & Puncte'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
@@ -278,6 +280,30 @@ app.post('/api/v1/site-register', async (req, res) => {
     [mail, await hashPassword(password), String(name).trim().slice(0, 120), String(phone || '').trim().slice(0, 40) || null, String(source || '').trim().slice(0, 120) || null]
   );
   const user = r.rows[0];
+
+  // membership: cont de puncte + bonusuri de referral (o singură dată per cont nou)
+  try {
+    const refCode = String((req.body || {}).referralCode || '').trim().toUpperCase() || null;
+    let inviter = null;
+    if (refCode) {
+      const inv = await pool.query('SELECT * FROM membership_accounts WHERE upper(referral_code) = $1', [refCode]);
+      inviter = inv.rows[0] || null;
+    }
+    const acc = await membership.ensureAccount(pool, user.id, inviter ? inviter.referral_code : null);
+    if (inviter && inviter.user_id !== user.id) {
+      const ms = await membership.getMembershipSettings(pool);
+      await membership.addPoints(pool, acc.id, ms.referral_points_new, 'referral_bonus_new', {
+        sourceRef: String(user.id), description: `Bun venit — cod ${inviter.referral_code}`,
+      });
+      if (!ms.referral_requires_booking) {
+        await membership.addPoints(pool, inviter.id, ms.referral_points_inviter, 'referral_bonus_inviter', {
+          sourceRef: String(user.id), description: `Prieten invitat: ${user.email}`,
+        });
+      }
+      emit('ReferralUsed', { code: inviter.referral_code, newUser: user.email });
+    }
+  } catch (e) { /* membership nu blochează înregistrarea */ }
+
   const { signToken } = require('./auth');
   emit('SiteRegister', { email: user.email, source: source || null });
   res.json({
@@ -432,6 +458,200 @@ app.post('/api/v1/my-account/discount', requireAuth, async (req, res) => {
   await pool.query('UPDATE users SET discount_code = $2 WHERE id = $1', [req.user.id, code]);
   emit('DiscountCodeAttached', { code, email: req.user.email });
   res.json({ ok: true, discount: { code, pct: Number(r.rows[0].pct) } });
+});
+
+/* ============ MEMBERSHIP & PUNCTE (Task 3.1) ============ */
+// dashboard-ul membrului: cont + tier + progres + referral + istoric + catalog
+app.get('/api/v1/membership/me', requireAuth, async (req, res) => {
+  const settings = await membership.getMembershipSettings(pool);
+  const acc = await membership.ensureAccount(pool, req.user.id);
+  const progress = membership.tierProgress(acc.lifetime_points, settings);
+  const [tx, rewards, redemptions, referred] = await Promise.all([
+    pool.query('SELECT amount, type, description, created_at FROM points_transactions WHERE account_id = $1 ORDER BY created_at DESC LIMIT 50', [acc.id]),
+    pool.query('SELECT id, title, description, photo, category, points_cost, stock FROM rewards WHERE active ORDER BY category, points_cost'),
+    pool.query('SELECT r.id, r.points_spent, r.status, r.code, r.created_at, w.title FROM redemptions r JOIN rewards w ON w.id = r.reward_id WHERE r.account_id = $1 ORDER BY r.created_at DESC LIMIT 30', [acc.id]),
+    pool.query("SELECT count(*)::int AS n FROM membership_accounts WHERE referred_by = $1", [acc.referral_code]),
+  ]);
+  const inviterPoints = await pool.query(
+    "SELECT COALESCE(sum(amount),0)::int AS p FROM points_transactions WHERE account_id = $1 AND type = 'referral_bonus_inviter'", [acc.id]
+  );
+  res.json({
+    account: {
+      points_balance: acc.points_balance,
+      lifetime_points: acc.lifetime_points,
+      referral_code: acc.referral_code,
+      tier: progress.tier,
+      progress,
+    },
+    thresholds: { gold: settings.tier_gold, platinum: settings.tier_platinum },
+    referral: { invited: referred.rows[0].n, earned: inviterPoints.rows[0].p, points_new: settings.referral_points_new, points_inviter: settings.referral_points_inviter },
+    transactions: tx.rows,
+    rewards: rewards.rows,
+    redemptions: redemptions.rows,
+  });
+});
+// revendicare recompensă: scade punctele imediat, voucher pending
+app.post('/api/v1/membership/redeem', requireAuth, async (req, res) => {
+  const rewardId = String((req.body || {}).reward_id || '');
+  const acc = await membership.ensureAccount(pool, req.user.id);
+  const rw = await pool.query('SELECT * FROM rewards WHERE id = $1 AND active', [rewardId]);
+  if (!rw.rows.length) return res.status(404).json({ error: 'Recompensă inexistentă sau inactivă' });
+  const reward = rw.rows[0];
+  if (reward.stock != null && reward.stock <= 0) return res.status(409).json({ error: 'Stoc epuizat' });
+  if (acc.points_balance < reward.points_cost) return res.status(400).json({ error: 'Puncte insuficiente' });
+  const code = 'RW-' + membership.genReferralCode().slice(3);
+  await membership.addPoints(pool, acc.id, -reward.points_cost, 'redeem', {
+    sourceRef: reward.id, description: `Revendicare: ${reward.title}`, createdBy: req.user.email,
+  });
+  if (reward.stock != null) await pool.query('UPDATE rewards SET stock = stock - 1 WHERE id = $1', [reward.id]);
+  const rd = await pool.query(
+    'INSERT INTO redemptions (account_id, reward_id, points_spent, code) VALUES ($1,$2,$3,$4) RETURNING *',
+    [acc.id, reward.id, reward.points_cost, code]
+  );
+  emit('RewardRedeemed', { reward: reward.title, by: req.user.email });
+  res.json({ ok: true, redemption: rd.rows[0] });
+});
+// cerere de puncte (poză #rootsvillas / review) — validată manual de admin
+app.post('/api/v1/membership/request', requireAuth, async (req, res) => {
+  const type = (req.body || {}).type;
+  if (!['photo_tag', 'review'].includes(type)) return res.status(400).json({ error: 'Tip invalid' });
+  const acc = await membership.ensureAccount(pool, req.user.id);
+  const pending = await pool.query("SELECT count(*)::int AS n FROM points_requests WHERE account_id = $1 AND status = 'pending'", [acc.id]);
+  if (pending.rows[0].n >= 5) return res.status(429).json({ error: 'Ai deja 5 cereri în așteptare.' });
+  const r = await pool.query(
+    'INSERT INTO points_requests (account_id, type, url, note) VALUES ($1,$2,$3,$4) RETURNING *',
+    [acc.id, type, String((req.body || {}).url || '').slice(0, 300) || null, String((req.body || {}).note || '').slice(0, 300) || null]
+  );
+  emit('PointsRequested', { type, by: req.user.email });
+  res.json({ ok: true, request: r.rows[0] });
+});
+// admin: setări
+app.get('/api/v1/admin/membership/settings', requirePerm('membership'), async (_req, res) => {
+  res.json({ settings: await membership.getMembershipSettings(pool) });
+});
+app.put('/api/v1/admin/membership/settings', requirePerm('membership'), async (req, res) => {
+  const settings = await membership.saveMembershipSettings(pool, req.body || {});
+  emit('MembershipSettingsUpdated', { by: req.user.email });
+  res.json({ ok: true, settings });
+});
+// admin: catalog recompense
+app.get('/api/v1/admin/rewards', requirePerm('membership'), async (_req, res) => {
+  const r = await pool.query('SELECT * FROM rewards ORDER BY created_at DESC');
+  res.json({ rewards: r.rows });
+});
+app.post('/api/v1/admin/rewards', requirePerm('membership'), async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.title || '').trim()) return res.status(400).json({ error: 'Titlul e obligatoriu' });
+  if (!['accommodation', 'cellar'].includes(b.category)) return res.status(400).json({ error: 'Categorie invalidă' });
+  const cost = Math.round(Number(b.points_cost));
+  if (!Number.isFinite(cost) || cost < 1) return res.status(400).json({ error: 'Costul în puncte trebuie să fie pozitiv' });
+  const r = await pool.query(
+    `INSERT INTO rewards (title, description, photo, category, points_cost, active, stock)
+     VALUES ($1,$2,$3,$4,$5,COALESCE($6,true),$7) RETURNING *`,
+    [String(b.title).trim().slice(0, 120), b.description || null, b.photo || null, b.category, cost, b.active, b.stock != null && b.stock !== '' ? Math.max(0, Math.round(Number(b.stock))) : null]
+  );
+  res.json({ ok: true, reward: r.rows[0] });
+});
+app.put('/api/v1/admin/rewards/:id', requirePerm('membership'), async (req, res) => {
+  const b = req.body || {};
+  const cost = b.points_cost != null ? Math.round(Number(b.points_cost)) : null;
+  const r = await pool.query(
+    `UPDATE rewards SET title=COALESCE($2,title), description=COALESCE($3,description), photo=COALESCE($4,photo),
+       category=COALESCE($5,category), points_cost=COALESCE($6,points_cost), active=COALESCE($7,active),
+       stock=CASE WHEN $9 THEN $8 ELSE stock END
+     WHERE id=$1 RETURNING *`,
+    [req.params.id, b.title, b.description, b.photo, b.category, Number.isFinite(cost) && cost > 0 ? cost : null, b.active,
+     b.stock != null && b.stock !== '' ? Math.max(0, Math.round(Number(b.stock))) : null,
+     Object.prototype.hasOwnProperty.call(b, 'stock')]
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Recompensă inexistentă' });
+  res.json({ ok: true, reward: r.rows[0] });
+});
+app.delete('/api/v1/admin/rewards/:id', requirePerm('membership'), async (req, res) => {
+  await pool.query('DELETE FROM rewards WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+// admin: cereri poză/review
+app.get('/api/v1/admin/membership/requests', requirePerm('membership'), async (_req, res) => {
+  const r = await pool.query(
+    `SELECT pr.*, u.email, u.name FROM points_requests pr
+     JOIN membership_accounts ma ON ma.id = pr.account_id
+     JOIN users u ON u.id = ma.user_id
+     ORDER BY (pr.status = 'pending') DESC, pr.created_at DESC LIMIT 200`
+  );
+  res.json({ requests: r.rows });
+});
+app.post('/api/v1/admin/membership/requests/:id/decide', requirePerm('membership'), async (req, res) => {
+  const approve = Boolean((req.body || {}).approve);
+  const r = await pool.query("SELECT * FROM points_requests WHERE id = $1 AND status = 'pending'", [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Cerere inexistentă sau deja decisă' });
+  const reqRow = r.rows[0];
+  await pool.query('UPDATE points_requests SET status = $2 WHERE id = $1', [reqRow.id, approve ? 'approved' : 'rejected']);
+  if (approve) {
+    const settings = await membership.getMembershipSettings(pool);
+    const pts = reqRow.type === 'photo_tag' ? settings.photo_tag_points : settings.review_points;
+    await membership.addPoints(pool, reqRow.account_id, pts, reqRow.type, {
+      sourceRef: reqRow.id, description: reqRow.type === 'photo_tag' ? 'Poză cu #rootsvillas' : 'Review', createdBy: req.user.email,
+    });
+  }
+  emit('PointsRequestDecided', { approve, by: req.user.email });
+  res.json({ ok: true });
+});
+// admin: revendicări (onorare / anulare cu retur de puncte)
+app.get('/api/v1/admin/redemptions', requirePerm('membership'), async (_req, res) => {
+  const r = await pool.query(
+    `SELECT rd.*, w.title, u.email FROM redemptions rd
+     JOIN rewards w ON w.id = rd.reward_id
+     JOIN membership_accounts ma ON ma.id = rd.account_id
+     JOIN users u ON u.id = ma.user_id
+     ORDER BY (rd.status = 'pending') DESC, rd.created_at DESC LIMIT 200`
+  );
+  res.json({ redemptions: r.rows });
+});
+app.post('/api/v1/admin/redemptions/:id/status', requirePerm('membership'), async (req, res) => {
+  const status = (req.body || {}).status;
+  if (!['fulfilled', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Status invalid' });
+  const r = await pool.query("SELECT * FROM redemptions WHERE id = $1 AND status = 'pending'", [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Revendicare inexistentă sau deja procesată' });
+  const rd = r.rows[0];
+  await pool.query('UPDATE redemptions SET status = $2 WHERE id = $1', [rd.id, status]);
+  if (status === 'cancelled') {
+    await membership.addPoints(pool, rd.account_id, rd.points_spent, 'admin_adjust', {
+      description: 'Retur puncte — revendicare anulată', createdBy: req.user.email,
+    });
+    await pool.query('UPDATE rewards SET stock = stock + 1 WHERE id = $1 AND stock IS NOT NULL', [rd.reward_id]);
+  }
+  res.json({ ok: true });
+});
+// admin: conturi + ajustare manuală
+app.get('/api/v1/admin/membership/accounts', requirePerm('membership'), async (_req, res) => {
+  const settings = await membership.getMembershipSettings(pool);
+  const r = await pool.query(
+    `SELECT ma.*, u.email, u.name FROM membership_accounts ma JOIN users u ON u.id = ma.user_id
+     ORDER BY ma.lifetime_points DESC LIMIT 500`
+  );
+  res.json({ accounts: r.rows.map((a) => ({ ...a, tier: membership.tierFor(a.lifetime_points, settings) })) });
+});
+app.get('/api/v1/admin/membership/accounts/:id/transactions', requirePerm('membership'), async (req, res) => {
+  const r = await pool.query('SELECT amount, type, description, created_by, created_at FROM points_transactions WHERE account_id = $1 ORDER BY created_at DESC LIMIT 100', [req.params.id]);
+  res.json({ transactions: r.rows });
+});
+app.post('/api/v1/admin/membership/adjust', requirePerm('membership'), async (req, res) => {
+  const b = req.body || {};
+  const amount = Math.round(Number(b.amount));
+  if (!Number.isFinite(amount) || !amount) return res.status(400).json({ error: 'Sumă invalidă' });
+  if (!String(b.reason || '').trim()) return res.status(400).json({ error: 'Motivul e obligatoriu' });
+  const u = await pool.query('SELECT id FROM users WHERE lower(email) = lower($1)', [String(b.email || '')]);
+  if (!u.rows.length) return res.status(404).json({ error: 'Utilizator inexistent' });
+  const acc = await membership.ensureAccount(pool, u.rows[0].id);
+  if (amount < 0 && acc.points_balance + amount < 0) return res.status(400).json({ error: 'Balanța nu poate deveni negativă' });
+  await membership.addPoints(pool, acc.id, amount, 'admin_adjust', { description: String(b.reason).slice(0, 200), createdBy: req.user.email });
+  emit('PointsAdjusted', { email: b.email, amount, by: req.user.email });
+  res.json({ ok: true });
+});
+// admin/cron: acordă punctele din sejururile încheiate (idempotent)
+app.post('/api/v1/admin/membership/award-stays', requirePerm('membership'), async (req, res) => {
+  res.json({ ok: true, ...(await membership.awardStayPoints(pool)) });
 });
 
 /* contul clientului: datele lui + rezervările legate de emailul lui */
@@ -772,7 +992,10 @@ app.post('/api/v1/admin/sync-smoobu', requirePerm('rezervari'), async (req, res)
   try {
     const startPage = Math.max(1, parseInt(req.body && req.body.startPage, 10) || 1);
     const out = await runSmoobuSync(startPage);
-    res.json({ ok: true, ...out });
+    // punctele din sejururile încheiate se acordă după fiecare sync (idempotent)
+    let stays = null;
+    try { stays = await membership.awardStayPoints(pool); } catch (e) { /* nu blocăm sync-ul */ }
+    res.json({ ok: true, ...out, membership: stays });
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
   }
@@ -780,8 +1003,12 @@ app.post('/api/v1/admin/sync-smoobu', requirePerm('rezervari'), async (req, res)
 // cron Vercel (GET, protejat de header-ul x-vercel-cron)
 app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
   if (!req.headers['x-vercel-cron'] && !req.user) return res.status(401).json({ error: 'Doar cron sau autentificat' });
-  try { res.json({ ok: true, ...(await runSmoobuSync(1, 8)) }); }
-  catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+  try {
+    const out = await runSmoobuSync(1, 8);
+    let stays = null;
+    try { stays = await membership.awardStayPoints(pool); } catch (e) { /* nu blocăm cron-ul */ }
+    res.json({ ok: true, ...out, membership: stays });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
 app.get('/api/v1/admin/stats', requirePerm('panou'), async (req, res) => {

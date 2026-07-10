@@ -22,6 +22,54 @@ const ACC_CSS = `
 .acc-code-active{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;background:#e7f5ee;border:1px solid rgba(21,122,85,.3);border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;color:#157a55}
 .acc-code-rm{background:none;border:none;color:#c0392b;font:700 13px 'Manrope',sans-serif;cursor:pointer}
 .acc-code-rm:hover{text-decoration:underline}
+/* ===== membership (stil OMV) ===== */
+.mb-wrap{margin-top:26px}
+.mb-card{background:linear-gradient(145deg,var(--pine,#122B22),#0D1B2A);color:#FBF7EF;border-radius:20px;padding:24px;position:relative;overflow:hidden}
+.mb-card::after{content:"";position:absolute;top:-70px;right:-70px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(233,184,114,.35),transparent 70%)}
+.mb-hello{font-size:15px;font-weight:700;opacity:.9}
+.mb-balance{margin-top:8px;display:flex;align-items:baseline;gap:10px}
+.mb-balance b{font-family:'Fraunces',serif;font-weight:500;font-size:52px;color:#E9B872;line-height:1}
+.mb-balance span{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+.mb-tierline{margin-top:10px;font-size:14px;font-weight:600;opacity:.9}
+.mb-tiers{display:flex;gap:8px;margin-top:14px}
+.mb-tier{flex:1;text-align:center;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:7px 4px;border-radius:100px;border:1.5px solid rgba(255,255,255,.25);color:rgba(255,255,255,.6)}
+.mb-tier.on{background:#E9B872;border-color:#E9B872;color:#122B22}
+.mb-bar{margin-top:12px;height:8px;border-radius:6px;background:rgba(255,255,255,.15);overflow:hidden}
+.mb-bar i{display:block;height:100%;background:linear-gradient(90deg,#E9B872,#E8722C);border-radius:6px;transition:width .6s ease}
+.mb-next{margin-top:8px;font-size:12.5px;font-weight:600;opacity:.75}
+.mb-sec{margin-top:22px}
+.mb-sec>b{display:block;margin-bottom:10px;color:var(--pine)}
+.mb-refrow{display:flex;gap:10px;align-items:center}
+.mb-refrow code{flex:1;background:var(--ivory);border:1.5px dashed rgba(18,43,34,.35);border-radius:12px;padding:12px 16px;font:700 16px monospace;letter-spacing:.12em;color:var(--pine)}
+.mb-refrow button{border:none;border-radius:100px;padding:12px 20px;background:var(--pine);color:#fff;font:700 13.5px 'Manrope',sans-serif;cursor:pointer}
+.mb-earnrow{display:flex;gap:10px;flex-wrap:wrap}
+.mb-earnrow button{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:11px 18px;font:600 13.5px 'Manrope',sans-serif;color:var(--ink);cursor:pointer;transition:border-color .2s}
+.mb-earnrow button:hover{border-color:var(--ember)}
+.mb-msg{margin-top:14px;background:#e7f5ee;border:1px solid rgba(21,122,85,.3);border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;color:#157a55}
+.mb-cats{display:flex;gap:8px;margin-bottom:12px}
+.mb-cats button{border:1.5px solid var(--line);background:#fff;border-radius:100px;padding:8px 16px;font:700 12.5px 'Manrope',sans-serif;color:var(--ink);cursor:pointer}
+.mb-cats button.on{background:var(--ember);border-color:var(--ember);color:#fff}
+.mb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.mb-reward{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.mb-reward img,.mb-ph{width:100%;height:130px;object-fit:cover;background:linear-gradient(150deg,#E8EFE4,#D7E4D2)}
+.mb-rbody{padding:12px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.mb-rbody b{font-size:14.5px;color:var(--pine)}
+.mb-rbody p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;flex:1}
+.mb-rfoot{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.mb-cost{font-weight:800;font-size:13px;color:var(--ember)}
+.mb-rfoot button{border:none;border-radius:100px;padding:8px 16px;background:var(--pine);color:#fff;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.mb-rfoot button:disabled{opacity:.4;cursor:not-allowed}
+.mb-voucher{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+.mb-voucher span{flex:1;min-width:140px}
+.mb-voucher code{font:700 14px monospace;letter-spacing:.08em;color:var(--pine)}
+.mb-voucher em{font-style:normal;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:#FDF3E4;color:#9A6A1C}
+.mb-voucher em.fulfilled{background:#e7f5ee;color:#157a55}
+.mb-voucher em.cancelled{background:#fdeaea;color:#c0392b}
+.mb-tx{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.mb-tx small{display:block;color:var(--ink-soft);margin-top:2px}
+.mb-tx b.plus{color:#157a55}
+.mb-tx b.minus{color:#c0392b}
+body.t-aurora .mb-sec>b,body.t-aurora .mb-rbody b{color:var(--ink)}
 .acc-btn{margin-top:20px;width:100%;padding:13px;border:0;border-radius:99px;background:var(--ember);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .acc-btn:disabled{opacity:.6}
 .acc-err{margin-top:12px;color:#c0392b;font-size:14px}
@@ -65,8 +113,21 @@ export default function AccountPage() {
   const [phone, setPhone] = useState("");
   const [source, setSource] = useState("");
   const [sourceOther, setSourceOther] = useState("");
+  const [refCode, setRefCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  // membership: dashboard-ul cu puncte (stil OMV)
+  const [mb, setMb] = useState(null);
+  const [mbCat, setMbCat] = useState("all");
+  const [copied, setCopied] = useState(false);
+  const [mbMsg, setMbMsg] = useState("");
+  const loadMb = React.useCallback((tok) => {
+    fetch(HUB_URL + "/api/v1/membership/me", { headers: { Authorization: "Bearer " + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setMb)
+      .catch(() => {});
+  }, []);
+  useEffect(() => { if (token && acc) loadMb(token); }, [token, acc, loadMb]);
 
   useEffect(() => { document.title = t("acc_title") + " · ROOTS Villas Brașov"; }, []);
 
@@ -105,7 +166,7 @@ export default function AccountPage() {
       const r = await fetch(HUB_URL + "/api/v1/site-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email, password: pass, phone: phone.trim(), source: src }),
+        body: JSON.stringify({ name: name.trim(), email, password: pass, phone: phone.trim(), source: src, referralCode: refCode.trim() || undefined }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Eroare la crearea contului");
@@ -138,6 +199,40 @@ export default function AccountPage() {
       setCodeInput("");
     } catch (e) { setCodeErr(e.message); }
   }
+
+  async function redeem(rewardId) {
+    setMbMsg("");
+    try {
+      const r = await fetch(HUB_URL + "/api/v1/membership/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ reward_id: rewardId }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Eroare");
+      setMbMsg(t("mb_redeemed", { c: j.redemption.code }));
+      loadMb(token);
+    } catch (e) { setMbMsg(e.message); }
+  }
+  async function mbRequest(type) {
+    const url = window.prompt(t("mb_req_url"));
+    if (url === null) return;
+    setMbMsg("");
+    try {
+      const r = await fetch(HUB_URL + "/api/v1/membership/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ type, url: url.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Eroare");
+      setMbMsg(t("mb_req_sent"));
+    } catch (e) { setMbMsg(e.message); }
+  }
+  function copyRef() {
+    try { navigator.clipboard.writeText(mb.account.referral_code); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard indisponibil */ }
+  }
+  const TIER_LABEL = { silver: "Silver", gold: "Gold", platinum: "Platinum" };
 
   const SOURCES = [
     ["google", t("src_google")],
@@ -191,6 +286,8 @@ export default function AccountPage() {
               {source === "other" && (
                 <input style={{ marginTop: 8 }} value={sourceOther} onChange={(e) => setSourceOther(e.target.value)} placeholder={t("src_other") + "…"} />
               )}
+              <label>{t("acc_referral_reg")}</label>
+              <input value={refCode} onChange={(e) => setRefCode(e.target.value.toUpperCase())} placeholder="RV-XXXXXX" style={{ textTransform: "uppercase" }} />
               {err && <div className="acc-err">{err}</div>}
               <button className="acc-btn" disabled={busy}>{busy ? "…" : t("acc_register")}</button>
               <button type="button" className="acc-switch" onClick={() => { setMode("login"); setErr(""); }}>{t("acc_have")}</button>
@@ -239,6 +336,109 @@ export default function AccountPage() {
               )}
               {codeErr && <div className="acc-err">{codeErr}</div>}
             </div>
+
+            {/* ===== MEMBERSHIP — dashboard stil OMV ===== */}
+            {mb && (
+              <div className="mb-wrap">
+                <div className="mb-card">
+                  <div className="mb-hello">{t("mb_hello", { n: ((acc.user && acc.user.name) || "").split(" ")[0] || "" })}</div>
+                  <div className="mb-balance"><b>{mb.account.points_balance}</b><span>{t("mb_points")}</span></div>
+                  <div className="mb-tierline">{t("mb_status", { t: TIER_LABEL[mb.account.tier] })}</div>
+                  <div className="mb-tiers">
+                    {["silver", "gold", "platinum"].map((tr) => (
+                      <span key={tr} className={"mb-tier" + (mb.account.tier === tr ? " on" : "")}>{TIER_LABEL[tr]}</span>
+                    ))}
+                  </div>
+                  <div className="mb-bar"><i style={{ width: mb.account.progress.pct + "%" }} /></div>
+                  <div className="mb-next">
+                    {mb.account.progress.next
+                      ? t("mb_to_next", { n: mb.account.progress.toNext, t: TIER_LABEL[mb.account.progress.next] })
+                      : t("mb_top")}
+                  </div>
+                </div>
+
+                <div className="mb-sec">
+                  <b>{t("mb_referral")}</b>
+                  <div className="mb-refrow">
+                    <code>{mb.account.referral_code}</code>
+                    <button type="button" onClick={copyRef}>{copied ? t("mb_ref_copied") : t("mb_ref_copy")}</button>
+                  </div>
+                  <p className="acc-help" style={{ marginTop: 8 }}>
+                    {t("mb_ref_stats", { n: mb.referral.invited, p: mb.referral.earned })}<br />
+                    {t("mb_ref_how", { a: mb.referral.points_new, b: mb.referral.points_inviter })}
+                  </p>
+                </div>
+
+                <div className="mb-sec">
+                  <b>{t("mb_earn_more")}</b>
+                  <div className="mb-earnrow">
+                    <button type="button" onClick={() => mbRequest("photo_tag")}>{t("mb_req_photo")}</button>
+                    <button type="button" onClick={() => mbRequest("review")}>{t("mb_req_review")}</button>
+                  </div>
+                </div>
+
+                {mbMsg && <div className="mb-msg">{mbMsg}</div>}
+
+                {mb.rewards.length > 0 && (
+                  <div className="mb-sec">
+                    <b>{t("mb_rewards")}</b>
+                    <div className="mb-cats">
+                      {[["all", t("mb_cat_all")], ["accommodation", t("mb_cat_stay")], ["cellar", t("mb_cat_cellar")]].map(([k, l]) => (
+                        <button type="button" key={k} className={mbCat === k ? "on" : ""} onClick={() => setMbCat(k)}>{l}</button>
+                      ))}
+                    </div>
+                    <div className="mb-grid">
+                      {mb.rewards.filter((r) => mbCat === "all" || r.category === mbCat).map((r) => (
+                        <div className="mb-reward" key={r.id}>
+                          {r.photo ? <img src={r.photo} alt={r.title} loading="lazy" /> : <div className="mb-ph" />}
+                          <div className="mb-rbody">
+                            <b>{r.title}</b>
+                            {r.description ? <p>{r.description}</p> : null}
+                            <div className="mb-rfoot">
+                              <span className="mb-cost">{t("mb_pts", { n: r.points_cost })}</span>
+                              <button
+                                type="button"
+                                disabled={mb.account.points_balance < r.points_cost}
+                                title={mb.account.points_balance < r.points_cost ? t("mb_no_points") : ""}
+                                onClick={() => redeem(r.id)}
+                              >
+                                {t("mb_redeem")}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {mb.redemptions.length > 0 && (
+                  <div className="mb-sec">
+                    <b>{t("mb_my_vouchers")}</b>
+                    {mb.redemptions.map((r) => (
+                      <div className="mb-voucher" key={r.id}>
+                        <span>{r.title}</span>
+                        <code>{r.code}</code>
+                        <em className={r.status}>{r.status}</em>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {mb.transactions.length > 0 && (
+                  <div className="mb-sec">
+                    <b>{t("mb_history")}</b>
+                    {mb.transactions.map((tx, i) => (
+                      <div className="mb-tx" key={i}>
+                        <span>{tx.description || tx.type}<small>{fmt(tx.created_at)}</small></span>
+                        <b className={tx.amount > 0 ? "plus" : "minus"}>{tx.amount > 0 ? "+" : ""}{tx.amount}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isStaff && <a className="acc-link" href={ADMIN_URL} target="_blank" rel="noopener noreferrer">{t("acc_admin")} →</a>}
           </div>
         )}
