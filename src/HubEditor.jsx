@@ -65,6 +65,25 @@ body.hub-edit [data-edit-drag] .hub-dragover{outline:3px solid #157a55!important
 .hub-addbtn{border:2px dashed rgba(21,122,85,.6);background:rgba(21,122,85,.06);color:#157a55;border-radius:12px;
   padding:12px 18px;font:700 13.5px 'Manrope',sans-serif;cursor:pointer;min-height:54px;width:100%}
 .hub-addbtn:hover{background:rgba(21,122,85,.14);border-style:solid}
+/* manager slider cu 2 panouri (bibliotecă | poze în slider) */
+.hub-picker-box.hub-mgr{max-width:900px}
+.hub-mgr-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.hub-mgr-cols{grid-template-columns:1fr}}
+.hub-mgr-title{font:700 12px 'Manrope',sans-serif;color:#5a6b62;margin:2px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+.hub-mgr-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;max-height:52vh;overflow:auto;padding-right:4px}
+.hub-mgr-lib img{width:100%;height:70px;object-fit:cover;border-radius:9px;cursor:pointer;border:3px solid transparent}
+.hub-mgr-lib img:hover{border-color:#157a55}
+.hub-mgr-slides{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;max-height:52vh;overflow:auto;padding:8px 2px}
+.hub-mgr-slide{position:relative;border-radius:10px;cursor:grab}
+.hub-mgr-slide img{width:100%;height:78px;object-fit:cover;border-radius:10px;display:block;border:2px solid #e3e8e5}
+.hub-mgr-slide.drag{opacity:.4}
+.hub-mgr-slide.over img{border-color:#157a55;box-shadow:0 0 0 3px rgba(21,122,85,.35)}
+.hub-mgr-slide:hover img{border-color:#157a55}
+.hub-mgr-num{position:absolute;top:4px;left:4px;z-index:2;background:rgba(14,31,25,.82);color:#fff;font:700 11px 'Manrope',sans-serif;padding:2px 7px;border-radius:100px}
+.hub-mgr-del{position:absolute;top:-9px;right:-9px;z-index:3;width:24px;height:24px;border-radius:50%;border:none;background:#c0392b;color:#fff;font:700 14px/1 'Manrope',sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.hub-mgr-del:hover{background:#e74c3c;transform:scale(1.1)}
+.hub-mgr-empty{color:#8a988f;font-size:13px;padding:8px 2px}
+.hub-mgr-status{margin-top:12px;color:#157a55;font:600 13px 'Manrope',sans-serif}
 `;
 
 /* optimizare în browser (identic cu adminul Hub): canvas → WebP 1920px + thumb 480px,
@@ -80,10 +99,42 @@ function resizeImage(img, maxW, quality) {
   return { b64: c.toDataURL("image/jpeg", quality).split(",")[1], mime: "image/jpeg" };
 }
 
+/* dintr-un path de imagine dintr-un array (ex. „common.slides.2.url") derivă
+   array-ul de bază + câmpul: { path:"common.slides", field:"url" }.
+   Întoarce null pentru imaginile singulare (fără index numeric, ex. „common.image"). */
+function sliderInfo(path) {
+  const keys = String(path || "").split(".");
+  let idx = -1;
+  for (let i = keys.length - 1; i >= 0; i--) if (/^\d+$/.test(keys[i])) { idx = i; break; }
+  if (idx < 0) return null;
+  return { path: keys.slice(0, idx).join("."), field: idx < keys.length - 1 ? keys[idx + 1] : "" };
+}
+
+/* citește array-ul din draft de la un path cu puncte (ex. „common.slides") */
+function arrayAt(root, path) {
+  let o = root;
+  for (const k of String(path || "").split(".")) { if (o == null) return []; o = o[k]; }
+  return Array.isArray(o) ? o : [];
+}
+
+/* verifică în DOM dacă `arrayPath` e un slider real, marcat cu butonul „mai multe
+   poze" (data-edit-imgs). Doar așa deschidem managerul — altfel un „cover" (câmp
+   imagine singular al unui element de listă) ar fi confundat cu un array de poze.
+   Câmpul întors e cel autoritar de pe buton (ex. „url" / „img" / „" pt. string-uri). */
+function findImgsTarget(arrayPath) {
+  if (!arrayPath) return null;
+  let el = null;
+  try { el = document.querySelector(`[data-edit-imgs="${arrayPath}"]`); } catch { el = null; }
+  return el ? { path: arrayPath, field: el.getAttribute("data-edit-imgs-field") || "" } : null;
+}
+
 export default function HubEditor({ hubRaw, setHubRaw }) {
   const [dirty, setDirty] = useState(() => new Set());
   const [status, setStatus] = useState("");
   const [picker, setPicker] = useState(null); // calea de imagine în editare
+  const [manager, setManager] = useState(null); // { path, field } — manager slider cu 2 panouri
+  const [dragIdx, setDragIdx] = useState(null); // index tras în panoul „în slider"
+  const [overIdx, setOverIdx] = useState(null); // index țintă sub cursor la reordonare
   const [media, setMedia] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
@@ -115,15 +166,20 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
       if (multi) {
         e.preventDefault();
         e.stopPropagation();
-        setMultiTarget({ path: multi.getAttribute("data-edit-imgs"), field: multi.getAttribute("data-edit-imgs-field") || "" });
-        if (multiRef.current) multiRef.current.click();
+        setManager({ path: multi.getAttribute("data-edit-imgs"), field: multi.getAttribute("data-edit-imgs-field") || "" });
         return;
       }
       const img = e.target.closest && e.target.closest("[data-edit-img]");
       if (img) {
         e.preventDefault();
         e.stopPropagation();
-        setPicker(img.getAttribute("data-edit-img"));
+        const path = img.getAttribute("data-edit-img");
+        // slide dintr-un slider real (există butonul „mai multe poze" cu același array)
+        // → manager cu 2 panouri; altfel (imagine singulară, cover, mobil) → picker simplu
+        const info = !/mobil|mobile/i.test(path) ? sliderInfo(path) : null;
+        const mgr = info && findImgsTarget(info.path);
+        if (mgr) setManager(mgr);
+        else setPicker(path);
         return;
       }
       const ed = e.target.closest && e.target.closest("[data-edit]");
@@ -133,14 +189,14 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  // biblioteca media se încarcă la prima deschidere a pickerului
+  // biblioteca media se încarcă la prima deschidere a pickerului sau a managerului
   useEffect(() => {
-    if (picker && media === null) {
+    if ((picker || manager) && media === null) {
       call("GET", "/api/v1/media")
         .then((j) => setMedia(j.media || []))
         .catch(() => setMedia([]));
     }
-  }, [picker]);
+  }, [picker, manager]);
 
   const commit = useCallback(
     (path, value) => {
@@ -284,6 +340,20 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         if (from < 0 || from >= o.length || to < 0 || to >= o.length) return false;
         o.splice(to, 0, o.splice(from, 1)[0]);
       });
+    },
+    [mutateArray]
+  );
+
+  /* adaugă în slider o poză deja existentă în bibliotecă (fără upload) —
+     baza primește string sau { câmp: url }; traducerile aliniate primesc gol */
+  const appendToArray = useCallback(
+    (path, field, url) => {
+      if (!url) return;
+      mutateArray(
+        path,
+        (o) => { o.push(field ? { [field]: url } : url); },
+        (o) => { o.push(field ? {} : ""); }
+      );
     },
     [mutateArray]
   );
@@ -539,6 +609,76 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         </div>
       </div>
     )}
+    {manager && (() => {
+      const items = arrayAt(hubRaw, manager.path);
+      const urlOf = (it) => (manager.field ? (it && it[manager.field]) || "" : it || "");
+      return (
+        <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setManager(null); }}>
+          <div className="hub-picker-box hub-mgr">
+            <div className="hub-picker-head">
+              <b>Poze slider — {items.length}</b>
+              <button
+                className="hub-upbtn"
+                disabled={uploading}
+                onClick={() => { setMultiTarget({ path: manager.path, field: manager.field }); if (multiRef.current) multiRef.current.click(); }}
+              >
+                {uploading ? "Se încarcă…" : "⬆ Încarcă poze noi"}
+              </button>
+              <button onClick={() => setManager(null)}>Închide</button>
+            </div>
+            <div className="hub-mgr-cols">
+              <div className="hub-mgr-col">
+                <div className="hub-mgr-title">Bibliotecă — click pt. a adăuga</div>
+                {media === null ? (
+                  <p>Se încarcă biblioteca…</p>
+                ) : media.length === 0 ? (
+                  <p className="hub-mgr-empty">Nicio imagine încă — apasă „Încarcă poze noi".</p>
+                ) : (
+                  <div className="hub-mgr-lib">
+                    {media.map((m) => (
+                      <img key={m.id} src={m.thumb_url || m.url} alt={m.alt || ""} title={m.alt || "Adaugă în slider"}
+                        onClick={() => appendToArray(manager.path, manager.field, m.url)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="hub-mgr-col">
+                <div className="hub-mgr-title">În slider — trage pt. reordonare</div>
+                {items.length === 0 ? (
+                  <p className="hub-mgr-empty">Niciun slide încă — adaugă din bibliotecă.</p>
+                ) : (
+                  <div className="hub-mgr-slides">
+                    {items.map((it, i) => (
+                      <div
+                        key={i}
+                        className={"hub-mgr-slide" + (dragIdx === i ? " drag" : "") + (overIdx === i && dragIdx !== null && dragIdx !== i ? " over" : "")}
+                        draggable
+                        onDragStart={() => setDragIdx(i)}
+                        onDragOver={(e) => { e.preventDefault(); if (overIdx !== i) setOverIdx(i); }}
+                        onDrop={() => { if (dragIdx !== null && dragIdx !== i) arrayMove(manager.path, dragIdx, i); setDragIdx(null); setOverIdx(null); }}
+                        onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                      >
+                        <span className="hub-mgr-num">{i + 1}</span>
+                        <img src={urlOf(it)} alt="" draggable={false} />
+                        <button
+                          type="button"
+                          className="hub-mgr-del"
+                          title="Scoate poza din slider"
+                          onClick={() => { if (window.confirm("Scoți poza din slider?")) arrayOp(manager.path, "remove", i); }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {status && <div className="hub-mgr-status">{status}</div>}
+          </div>
+        </div>
+      );
+    })()}
     {delBtn && (
       <button
         type="button"
