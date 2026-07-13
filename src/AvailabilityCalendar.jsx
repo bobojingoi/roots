@@ -188,6 +188,15 @@ export default function AvailabilityCalendar({
 
   const clearSel = () => { setCheckIn(null); setCheckOut(null); setStep("select"); setResult(null); };
 
+  // back din Stripe Checkout: bfcache-ul ar reînvia pagina înghețată pe panoul
+  // „Te redirecționăm…" fără nicio ieșire — la restaurare o reîncărcăm curat
+  useEffect(() => {
+    if (step !== "pay") return;
+    const onShow = (e) => { if (e.persisted) window.location.reload(); };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [step]);
+
   const nights = checkIn && checkOut ? eachNight(checkIn, checkOut) : [];
   const priceKnown = nights.length > 0 && nights.every((n) => prices[n] != null);
   const baseTotal = nights.reduce((s, n) => s + (Number(prices[n]) || 0), 0);
@@ -271,6 +280,13 @@ export default function AvailabilityCalendar({
       if (json && json.ok) {
         // conversii pentru Ads: rezervare reală = purchase, dry-run = lead
         track(json.dryRun ? "generate_lead" : "purchase", { label: villaName, value: json.price || total });
+      }
+      // rezervare reală cu Stripe configurat → direct la plata securizată a avansului;
+      // mica întârziere lasă pixelii de conversie (purchase) să-și trimită cererile
+      if (json && json.ok && !json.dryRun && json.payUrl) {
+        setStep("pay");
+        setTimeout(() => window.location.assign(json.payUrl), 350);
+        return;
       }
       if (json && json.priceChanged) loadOffers(); // prețul s-a schimbat — reafișăm cu ofertele proaspete
       setResult(json);
@@ -404,6 +420,8 @@ export default function AvailabilityCalendar({
         )}
 
         {step === "sending" && <div className="bk-done"><p>{t("bk_sending")}</p></div>}
+
+        {step === "pay" && <div className="bk-done"><p>{t("bk_pay_redirect")}</p></div>}
 
         {step === "done" && (
           result && result.ok && !result.dryRun ? (

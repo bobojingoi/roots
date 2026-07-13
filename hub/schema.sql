@@ -83,6 +83,22 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(villa, arrival, departure);
 
+-- plăți online (Stripe Checkout) — avansul rezervărilor directe de pe site;
+-- ref = ID-urile Smoobu ale rezervării ("123" sau "123 + 456" la pachetul cu ambele vile)
+CREATE TABLE IF NOT EXISTS payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider TEXT NOT NULL DEFAULT 'stripe',
+  session_id TEXT UNIQUE,
+  ref TEXT,
+  amount NUMERIC(10,2),
+  currency TEXT DEFAULT 'ron',
+  status TEXT NOT NULL DEFAULT 'paid',
+  guest_email TEXT,
+  raw JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(ref);
+
 -- jurnal de evenimente interne (fundația webhook-urilor Travelscan)
 CREATE TABLE IF NOT EXISTS events_log (
   id BIGSERIAL PRIMARY KEY,

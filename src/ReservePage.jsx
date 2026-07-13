@@ -20,6 +20,10 @@ const RES_CSS = `
 .res-both-hint{max-width:640px;margin:-14px auto 26px;text-align:center;font-size:13.5px;line-height:1.6;color:var(--ink-soft);background:var(--sand,#F4EDE0);border:1px solid var(--line);border-radius:14px;padding:12px 18px}
 .res-info{max-width:920px;margin:36px auto 0}
 .res-info-h{font-family:'Fraunces',serif;font-weight:500;font-size:24px;color:var(--pine);margin-bottom:18px}
+/* bannerul de retur de la plata Stripe (?plata=ok / ?plata=anulata) */
+.res-pay{max-width:720px;margin:0 auto 26px;border-radius:16px;padding:16px 20px;font-size:15px;line-height:1.6}
+.res-pay.ok{background:rgba(21,122,85,.1);border:1.5px solid rgba(21,122,85,.4);color:var(--pine)}
+.res-pay.warn{background:rgba(233,184,114,.16);border:1.5px solid rgba(233,184,114,.55);color:var(--ink)}
 `;
 
 export default function ReservePage() {
@@ -57,6 +61,12 @@ export default function ReservePage() {
         </div>
       </header>
       <main className="res-main">
+        {params.get("plata") === "ok" && (
+          <div className="res-pay ok">✅ <b>{t("pay_ok_t")}</b> — {t("pay_ok_p")}</div>
+        )}
+        {params.get("plata") === "anulata" && (
+          <div className="res-pay warn">⚠️ <b>{t("pay_cancel_t")}</b> — {t("pay_cancel_p")}</div>
+        )}
         <div className="res-head">
           <div className="eyebrow" style={{ justifyContent: "center" }}>{t("res_eyebrow")}</div>
           <h2 className="serif" style={{ fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, color: "var(--pine)" }}>{t("res_title")}</h2>

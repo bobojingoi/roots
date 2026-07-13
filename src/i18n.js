@@ -263,6 +263,22 @@ const D = {
   sm_note:      { ro: "Comenzile trec prin Roots Hub și sunt înregistrate pentru siguranță.", en: "Commands go through Roots Hub and are logged for safety.", he: "הפקודות עוברות דרך Roots Hub ונרשמות למען הבטיחות.", fr: "Les commandes passent par Roots Hub et sont journalisées pour la sécurité." },
   reviews_none: { ro: "Încă nu avem recenzii pe acest filtru.", en: "No reviews for this filter yet.", he: "אין עדיין ביקורות בסינון הזה.", fr: "Pas encore d'avis pour ce filtre." },
 
+  /* plata avansului cu Stripe */
+  bk_pay_redirect: { ro: "Rezervarea e creată ✓ Te redirecționăm către plata securizată a avansului…",
+                     en: "Your booking is created ✓ Redirecting you to the secure deposit payment…",
+                     he: "ההזמנה נוצרה ✓ מעבירים אתכם לתשלום מאובטח של המקדמה…",
+                     fr: "Votre réservation est créée ✓ Redirection vers le paiement sécurisé de l'acompte…" },
+  pay_ok_t:     { ro: "Avansul a fost plătit", en: "Deposit paid", he: "המקדמה שולמה", fr: "Acompte payé" },
+  pay_ok_p:     { ro: "Mulțumim! Rezervarea ta e confirmată, iar restul sumei se achită la check-in. Primești pe email confirmarea.",
+                  en: "Thank you! Your booking is confirmed and the balance is due at check-in. A confirmation email is on its way.",
+                  he: "תודה! ההזמנה שלכם מאושרת והיתרה משולמת בצ'ק-אין. אישור נשלח למייל.",
+                  fr: "Merci ! Votre réservation est confirmée, le solde est à régler à l'arrivée. Un e-mail de confirmation arrive." },
+  pay_cancel_t: { ro: "Plata nu a fost finalizată", en: "Payment not completed", he: "התשלום לא הושלם", fr: "Paiement non finalisé" },
+  pay_cancel_p: { ro: "Rezervarea ta rămâne înregistrată. Te contactăm pentru plata avansului — sau scrie-ne pe WhatsApp dacă ai întâmpinat o problemă.",
+                  en: "Your booking is still registered. We'll contact you about the deposit — or message us on WhatsApp if something went wrong.",
+                  he: "ההזמנה שלכם עדיין רשומה. ניצור קשר לגבי המקדמה — או כתבו לנו בוואטסאפ אם משהו השתבש.",
+                  fr: "Votre réservation reste enregistrée. Nous vous contacterons pour l'acompte — ou écrivez-nous sur WhatsApp en cas de problème." },
+
   /* modalul de întâmpinare (pagina principală) */
   wm_eyebrow:  { ro: "Bine ai venit la Roots", en: "Welcome to Roots", he: "ברוכים הבאים ל-Roots", fr: "Bienvenue chez Roots" },
   wm_question: { ro: "Pentru câte persoane faci rezervarea?", en: "How many guests are you booking for?", he: "עבור כמה אורחים ההזמנה?", fr: "Pour combien de personnes réservez-vous ?" },

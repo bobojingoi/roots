@@ -748,11 +748,13 @@ async function syncSmoobu(btn) {
 }
 const dt = (d) => (d ? new Date(d).toLocaleDateString('ro-RO') : '—');
 const MONTH_NAMES = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
-let BOOKINGS = [], BK_F = { y: '', m: '', c: '' };
+let BOOKINGS = [], BK_F = { y: '', m: '', c: '' }, PAID_REFS = new Set();
 function bkFilter(k, v) { BK_F[k] = v; renderBookingsList(); }
 async function renderBookings() {
   const j = await api('/api/v1/admin/bookings');
   BOOKINGS = j.bookings;
+  // avansuri plătite online (Stripe): ref = "123" sau "123 + 456" → smoobu_id-uri plătite
+  PAID_REFS = new Set((j.payments || []).flatMap((p) => String(p.ref || '').split(' + ').filter(Boolean)));
   const years = [...new Set(BOOKINGS.map((b) => new Date(b.arrival).getFullYear()))].sort((a, b) => b - a);
   const channels = [...new Set(BOOKINGS.map((b) => b.channel).filter(Boolean))].sort();
   $('main').innerHTML = `
@@ -786,6 +788,7 @@ function renderBookingsList() {
           <span style="color:#9aa8a1"> · ${esc(b.villa)} · ${dt(b.arrival)} → ${dt(b.departure)}${b.guests_count ? ' · ' + b.guests_count + ' pers' : ''}</span>
           ${b.channel ? `<span class="badge pub" style="margin-left:8px">${esc(b.channel)}</span>` : ''}</span>
         <span style="white-space:nowrap">${b.value ? Number(b.value).toLocaleString('ro-RO') + ' lei' : ''}
+          ${b.smoobu_id && PAID_REFS.has(String(b.smoobu_id)) ? '<span class="badge pub" style="margin-left:8px" title="Avansul a fost plătit online cu cardul (Stripe)">💳 Avans plătit</span>' : ''}
           <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
       </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare pe filtrele alese.</div>'}`;
 }

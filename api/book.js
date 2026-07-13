@@ -28,6 +28,55 @@ const addDay = (s) => {
   return d.toISOString().slice(0, 10);
 };
 
+/* ============================================================
+   Stripe Checkout pentru avansul rezervării (fără SDK — REST cu
+   form-encoding, în stilul integrării Resend). Suma în bani (RON×100).
+   Dacă STRIPE_SECRET_KEY lipsește sau apelul eșuează, rezervarea
+   rămâne valabilă și fluxul continuă ca înainte (fără plată online).
+   ============================================================ */
+const SITE_URL = "https://rootsvillas.ro";
+
+async function createDepositCheckout({ deposit, total, villaName, ref, email, arrivalDate, departureDate, nights }) {
+  const sk = clean(process.env.STRIPE_SECRET_KEY);
+  if (!sk || !(deposit > 0)) return null;
+  const site = (clean(process.env.SITE_URL) || SITE_URL).replace(/\/$/, "");
+  const p = new URLSearchParams();
+  p.set("mode", "payment");
+  p.set("success_url", `${site}/rezervare?plata=ok&ref=${encodeURIComponent(ref || "")}`);
+  p.set("cancel_url", `${site}/rezervare?plata=anulata&ref=${encodeURIComponent(ref || "")}`);
+  if (email) p.set("customer_email", email);
+  p.set("line_items[0][quantity]", "1");
+  p.set("line_items[0][price_data][currency]", "ron");
+  p.set("line_items[0][price_data][unit_amount]", String(Math.round(deposit * 100)));
+  p.set("line_items[0][price_data][product_data][name]", `Avans rezervare — ${villaName}`);
+  p.set(
+    "line_items[0][price_data][product_data][description]",
+    `${arrivalDate} → ${departureDate} (${nights} nopți) · total sejur ${total} lei · restul se achită la check-in`
+  );
+  // ref = ID-urile Smoobu — webhook-ul din Hub leagă plata de rezervare prin el
+  p.set("metadata[ref]", String(ref || ""));
+  p.set("metadata[villa]", String(villaName || ""));
+  p.set("metadata[arrival]", String(arrivalDate || ""));
+  p.set("metadata[departure]", String(departureDate || ""));
+  p.set("expires_at", String(Math.floor(Date.now() / 1000) + 3600 * 23)); // linkul de plată expiră în ~23h
+  try {
+    const r = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: p.toString(),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) {
+      console.error("[stripe] checkout fail", r.status, JSON.stringify(j.error || j).slice(0, 300));
+      return null;
+    }
+    return { url: j.url, id: j.id };
+  } catch (e) {
+    console.error("[stripe] checkout error", String((e && e.message) || e));
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   const apiKey = clean(process.env.SMOOBU_API_KEY);
   const apiSecret = clean(process.env.SMOOBU_API_SECRET);
@@ -69,12 +118,28 @@ export default async function handler(req, res) {
     }
   }
 
+  // diagnostic: creează o sesiune Stripe de 2 lei (marcată TEST) ca să verifici
+  // cheile fără o rezervare reală. PROTEJAT cu PAYTEST_KEY — altfel oricine ar
+  // putea genera sesiuni pe contul Stripe (spam). Apel: /api/book?paytest=1&key=...
+  if (req.method === "GET" && (req.query || {}).paytest === "1") {
+    const gate = clean(process.env.PAYTEST_KEY);
+    if (!gate || (req.query || {}).key !== gate) return res.status(404).json({ error: "Not found" });
+    if (!clean(process.env.STRIPE_SECRET_KEY)) return res.status(200).json({ paytest: true, error: "lipsă STRIPE_SECRET_KEY" });
+    const s = await createDepositCheckout({
+      deposit: 2, total: 2, villaName: "TEST — verificare Stripe", ref: "TEST",
+      email: clean(process.env.EMAIL_TO) || undefined,
+      arrivalDate: "2099-01-01", departureDate: "2099-01-02", nights: 1,
+    });
+    return res.status(200).json({ paytest: true, ok: !!s, url: s ? s.url : null });
+  }
+
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
       live,
       configured: !!(apiKey && apiSecret),
       emailConfigured: !!(clean(process.env.RESEND_API_KEY) && clean(process.env.EMAIL_FROM)),
+      stripeConfigured: !!clean(process.env.STRIPE_SECRET_KEY),
     });
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Doar POST." });
@@ -278,7 +343,9 @@ export default async function handler(req, res) {
     const reservationId = createdIds.filter(Boolean).join(" + ") || null;
 
     // email de confirmare (oaspete + proprietar) — nu blochează rezervarea dacă eșuează
-    const depositPct = Number(b.depositPct) || 30;
+    // avansul e CONSTANTĂ DE BUSINESS, nu vine din client: b.depositPct ar permite
+    // unui atacator să plătească 1% și să apară totuși „Avans plătit" în admin
+    const depositPct = 30;
     const villaName = (b.villaName && String(b.villaName)) || "Vila ROOTS";
     const deposit = Math.round(total * depositPct / 100);
     const html = bookingEmailHtml({
@@ -298,7 +365,14 @@ export default async function handler(req, res) {
       html,
     });
 
-    return res.status(200).json({ ok: true, dryRun: false, reservationId, price: total, emailed });
+    // plata avansului cu cardul (Stripe Checkout) — dacă e configurat; altfel
+    // fluxul rămâne ca înainte (rezervare fără plată online)
+    const pay = await createDepositCheckout({
+      deposit, total, villaName, ref: reservationId,
+      email: guest.email, arrivalDate, departureDate, nights,
+    });
+
+    return res.status(200).json({ ok: true, dryRun: false, reservationId, price: total, emailed, payUrl: pay ? pay.url : null });
   } catch (e) {
     // creare parțială la pachet: raportăm ce s-a creat deja, ca proprietarul să poată interveni
     if (createdIds.length) {

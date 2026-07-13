@@ -25,7 +25,8 @@ const {
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '30mb' })); // imaginile vin deja optimizate din browser
+// rawBody e păstrat pentru verificarea semnăturii webhook-urilor (Stripe cere byte-ii exacți)
+app.use(express.json({ limit: '30mb', verify: (req, _res, buf) => { req.rawBody = buf; } })); // imaginile vin deja optimizate din browser
 
 /* CORS pentru editorul vizual de pe site (Bearer token, fara cookie-uri) */
 const CORS_ORIGINS = (process.env.CORS_ORIGINS ||
@@ -82,6 +83,80 @@ async function buildSiteContent() {
 }
 
 /* ============ PUBLIC ============ */
+
+/* ---- Stripe webhook: avansul plătit prin Checkout se înregistrează în payments ----
+   Semnătura Stripe-Signature = HMAC-SHA256("t.rawBody", STRIPE_WEBHOOK_SECRET);
+   verificăm pe byte-ii exacți (req.rawBody), cu toleranță anti-replay de 10 min. */
+function stripeSigOk(rawBody, header, secret) {
+  try {
+    const parts = String(header || '').split(',').map((s) => s.split('='));
+    const t = (parts.find((p) => p[0] === 't') || [])[1];
+    const v1s = parts.filter((p) => p[0] === 'v1').map((p) => p[1]);
+    if (!t || !v1s.length) return false;
+    if (Math.abs(Date.now() / 1000 - Number(t)) > 600) return false;
+    const expected = crypto.createHmac('sha256', secret).update(t + '.' + rawBody).digest('hex');
+    return v1s.some((v) => {
+      try { return crypto.timingSafeEqual(Buffer.from(v), Buffer.from(expected)); } catch { return false; }
+    });
+  } catch { return false; }
+}
+
+app.post('/api/v1/payments/stripe-webhook', async (req, res) => {
+  const secret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  if (!secret) return res.status(503).json({ error: 'Webhook neconfigurat (STRIPE_WEBHOOK_SECRET).' });
+  const raw = req.rawBody ? req.rawBody.toString('utf8') : '';
+  if (!raw || !stripeSigOk(raw, req.headers['stripe-signature'], secret)) {
+    return res.status(400).json({ error: 'Semnătură invalidă.' });
+  }
+  const ev = req.body || {};
+  // try/catch obligatoriu: Express 4 nu prinde rejecțiile handler-elor async, iar pe
+  // Node 20 o eroare de DB ar omorî procesul. 500 = Stripe reîncearcă (upsert idempotent).
+  try {
+    const isPaidEvent = ev.type === 'checkout.session.completed' || ev.type === 'checkout.session.async_payment_succeeded';
+    const s = (ev.data && ev.data.object) || {};
+    if (isPaidEvent && s.payment_status === 'paid') {
+      // doar sesiuni chiar plătite — „completed" poate sosi cu payment_status=unpaid
+      // la metodele cu decontare întârziată
+      const md = s.metadata || {};
+      const email = (s.customer_details && s.customer_details.email) || s.customer_email || null;
+      await pool.query(
+        `INSERT INTO payments (provider, session_id, ref, amount, currency, status, guest_email, raw)
+         VALUES ('stripe', $1, $2, $3, $4, 'paid', $5, $6)
+         ON CONFLICT (session_id) DO UPDATE SET status = 'paid', raw = EXCLUDED.raw
+         WHERE payments.status NOT IN ('refunded', 'disputed')`,
+        [
+          s.id || null,
+          md.ref || null,
+          s.amount_total != null ? s.amount_total / 100 : null,
+          s.currency || 'ron',
+          email,
+          JSON.stringify(s),
+        ]
+      );
+      emit('PaymentCompleted', { ref: md.ref || null, sessionId: s.id, amount: s.amount_total != null ? s.amount_total / 100 : null, email });
+    } else if (ev.type === 'charge.refunded' || ev.type === 'charge.dispute.created') {
+      // banii s-au întors / sunt contestați → badge-ul „Avans plătit" dispare
+      // (admin listează doar status='paid'); potrivim prin payment_intent din raw
+      const c = s;
+      const pi = c.payment_intent || null;
+      const fullRefund = ev.type !== 'charge.refunded' || c.refunded === true ||
+        (c.amount_refunded != null && c.amount != null && c.amount_refunded >= c.amount);
+      if (pi && fullRefund) {
+        await pool.query(
+          `UPDATE payments SET status = $2 WHERE provider = 'stripe' AND raw->>'payment_intent' = $1`,
+          [pi, ev.type === 'charge.refunded' ? 'refunded' : 'disputed']
+        );
+        emit('PaymentReversed', { paymentIntent: pi, kind: ev.type });
+      }
+    }
+    // răspundem 200 la orice eveniment semnat corect — Stripe nu retrimite inutil
+    res.json({ received: true });
+  } catch (e) {
+    console.error('[stripe-webhook]', e.message);
+    res.status(500).json({ error: 'Eroare temporară — Stripe va reîncerca.' });
+  }
+});
+
 app.get('/api/v1/site-content', async (req, res) => {
   try {
     const fresh = siteCache && Date.now() - (siteCache.at || 0) < SITE_CACHE_TTL;
@@ -1459,7 +1534,14 @@ app.get('/api/v1/admin/bookings', requirePerm('rezervari'), async (_req, res) =>
      FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
      ORDER BY b.arrival DESC LIMIT 300`
   );
-  res.json({ bookings: r.rows });
+  // plățile online (avansuri Stripe) — adminul le potrivește pe rezervări după ref
+  // (smoobu_id); fără LIMIT mic: tabela crește lent (doar rezervări directe plătite),
+  // iar un cap arbitrar ar face badge-ul să dispară de pe rezervările mai vechi
+  const p = await pool.query(
+    `SELECT ref, amount, currency, status, guest_email, created_at FROM payments
+     WHERE status = 'paid' AND ref IS NOT NULL ORDER BY created_at DESC LIMIT 5000`
+  );
+  res.json({ bookings: r.rows, payments: p.rows });
 });
 app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
   const r = await pool.query(
