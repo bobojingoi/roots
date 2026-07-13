@@ -262,6 +262,16 @@ const D = {
   sm_invalid_hint:  { ro: "Accesul funcționează doar în perioada șederii tale. Dacă crezi că e o eroare, scrie-ne pe WhatsApp.", en: "Access works only during your stay. If you think this is an error, message us on WhatsApp.", he: "הגישה פעילה רק במהלך השהות שלך. אם נראה לך שזו טעות, כתבו לנו בוואטסאפ.", fr: "L'accès ne fonctionne que pendant votre séjour. Si vous pensez qu'il s'agit d'une erreur, écrivez-nous sur WhatsApp." },
   sm_note:      { ro: "Comenzile trec prin Roots Hub și sunt înregistrate pentru siguranță.", en: "Commands go through Roots Hub and are logged for safety.", he: "הפקודות עוברות דרך Roots Hub ונרשמות למען הבטיחות.", fr: "Les commandes passent par Roots Hub et sont journalisées pour la sécurité." },
   reviews_none: { ro: "Încă nu avem recenzii pe acest filtru.", en: "No reviews for this filter yet.", he: "אין עדיין ביקורות בסינון הזה.", fr: "Pas encore d'avis pour ce filtre." },
+
+  /* modalul de întâmpinare (pagina principală) */
+  wm_eyebrow:  { ro: "Bine ai venit la Roots", en: "Welcome to Roots", he: "ברוכים הבאים ל-Roots", fr: "Bienvenue chez Roots" },
+  wm_question: { ro: "Pentru câte persoane faci rezervarea?", en: "How many guests are you booking for?", he: "עבור כמה אורחים ההזמנה?", fr: "Pour combien de personnes réservez-vous ?" },
+  wm_info:     { ro: "Cazarea se închiriază integral. Indiferent dacă rezervi pentru 1, 2 sau 3 persoane, ai la dispoziție întreaga unitate — iar prețul rămâne același ca pentru 4 persoane. Astfel te bucuri de tot spațiul, în intimitate deplină.",
+                 en: "The property is rented in its entirety. Whether you book for 1, 2 or 3 guests, the whole unit is yours — and the price stays the same as for 4 guests. You enjoy all the space, in complete privacy.",
+                 he: "האירוח מושכר בשלמותו. בין אם תזמינו עבור 1, 2 או 3 אורחים, היחידה כולה עומדת לרשותכם — והמחיר נשאר זהה למחיר עבור 4 אורחים. כך תיהנו מכל המרחב, בפרטיות מלאה.",
+                 fr: "L'hébergement se loue en intégralité. Que vous réserviez pour 1, 2 ou 3 personnes, l'unité entière est à vous — et le prix reste le même que pour 4 personnes. Profitez de tout l'espace, en toute intimité." },
+  wm_continue: { ro: "Am înțeles — continuă", en: "Got it — continue", he: "הבנתי — המשך", fr: "Compris — continuer" },
+  wm_close:    { ro: "Închide", en: "Close", he: "סגירה", fr: "Fermer" },
 };
 
 export function t(key, vars) {

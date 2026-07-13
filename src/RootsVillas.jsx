@@ -5,6 +5,7 @@ import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
 import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
 import { track } from "./tracking.js";
+import WelcomeModal from "./WelcomeModal.jsx";
 
 /* ============================================================
    ROOTS VILLAS — site + CMS
@@ -2447,6 +2448,7 @@ export default function RootsVillas() {
       <FinalCta contact={content.contact} />
       <Footer contact={content.contact} logo={content.brand?.logo} />
       <Fabs contact={content.contact} />
+      <WelcomeModal />
       {EDIT_MODE && hubRaw && <HubEditor hubRaw={hubRaw} setHubRaw={setHubRaw} />}
     </div>
   );
