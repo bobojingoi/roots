@@ -232,7 +232,7 @@ function Gallery({ title, items: rawItems, basePath }) {
       <div className="wrap">
         <h2 className="vg-title rv">{title}</h2>
         {EDIT_MODE && basePath ? (
-          <button type="button" className="vg-multi" data-edit-imgs={basePath} data-edit-imgs-field="img">⬆ Adaugă mai multe poze deodată</button>
+          <button type="button" className="vg-multi" data-edit-imgs={basePath} data-edit-imgs-field="img" data-edit-imgs-mobfield="imgMobile">⬆ Adaugă mai multe poze deodată</button>
         ) : null}
         <div className="vg-wrap rv rv-d1">
           <button className="vg-arrow left" onClick={() => scroll(-1)} aria-label="Înapoi">‹</button>

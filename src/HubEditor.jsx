@@ -84,6 +84,14 @@ body.hub-edit [data-edit-drag] .hub-dragover{outline:3px solid #157a55!important
 .hub-mgr-del:hover{background:#e74c3c;transform:scale(1.1)}
 .hub-mgr-empty{color:#8a988f;font-size:13px;padding:8px 2px}
 .hub-mgr-status{margin-top:12px;color:#157a55;font:600 13px 'Manrope',sans-serif}
+.hub-mgr-mob{position:absolute;bottom:4px;left:4px;z-index:2;border:none;border-radius:8px;padding:3px 7px;
+  font:700 10.5px 'Manrope',sans-serif;cursor:pointer;background:rgba(255,255,255,.92);color:#14201b;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.hub-mgr-mob.on{background-size:cover;background-position:center;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.85);
+  border:2px solid #fff;width:36px;height:27px;padding:0}
+.hub-mgr-mob:hover{transform:scale(1.08)}
+.hub-mgr-ph{width:100%;height:78px;border-radius:10px;border:2px dashed #cdd6d0;display:grid;place-items:center;
+  color:#8a988f;font:600 11px 'Manrope',sans-serif;background:#f4f6f5;cursor:pointer;text-align:center}
+.hub-mgr-ph:hover{border-color:#157a55;color:#157a55}
 `;
 
 /* optimizare în browser (identic cu adminul Hub): canvas → WebP 1920px + thumb 480px,
@@ -117,15 +125,32 @@ function arrayAt(root, path) {
   return Array.isArray(o) ? o : [];
 }
 
+/* configurația completă a unui slider, citită de pe butonul „mai multe poze":
+   - data-edit-imgs          = array-ul de poze (autoritar)
+   - data-edit-imgs-field    = câmpul URL pe elemente-obiect („url"/„img"; gol = string-uri)
+   - data-edit-imgs-mobfield = câmpul variantei de mobil pe ACELAȘI obiect („mob"/„imgMobile")
+   - data-edit-imgs-mobpath  = array PARALEL cu variantele de mobil (ex. galleryMobile) */
+function imgsTargetOf(el) {
+  return {
+    path: el.getAttribute("data-edit-imgs"),
+    field: el.getAttribute("data-edit-imgs-field") || "",
+    mobField: el.getAttribute("data-edit-imgs-mobfield") || "",
+    mobPath: el.getAttribute("data-edit-imgs-mobpath") || "",
+  };
+}
+
 /* verifică în DOM dacă `arrayPath` e un slider real, marcat cu butonul „mai multe
-   poze" (data-edit-imgs). Doar așa deschidem managerul — altfel un „cover" (câmp
-   imagine singular al unui element de listă) ar fi confundat cu un array de poze.
-   Câmpul întors e cel autoritar de pe buton (ex. „url" / „img" / „" pt. string-uri). */
+   poze" (data-edit-imgs) — direct sau ca array paralel de mobil (data-edit-imgs-mobpath).
+   Doar așa deschidem managerul — altfel un „cover" (câmp imagine singular al unui
+   element de listă) ar fi confundat cu un array de poze. */
 function findImgsTarget(arrayPath) {
   if (!arrayPath) return null;
   let el = null;
-  try { el = document.querySelector(`[data-edit-imgs="${arrayPath}"]`); } catch { el = null; }
-  return el ? { path: arrayPath, field: el.getAttribute("data-edit-imgs-field") || "" } : null;
+  try {
+    el = document.querySelector(`[data-edit-imgs="${arrayPath}"]`) ||
+         document.querySelector(`[data-edit-imgs-mobpath="${arrayPath}"]`);
+  } catch { el = null; }
+  return el ? imgsTargetOf(el) : null;
 }
 
 export default function HubEditor({ hubRaw, setHubRaw }) {
@@ -166,7 +191,7 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
       if (multi) {
         e.preventDefault();
         e.stopPropagation();
-        setManager({ path: multi.getAttribute("data-edit-imgs"), field: multi.getAttribute("data-edit-imgs-field") || "" });
+        setManager(imgsTargetOf(multi));
         return;
       }
       const img = e.target.closest && e.target.closest("[data-edit-img]");
@@ -174,11 +199,14 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         e.preventDefault();
         e.stopPropagation();
         const path = img.getAttribute("data-edit-img");
-        // slide dintr-un slider real (există butonul „mai multe poze" cu același array)
-        // → manager cu 2 panouri; altfel (imagine singulară, cover, mobil) → picker simplu
-        const info = !/mobil|mobile/i.test(path) ? sliderInfo(path) : null;
+        // slide desktop dintr-un slider real → manager cu 2 panouri; variantele de
+        // MOBIL („📱 mobil · slide N") rămân pe pickerul țintit exact pe acel slide —
+        // altfel numerotarea managerului (fără cover) ar duce editorul la alt slide;
+        // imagine singulară / cover / heroImageMobile → tot picker simplu
+        const info = sliderInfo(path);
         const mgr = info && findImgsTarget(info.path);
-        if (mgr) setManager(mgr);
+        const isMob = mgr && ((mgr.mobPath && info.path === mgr.mobPath) || (mgr.mobField && path.endsWith("." + mgr.mobField)));
+        if (mgr && !isMob) setManager(mgr);
         else setPicker(path);
         return;
       }
@@ -213,7 +241,10 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         let append = null; // { upto, index } — array-ul e la keys[1..upto-1], elementul nou la keys[upto]
         for (let i = 1; i < keys.length - 1; i++) {
           const k = keys[i];
-          if (o[k] == null) {
+          // și intermediarii degenerați (ex. elementul gol "" pus de „+ Adaugă element"
+          // pe locul unui obiect {img,...}) se înlocuiesc cu containerul potrivit —
+          // altfel o["câmp"] pe un string primitiv ar arunca TypeError în strict mode
+          if (o[k] == null || typeof o[k] !== "object") {
             if (!append && Array.isArray(o) && /^\d+$/.test(k) && Number(k) >= o.length) append = { upto: i, index: Number(k) };
             o[k] = /^\d+$/.test(keys[i + 1]) ? [] : {};
           }
@@ -581,37 +612,28 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         )}
       </React.Fragment>
     ))}
-    {picker && (
-      <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setPicker(null); }}>
-        <div className="hub-picker-box">
-          <div className="hub-picker-head">
-            <b>Alege imaginea</b>
-            <button className="hub-upbtn" disabled={uploading} onClick={() => fileRef.current && fileRef.current.click()}>
-              {uploading ? "Se încarcă…" : "⬆ Încarcă imagine nouă"}
-            </button>
-            <button onClick={() => { commit(picker, ""); setPicker(null); }}>Fără imagine</button>
-            <button onClick={() => setPicker(null)}>Închide</button>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={(e) => { uploadFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
-          </div>
-          {media === null ? (
-            <p>Se încarcă biblioteca…</p>
-          ) : media.length === 0 ? (
-            <p>Nicio imagine încă — apasă „Încarcă imagine nouă" sau adaugă în Galerie media din admin.</p>
-          ) : (
-            <div className="hub-picker-grid">
-              {media.map((m) => (
-                <img key={m.id} src={m.thumb_url || m.url} alt={m.alt || ""} title={m.alt || ""}
-                  onClick={() => { commit(picker, m.url); setPicker(null); }} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    )}
     {manager && (() => {
       const items = arrayAt(hubRaw, manager.path);
       const urlOf = (it) => (manager.field ? (it && it[manager.field]) || "" : it || "");
+      const hasMob = Boolean(manager.mobField || manager.mobPath);
+      const mobParallel = manager.mobPath ? arrayAt(hubRaw, manager.mobPath) : null;
+      const mobUrlOf = (it, i) => (manager.mobField ? (it && it[manager.mobField]) || "" : mobParallel ? mobParallel[i] || "" : "");
+      const mobPathFor = (i) => (manager.mobField ? `${manager.path}.${i}.${manager.mobField}` : manager.mobPath ? `${manager.mobPath}.${i}` : null);
+      /* array-ul PARALEL de mobil (ex. galleryMobile) se ține aliniat index-cu-index
+         cu baza: la ștergere iese același index, la mutare se completează întâi cu ""
+         până la indexul maxim atins, apoi se mută identic */
+      const removeSynced = (i) => {
+        arrayOp(manager.path, "remove", i);
+        if (manager.mobPath) mutateArray(manager.mobPath, (o) => { if (i >= o.length) return false; o.splice(i, 1); });
+      };
+      const moveSynced = (from, to) => {
+        arrayMove(manager.path, from, to);
+        if (manager.mobPath) mutateArray(manager.mobPath, (o) => {
+          if (!o.length || from === to) return false;
+          while (o.length <= Math.max(from, to)) o.push("");
+          o.splice(to, 0, o.splice(from, 1)[0]);
+        });
+      };
       return (
         <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setManager(null); }}>
           <div className="hub-picker-box hub-mgr">
@@ -643,7 +665,7 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
                 )}
               </div>
               <div className="hub-mgr-col">
-                <div className="hub-mgr-title">În slider — trage pt. reordonare</div>
+                <div className="hub-mgr-title">{hasMob ? "În slider — trage pt. reordonare · 📱 = poza de mobil" : "În slider — trage pt. reordonare"}</div>
                 {items.length === 0 ? (
                   <p className="hub-mgr-empty">Niciun slide încă — adaugă din bibliotecă.</p>
                 ) : (
@@ -653,18 +675,49 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
                         key={i}
                         className={"hub-mgr-slide" + (dragIdx === i ? " drag" : "") + (overIdx === i && dragIdx !== null && dragIdx !== i ? " over" : "")}
                         draggable
-                        onDragStart={() => setDragIdx(i)}
+                        onDragStart={(e) => {
+                          // fără setData, Firefox nu pornește deloc drag-ul HTML5
+                          e.dataTransfer.effectAllowed = "move";
+                          try { e.dataTransfer.setData("text/plain", ""); } catch { /* IE-ism */ }
+                          setDragIdx(i);
+                        }}
                         onDragOver={(e) => { e.preventDefault(); if (overIdx !== i) setOverIdx(i); }}
-                        onDrop={() => { if (dragIdx !== null && dragIdx !== i) arrayMove(manager.path, dragIdx, i); setDragIdx(null); setOverIdx(null); }}
+                        onDrop={(e) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== i) moveSynced(dragIdx, i); setDragIdx(null); setOverIdx(null); }}
                         onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
                       >
                         <span className="hub-mgr-num">{i + 1}</span>
-                        <img src={urlOf(it)} alt="" draggable={false} />
+                        {urlOf(it) ? (
+                          <img src={urlOf(it)} alt="" draggable={false} />
+                        ) : (
+                          <div
+                            className="hub-mgr-ph"
+                            title="Slot gol — click pt. a-i alege poza de desktop"
+                            onClick={() => setPicker(manager.field ? `${manager.path}.${i}.${manager.field}` : `${manager.path}.${i}`)}
+                          >
+                            fără poză — click
+                          </div>
+                        )}
+                        {/* 📱 doar pe slide-uri cu poză de desktop: pe sloturi goale mobilul
+                            nu s-ar afișa nicăieri (randarea filtrează după URL-ul de desktop),
+                            iar pe elemente-string ar crăpa commit-ul câmpului */}
+                        {mobPathFor(i) != null && Boolean(urlOf(it)) && (!manager.mobField || (it && typeof it === "object")) && (
+                          <button
+                            type="button"
+                            className={"hub-mgr-mob" + (mobUrlOf(it, i) ? " on" : "")}
+                            style={mobUrlOf(it, i) ? { backgroundImage: `url(${mobUrlOf(it, i)})` } : undefined}
+                            title={mobUrlOf(it, i)
+                              ? 'Poza de mobil a acestui slide — click pt. a o schimba („Fără imagine" = revine la poza de desktop)'
+                              : "Setează o poză separată pentru mobil la acest slide"}
+                            onClick={() => setPicker(mobPathFor(i))}
+                          >
+                            {mobUrlOf(it, i) ? "📱" : "📱+"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="hub-mgr-del"
                           title="Scoate poza din slider"
-                          onClick={() => { if (window.confirm("Scoți poza din slider?")) arrayOp(manager.path, "remove", i); }}
+                          onClick={() => { if (window.confirm("Scoți poza din slider?")) removeSynced(i); }}
                         >
                           ×
                         </button>
@@ -679,6 +732,34 @@ export default function HubEditor({ hubRaw, setHubRaw }) {
         </div>
       );
     })()}
+    {picker && (
+      <div className="hub-picker" onClick={(e) => { if (e.target.classList.contains("hub-picker")) setPicker(null); }}>
+        <div className="hub-picker-box">
+          <div className="hub-picker-head">
+            <b>{/mob/i.test(picker) ? "Alege imaginea (varianta mobil)" : "Alege imaginea"}</b>
+            <button className="hub-upbtn" disabled={uploading} onClick={() => fileRef.current && fileRef.current.click()}>
+              {uploading ? "Se încarcă…" : "⬆ Încarcă imagine nouă"}
+            </button>
+            <button onClick={() => { commit(picker, ""); setPicker(null); }}>Fără imagine</button>
+            <button onClick={() => setPicker(null)}>Închide</button>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+              onChange={(e) => { uploadFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
+          </div>
+          {media === null ? (
+            <p>Se încarcă biblioteca…</p>
+          ) : media.length === 0 ? (
+            <p>Nicio imagine încă — apasă „Încarcă imagine nouă" sau adaugă în Galerie media din admin.</p>
+          ) : (
+            <div className="hub-picker-grid">
+              {media.map((m) => (
+                <img key={m.id} src={m.thumb_url || m.url} alt={m.alt || ""} title={m.alt || ""}
+                  onClick={() => { commit(picker, m.url); setPicker(null); }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     {delBtn && (
       <button
         type="button"

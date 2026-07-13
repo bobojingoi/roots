@@ -1502,7 +1502,7 @@ function VillaCard({ villa, delay, contact, idx, page }) {
         {EDIT_MODE && slides.length > 0 && (
           <>
             <button type="button" className="vs-add" data-edit-img={`villas.items.${idx}.gallery.${(villa.gallery || []).length}`}>＋ foto</button>
-            <button type="button" className="vs-add multi" data-edit-imgs={`villas.items.${idx}.gallery`}>⬆ mai multe poze</button>
+            <button type="button" className="vs-add multi" data-edit-imgs={`villas.items.${idx}.gallery`} data-edit-imgs-mobpath={`villas.items.${idx}.galleryMobile`}>⬆ mai multe poze</button>
           </>
         )}
       </div>
@@ -1607,7 +1607,7 @@ function Common({ common }) {
               <>
                 {/* sus, ca să nu calce peste punctele sliderului și butonul 📱 de jos */}
                 <button type="button" className="vs-add top" data-edit-img={`common.slides.${(common.slides || []).length}.url`}>＋ foto slider</button>
-                <button type="button" className="vs-add top multi" data-edit-imgs="common.slides" data-edit-imgs-field="url">⬆ mai multe poze</button>
+                <button type="button" className="vs-add top multi" data-edit-imgs="common.slides" data-edit-imgs-field="url" data-edit-imgs-mobfield="mob">⬆ mai multe poze</button>
               </>
             )}
           </div>
