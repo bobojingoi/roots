@@ -415,7 +415,7 @@ export default function AvailabilityCalendar({
               <button className="bk-back" onClick={() => setStep("select")}>{t("back")}</button>
               <button className="bk-cta grow" disabled={!formValid} onClick={submit}>{t("send_booking")}</button>
             </div>
-            <p className="bk-soon">{t("bk_nopay")}</p>
+            <p className="bk-soon">{t("bk_pay_secure")}</p>
           </div>
         )}
 

@@ -18,7 +18,13 @@ const CK_CSS = `
 .ckbar button:hover{transform:translateY(-1px)}
 .ck-yes{background:#E8722C;color:#fff}
 .ck-no{background:none;color:rgba(251,247,239,.75);border:1.5px solid rgba(251,247,239,.3)!important}
-@media(max-width:560px){.ckbar{flex-direction:column;align-items:stretch;text-align:center}.ck-actions{justify-content:center}}
+@media(max-width:560px){
+  .ckbar{flex-direction:column;align-items:stretch;text-align:center;gap:12px;padding:15px 18px}
+  /* în coloană, flex-basis:320px devenea ÎNĂLȚIME (bară uriașă) — o resetăm */
+  .ckbar p{flex:0 0 auto}
+  .ck-actions{justify-content:stretch}
+  .ckbar button{flex:1}
+}
 `;
 
 export default function CookieBar({ cfg }) {

@@ -1194,44 +1194,42 @@ export const Embers = () => {
    apoi coroana de brad apare strat cu strat — în buclă cât se încarcă pagina.
    Poartă propriul <style> ca să poată fi folosit înaintea CSS-ului principal. */
 const TL_CSS = `
-.treeload{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:'Manrope',system-ui,sans-serif}
-.treeload.inline{min-height:46vh;background:none}
-.treeload .tl-box{text-align:center}
+/* IDENTIC cu loaderul de boot (public/boot.css) — trecerea boot → React invizibilă.
+   Full-screen fix, cu fade-out (.done) ca să dezvăluie conținutul fără salt. */
+.treeload{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#FBF7EF;transition:opacity .55s ease}
+.treeload.done{opacity:0;pointer-events:none}
+.treeload.inline{position:static;min-height:46vh;background:none;z-index:auto}
 .treeload svg{overflow:visible}
-.treeload .tl-roots path{stroke-dasharray:34;stroke-dashoffset:34;animation:tlRoots 2.6s ease-out infinite}
-.treeload .tl-trunk{transform-origin:60px 118px;transform:scaleY(0);animation:tlTrunk 2.6s ease-out infinite}
-.treeload .tl-l1,.treeload .tl-l2,.treeload .tl-l3{opacity:0;transform:translateY(8px) scale(.6)}
-.treeload .tl-l1{transform-origin:60px 106px;animation:tlLayer1 2.6s ease-out infinite}
-.treeload .tl-l2{transform-origin:60px 78px;animation:tlLayer2 2.6s ease-out infinite}
-.treeload .tl-l3{transform-origin:60px 54px;animation:tlLayer3 2.6s ease-out infinite}
-.treeload .tl-label{display:block;margin-top:16px;font-size:14px;font-weight:600;color:#7A8B80}
-@keyframes tlRoots{0%{stroke-dashoffset:34}22%{stroke-dashoffset:0}88%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
-@keyframes tlTrunk{0%,14%{transform:scaleY(0)}38%{transform:scaleY(1)}88%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
-/* secvențierea straturilor e în procente (nu animation-delay) — cu delay, buclele
-   se decalează și vârful bradului rămâne „plutind" fără trunchi la reluare */
-@keyframes tlLayer1{0%,34%{opacity:0;transform:translateY(8px) scale(.6)}50%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
-@keyframes tlLayer2{0%,42%{opacity:0;transform:translateY(8px) scale(.6)}58%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
-@keyframes tlLayer3{0%,50%{opacity:0;transform:translateY(8px) scale(.6)}66%{opacity:1;transform:none}88%{opacity:1;transform:none}100%{opacity:0;transform:none}}
+.treeload .tl-roots path{stroke-dasharray:40;stroke-dashoffset:40;animation:tlRoots 3s ease-out infinite}
+.treeload .tl-trunk{transform-origin:60px 118px;transform:scaleY(0);animation:tlTrunk 3s ease-out infinite}
+.treeload .tl-crown{transform-origin:60px 74px;transform:scale(0);opacity:0;animation:tlCrown 3s ease-out infinite}
+@keyframes tlRoots{0%{stroke-dashoffset:40;opacity:1}24%{stroke-dashoffset:0}90%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes tlTrunk{0%,12%{transform:scaleY(0)}38%{transform:scaleY(1)}90%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
+@keyframes tlCrown{0%,34%{opacity:0;transform:scale(0)}58%{opacity:1;transform:scale(1.06)}66%{transform:scale(1)}90%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.treeload *{animation:none!important;opacity:1!important;transform:none!important;stroke-dashoffset:0!important}}
 `;
-export function TreeLoader({ label = "Se încarcă…", inline = false }) {
+export function TreeLoader({ label = "Se încarcă…", inline = false, done = false }) {
   return (
-    <div className={`treeload${inline ? " inline" : ""}`} role="status" aria-label={label}>
+    <div className={`treeload${inline ? " inline" : ""}${done ? " done" : ""}`} role="status" aria-label={label}>
       <style>{TL_CSS}</style>
-      <div className="tl-box">
-        <svg viewBox="0 0 120 140" width="96" height="112" aria-hidden="true">
-          <g className="tl-roots" stroke="#8A5A3C" strokeWidth="3" fill="none" strokeLinecap="round">
-            <path d="M60 118 C56 126 46 128 38 132" />
-            <path d="M60 118 C64 126 74 128 82 132" />
-            <path d="M60 118 C60 125 60 129 60 134" />
-          </g>
-          <rect className="tl-trunk" x="56" y="88" width="8" height="30" rx="3" fill="#8A5A3C" />
-          <path className="tl-l1" d="M60 62 L34 106 H86 Z" fill="#1E5C43" />
-          <path className="tl-l2" d="M60 40 L38 78 H82 Z" fill="#247052" />
-          <path className="tl-l3" d="M60 20 L42 54 H78 Z" fill="#2E8562" />
-        </svg>
-        <span className="tl-label">{label}</span>
-      </div>
+      <svg viewBox="0 0 120 150" width="120" height="150" aria-hidden="true">
+        <g className="tl-roots" stroke="#8A5A3C" strokeWidth="3.2" fill="none" strokeLinecap="round">
+          <path d="M60 118 C54 128 44 130 33 137" />
+          <path d="M60 118 C66 128 76 130 87 137" />
+          <path d="M60 118 C60 128 60 133 60 140" />
+          <path d="M60 118 C51 125 47 131 44 136" />
+          <path d="M60 118 C69 125 73 131 76 136" />
+        </g>
+        <rect className="tl-trunk" x="56.5" y="72" width="7" height="46" rx="3.5" fill="#8A5A3C" />
+        <g className="tl-crown">
+          <circle cx="60" cy="50" r="28" fill="#1E5C43" />
+          <circle cx="38" cy="60" r="18" fill="#22684B" />
+          <circle cx="82" cy="60" r="18" fill="#22684B" />
+          <circle cx="48" cy="34" r="17" fill="#2E8562" />
+          <circle cx="74" cy="36" r="16" fill="#2E8562" />
+          <circle cx="60" cy="46" r="14" fill="#39946E" />
+        </g>
+      </svg>
     </div>
   );
 }
@@ -2405,6 +2403,7 @@ function Admin({ content, setContent, onClose, onSave, onReset, saved }) {
 export default function RootsVillas() {
   const [hubRaw, setHubRaw] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [loaderGone, setLoaderGone] = useState(false); // demontăm loaderul după fade
 
   useEffect(() => {
     (async () => {
@@ -2425,13 +2424,18 @@ export default function RootsVillas() {
 
   useReveal();
 
-  if (!loaded) {
-    return <TreeLoader label={t("loading")} />;
-  }
+  // conținutul se randează mereu (cu valorile implicite până sosește hubRaw);
+  // loaderul stă deasupra și se estompează când datele sunt gata — fără salt de pagină
+  useEffect(() => {
+    if (!loaded) return;
+    const id = setTimeout(() => setLoaderGone(true), 650);
+    return () => clearTimeout(id);
+  }, [loaded]);
 
   return (
     <div className="roots">
       <style>{CSS}</style>
+      {!loaderGone && <TreeLoader label={t("loading")} done={loaded} />}
       <ThemeStyle content={content} />
       <Header content={content} />
       <Hero hero={content.hero} brand={content.brand} />

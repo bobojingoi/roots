@@ -47,16 +47,23 @@
     <!-- loaderul „copacul crește din rădăcini" — vizibil până pornește React (main.jsx îl scoate) -->
     <link rel="stylesheet" href="/boot.css" />
     <div id="boot-tree" role="status" aria-label="Se încarcă">
-      <svg viewBox="0 0 120 140" width="96" height="112" aria-hidden="true">
-        <g class="tl-roots" stroke="#8A5A3C" stroke-width="3" fill="none" stroke-linecap="round">
-          <path d="M60 118 C56 126 46 128 38 132" />
-          <path d="M60 118 C64 126 74 128 82 132" />
-          <path d="M60 118 C60 125 60 129 60 134" />
+      <svg viewBox="0 0 120 150" width="120" height="150" aria-hidden="true">
+        <g class="tl-roots" stroke="#8A5A3C" stroke-width="3.2" fill="none" stroke-linecap="round">
+          <path d="M60 118 C54 128 44 130 33 137" />
+          <path d="M60 118 C66 128 76 130 87 137" />
+          <path d="M60 118 C60 128 60 133 60 140" />
+          <path d="M60 118 C51 125 47 131 44 136" />
+          <path d="M60 118 C69 125 73 131 76 136" />
         </g>
-        <rect class="tl-trunk" x="56" y="88" width="8" height="30" rx="3" fill="#8A5A3C" />
-        <path class="tl-l1" d="M60 62 L34 106 H86 Z" fill="#1E5C43" />
-        <path class="tl-l2" d="M60 40 L38 78 H82 Z" fill="#247052" />
-        <path class="tl-l3" d="M60 20 L42 54 H78 Z" fill="#2E8562" />
+        <rect class="tl-trunk" x="56.5" y="72" width="7" height="46" rx="3.5" fill="#8A5A3C" />
+        <g class="tl-crown">
+          <circle cx="60" cy="50" r="28" fill="#1E5C43" />
+          <circle cx="38" cy="60" r="18" fill="#22684B" />
+          <circle cx="82" cy="60" r="18" fill="#22684B" />
+          <circle cx="48" cy="34" r="17" fill="#2E8562" />
+          <circle cx="74" cy="36" r="16" fill="#2E8562" />
+          <circle cx="60" cy="46" r="14" fill="#39946E" />
+        </g>
       </svg>
     </div>
     <div id="root"></div>

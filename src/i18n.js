@@ -127,7 +127,7 @@ const D = {
   foot_anpc:    { ro: "ANPC — protecția consumatorului", en: "ANPC — consumer protection (RO)", he: "ANPC — הגנת הצרכן (רומניה)", fr: "ANPC — protection des consommateurs (RO)" },
   foot_sal:     { ro: "SAL — soluționarea litigiilor", en: "SAL — dispute resolution (RO)", he: "SAL — יישוב סכסוכים (רומניה)", fr: "SAL — règlement des litiges (RO)" },
   open_maps:    { ro: "Deschide în Google Maps →", en: "Open in Google Maps →", he: "← פתחו ב-Google Maps", fr: "Ouvrir dans Google Maps →" },
-  bk_nopay:     { ro: "Fără plată online acum — confirmăm rezervarea și detaliile avansului pe email/telefon.", en: "No online payment yet — we confirm the booking and deposit details by email/phone.", he: "אין תשלום מקוון כרגע — נאשר את ההזמנה ואת פרטי המקדמה באימייל/טלפון.", fr: "Pas de paiement en ligne pour l'instant — nous confirmons la réservation et l'acompte par e-mail/téléphone." },
+  bk_pay_secure: { ro: "Plata avansului se face securizat, cu cardul, la pasul următor.", en: "The deposit is paid securely by card in the next step.", he: "המקדמה משולמת באופן מאובטח בכרטיס בשלב הבא.", fr: "L'acompte se règle en toute sécurité par carte à l'étape suivante." },
   bk_sending:   { ro: "Se trimite rezervarea…", en: "Sending your booking…", he: "ההזמנה נשלחת…", fr: "Envoi de la réservation…" },
   bk_booked:    { ro: "Rezervare înregistrată", en: "Booking received", he: "ההזמנה נקלטה", fr: "Réservation enregistrée" },
   bk_villa:     { ro: "Vila", en: "Villa", he: "וילה", fr: "Villa" },
