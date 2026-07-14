@@ -101,6 +101,22 @@ function stripeSigOk(rawBody, header, secret) {
   } catch { return false; }
 }
 
+/* comisionul Stripe nu vine în evenimentul de checkout — îl citim separat din
+   balance transaction (necesită STRIPE_SECRET_KEY pe hub; fără ea, fee rămâne gol) */
+async function stripeFeeFor(paymentIntentId) {
+  const sk = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!sk || !paymentIntentId) return null;
+  const r = await fetch(
+    'https://api.stripe.com/v1/payment_intents/' + encodeURIComponent(paymentIntentId) + '?expand[]=latest_charge.balance_transaction',
+    { headers: { Authorization: 'Bearer ' + sk } }
+  );
+  if (!r.ok) return null;
+  const j = await r.json();
+  const bt = j.latest_charge && j.latest_charge.balance_transaction;
+  if (!bt || typeof bt !== 'object' || bt.fee == null) return null;
+  return { fee: bt.fee / 100, net: bt.net / 100 };
+}
+
 app.post('/api/v1/payments/stripe-webhook', async (req, res) => {
   const secret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   if (!secret) return res.status(503).json({ error: 'Webhook neconfigurat (STRIPE_WEBHOOK_SECRET).' });
@@ -120,9 +136,10 @@ app.post('/api/v1/payments/stripe-webhook', async (req, res) => {
       const md = s.metadata || {};
       const email = (s.customer_details && s.customer_details.email) || s.customer_email || null;
       await pool.query(
-        `INSERT INTO payments (provider, session_id, ref, amount, currency, status, guest_email, raw)
-         VALUES ('stripe', $1, $2, $3, $4, 'paid', $5, $6)
-         ON CONFLICT (session_id) DO UPDATE SET status = 'paid', raw = EXCLUDED.raw
+        `INSERT INTO payments (provider, session_id, ref, amount, currency, status, guest_email, payment_intent, raw)
+         VALUES ('stripe', $1, $2, $3, $4, 'paid', $5, $7, $6)
+         ON CONFLICT (session_id) DO UPDATE SET status = 'paid', raw = EXCLUDED.raw,
+           payment_intent = COALESCE(EXCLUDED.payment_intent, payments.payment_intent)
          WHERE payments.status NOT IN ('refunded', 'disputed')`,
         [
           s.id || null,
@@ -131,22 +148,36 @@ app.post('/api/v1/payments/stripe-webhook', async (req, res) => {
           s.currency || 'ron',
           email,
           JSON.stringify(s),
+          (typeof s.payment_intent === 'string' && s.payment_intent) || null,
         ]
       );
       emit('PaymentCompleted', { ref: md.ref || null, sessionId: s.id, amount: s.amount_total != null ? s.amount_total / 100 : null, email });
+      // comisionul Stripe (best-effort — nu blocăm 200-ul dacă interogarea pică)
+      try {
+        const f = await stripeFeeFor((typeof s.payment_intent === 'string' && s.payment_intent) || null);
+        if (f) await pool.query('UPDATE payments SET fee = $2, net = $3 WHERE session_id = $1', [s.id, f.fee, f.net]);
+      } catch (e) { console.error('[stripe-webhook] fee lookup:', e.message); }
     } else if (ev.type === 'charge.refunded' || ev.type === 'charge.dispute.created') {
       // banii s-au întors / sunt contestați → badge-ul „Avans plătit" dispare
-      // (admin listează doar status='paid'); potrivim prin payment_intent din raw
+      // (admin listează doar status='paid'); potrivim prin payment_intent
       const c = s;
-      const pi = c.payment_intent || null;
-      const fullRefund = ev.type !== 'charge.refunded' || c.refunded === true ||
+      const pi = (typeof c.payment_intent === 'string' && c.payment_intent) || null;
+      const isDispute = ev.type === 'charge.dispute.created';
+      const refundedLei = !isDispute && c.amount_refunded != null ? c.amount_refunded / 100 : null;
+      // refund PARȚIAL: reținem suma, dar statusul rămâne 'paid' (avansul încă stă);
+      // refund integral sau dispută: statusul se schimbă și badge-ul dispare
+      const full = isDispute || c.refunded === true ||
         (c.amount_refunded != null && c.amount != null && c.amount_refunded >= c.amount);
-      if (pi && fullRefund) {
+      if (pi) {
         await pool.query(
-          `UPDATE payments SET status = $2 WHERE provider = 'stripe' AND raw->>'payment_intent' = $1`,
-          [pi, ev.type === 'charge.refunded' ? 'refunded' : 'disputed']
+          `UPDATE payments SET
+             refund_amount = COALESCE($2, refund_amount),
+             refunded_at = CASE WHEN $2 IS NOT NULL OR $3 THEN now() ELSE refunded_at END,
+             status = CASE WHEN $3 THEN $4 ELSE status END
+           WHERE provider = 'stripe' AND (payment_intent = $1 OR raw->>'payment_intent' = $1)`,
+          [pi, refundedLei, full, isDispute ? 'disputed' : 'refunded']
         );
-        emit('PaymentReversed', { paymentIntent: pi, kind: ev.type });
+        if (full) emit('PaymentReversed', { paymentIntent: pi, kind: ev.type });
       }
     }
     // răspundem 200 la orice eveniment semnat corect — Stripe nu retrimite inutil
@@ -261,6 +292,7 @@ const PERM_AREAS = [
   ['oferte', 'Oferte & Reduceri'],
   ['membership', 'Membership & Puncte'],
   ['smart', 'Smart Roots (dispozitive)'],
+  ['financiar', 'Financiar (plăți online)'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
@@ -1543,6 +1575,39 @@ app.get('/api/v1/admin/bookings', requirePerm('rezervari'), async (_req, res) =>
   );
   res.json({ bookings: r.rows, payments: p.rows });
 });
+/* Financiar: toate plățile online, cu comision/net/refund. La fiecare încărcare
+   completăm comisioanele lipsă (max 10 — apel Stripe per plată, best-effort). */
+app.get('/api/v1/admin/finance', requirePerm('financiar'), async (_req, res) => {
+  const stripeConfigured = Boolean((process.env.STRIPE_SECRET_KEY || '').trim());
+  if (stripeConfigured) {
+    try {
+      const missing = await pool.query(
+        `SELECT session_id, COALESCE(payment_intent, raw->>'payment_intent') AS pi
+         FROM payments
+         WHERE fee IS NULL AND status IN ('paid', 'refunded', 'disputed')
+           AND COALESCE(payment_intent, raw->>'payment_intent') IS NOT NULL
+         ORDER BY created_at DESC LIMIT 10`
+      );
+      for (const row of missing.rows) {
+        const f = await stripeFeeFor(row.pi);
+        if (f) {
+          await pool.query(
+            'UPDATE payments SET fee = $2, net = $3, payment_intent = COALESCE(payment_intent, $4) WHERE session_id = $1',
+            [row.session_id, f.fee, f.net, row.pi]
+          );
+        }
+      }
+    } catch (e) { console.error('[finance] backfill:', e.message); }
+  }
+  const r = await pool.query(
+    `SELECT session_id, ref, amount, currency, status, guest_email, fee, net,
+            refund_amount, refunded_at,
+            COALESCE(payment_intent, raw->>'payment_intent') AS payment_intent, created_at
+     FROM payments ORDER BY created_at DESC LIMIT 1000`
+  );
+  res.json({ payments: r.rows, stripeConfigured });
+});
+
 app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
   const r = await pool.query(
     `SELECT g.*, count(b.id)::int AS stays, COALESCE(sum(b.value),0)::numeric AS total_value,

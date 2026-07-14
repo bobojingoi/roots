@@ -98,6 +98,13 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(ref);
+-- coloane adăugate pentru tabul Financiar (idempotent pe bazele existente):
+-- comisionul Stripe vine separat (balance transaction), nu în webhook
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_intent TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS fee NUMERIC(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS net NUMERIC(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount NUMERIC(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ;
 
 -- jurnal de evenimente interne (fundația webhook-urilor Travelscan)
 CREATE TABLE IF NOT EXISTS events_log (

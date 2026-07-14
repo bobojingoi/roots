@@ -192,6 +192,7 @@ const ICONS = {
   panou: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
   sec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h16M4 19h10"/></svg>',
   media: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 3 3 4-4 4 4"/></svg>',
+  fin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M2.5 10h19"/><path d="M6 14.5h4"/></svg>',
 };
 
 /* ============ helpers ============ */
@@ -261,6 +262,7 @@ function renderNav() {
   } // end can('continut')
   if (can('rezervari') || can('clienti') || can('recenzii')) h += `<div class="nav-cap">CRM</div>`;
   if (can('rezervari')) h += `<button class="nav-i ${TAB === 'bookings' ? 'on' : ''}" onclick="go('bookings')">${ICONS.cal} Rezervări</button>`;
+  if (can('financiar')) h += `<button class="nav-i ${TAB === 'finance' ? 'on' : ''}" onclick="go('finance')">${ICONS.fin} Financiar</button>`;
   if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
   if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
@@ -368,6 +370,7 @@ async function renderMain() {
   if (TAB === 'seo') { renderSeo(); return; }
   if (TAB === 'heatmap') { renderHeatmap(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
+  if (TAB === 'finance') { renderFinance(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
   if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
@@ -792,6 +795,72 @@ function renderBookingsList() {
           <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
       </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare pe filtrele alese.</div>'}`;
 }
+/* ============ Financiar: plăți online (Stripe) ============ */
+let FIN = [], FIN_F = { y: '', m: '' }, FIN_CFG = false;
+const finLei = (v) => (v == null ? '—' : Number(v).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' lei');
+function finFilter(k, v) { FIN_F[k] = v; renderFinanceList(); }
+async function renderFinance() {
+  const j = await api('/api/v1/admin/finance');
+  FIN = j.payments || [];
+  FIN_CFG = !!j.stripeConfigured;
+  const years = [...new Set(FIN.map((p) => new Date(p.created_at).getFullYear()))].sort((a, b) => b - a);
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Financiar</h1><div class="lead">Plățile online (Stripe): avansuri încasate, refunduri, comisioane. Restul sumelor se încasează la check-in.</div></div>
+      <a class="btn" href="https://dashboard.stripe.com/payments" target="_blank" rel="noopener">Deschide Stripe</a></div>
+    ${FIN_CFG ? '' : `<div class="card" style="margin-bottom:14px"><b>Comisioanele nu pot fi citite</b><div class="hint">Adaugă STRIPE_SECRET_KEY și pe proiectul hub-ului (Vercel) ca să vezi comisionul și netul fiecărei plăți.</div></div>`}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <select class="f" style="max-width:130px" onchange="finFilter('y', this.value)">
+        <option value="">Toți anii</option>${years.map((y) => `<option ${String(y) === FIN_F.y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+      <select class="f" style="max-width:150px" onchange="finFilter('m', this.value)">
+        <option value="">Toate lunile</option>${MONTH_NAMES.map((n, i) => `<option value="${i + 1}" ${String(i + 1) === FIN_F.m ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    </div>
+    <div id="finCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px"></div>
+    <div class="card" style="padding:8px 20px" id="finList"></div>`;
+  renderFinanceList();
+}
+function renderFinanceList() {
+  const rows = FIN.filter((p) => {
+    const d = new Date(p.created_at);
+    if (FIN_F.y && String(d.getFullYear()) !== FIN_F.y) return false;
+    if (FIN_F.m && String(d.getMonth() + 1) !== FIN_F.m) return false;
+    return true;
+  });
+  const n = (v) => Number(v) || 0;
+  // încasat brut = tot ce a intrat (plătite + refundate ulterior); netul scade
+  // refundurile și comisioanele Stripe (comisionul NU se întoarce la refund)
+  const paidRows = rows.filter((p) => p.status === 'paid');
+  const revRows = rows.filter((p) => p.status === 'refunded' || p.status === 'disputed');
+  const gross = rows.reduce((s, p) => s + n(p.amount), 0);
+  const refunded = revRows.reduce((s, p) => s + n(p.refund_amount != null ? p.refund_amount : p.amount), 0)
+    + paidRows.reduce((s, p) => s + n(p.refund_amount), 0); // refunduri parțiale pe plăți încă active
+  const fees = rows.reduce((s, p) => s + n(p.fee), 0);
+  const feesKnown = rows.filter((p) => p.fee != null).length;
+  const net = gross - refunded - fees;
+  const card = (label, val, hint) => `<div class="card" style="padding:16px 18px"><div class="hint">${label}</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px">${finLei(val)}</div>${hint ? `<div class="hint" style="margin-top:4px">${hint}</div>` : ''}</div>`;
+  $('finCards').innerHTML =
+    card('Încasat (brut)', gross, `${rows.length} plăți`) +
+    card('Refundat / disputat', refunded, `${revRows.length} plăți`) +
+    card('Comision Stripe', fees, feesKnown < rows.length ? `cunoscut pe ${feesKnown}/${rows.length}` : '') +
+    card('Net estimat', net, 'brut − refunduri − comisioane');
+  const badge = (st) => st === 'paid'
+    ? '<span class="badge pub">plătit</span>'
+    : st === 'refunded' ? '<span class="badge mod">refundat</span>' : `<span class="badge mod">${esc(st)}</span>`;
+  $('finList').innerHTML = `
+    <div class="vrow" style="color:#5c6b64"><span><b>${rows.length}</b> plăți</span><span>avansuri Stripe</span></div>
+    ${rows.map((p) => `
+      <div class="vrow" style="gap:14px">
+        <span style="min-width:0"><b>${esc(p.guest_email || 'fără email')}</b>
+          <span style="color:#9aa8a1"> · ${new Date(p.created_at).toLocaleString('ro-RO')} · rezervarea #${esc(p.ref || '—')}</span>
+          ${p.payment_intent ? `<a href="https://dashboard.stripe.com/payments/${encodeURIComponent(p.payment_intent)}" target="_blank" rel="noopener" style="margin-left:8px;font-size:12px">Stripe ↗</a>` : ''}</span>
+        <span style="white-space:nowrap;text-align:right">
+          <b>${finLei(p.amount)}</b>
+          <span style="color:#9aa8a1"> · com. ${finLei(p.fee)}</span>
+          ${p.refund_amount != null && p.status === 'paid' ? `<span style="color:#c0392b"> · refund parțial ${finLei(p.refund_amount)}</span>` : ''}
+          ${badge(p.status)}</span>
+      </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio plată online încă.</div>'}`;
+}
+
 let GUESTS = [], GS_Y = '';
 function gsFilter(v) { GS_Y = v; renderGuestsList(); }
 async function renderGuests() {
@@ -1643,11 +1712,11 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
     } catch (e) { SECTIONS = []; }
     // deschide primul tab la care rolul are acces
     if (!can('panou')) {
-      const first = ['continut', 'rezervari', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
+      const first = ['continut', 'rezervari', 'financiar', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
       TAB = first === 'continut' ? 'sec:' + (SECTIONS[0] ? SECTIONS[0].section_key : 'hero')
         : first === 'rezervari' ? 'bookings' : first === 'clienti' ? 'guests'
         : first === 'recenzii' ? 'greviews' : first === 'blog' ? 'blog'
-        : first === 'oferte' ? 'offers'
+        : first === 'oferte' ? 'offers' : first === 'financiar' ? 'finance'
         : first === 'media' ? 'media' : first || 'panou';
       if (!first) TAB = 'noaccess';
     }
