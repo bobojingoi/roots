@@ -35,13 +35,13 @@ const WELCOME_CSS = `
 .wel-actions .btn{padding:13px 22px;font-size:14.5px}
 .wel-foot{text-align:center;color:var(--ink-soft);font-size:13px;margin-top:26px}
 .wel-load{min-height:100vh;display:grid;place-items:center;background:#FBF7EF;font-family:sans-serif;color:#122B22}
-.wel-card-img{width:100%;height:190px;border-radius:14px;background-color:#e9ede9;background-size:cover;background-position:center;margin:2px 0 16px}
+.wel-card-img{width:100%;aspect-ratio:1/1;border-radius:16px;background-color:#e9ede9;background-size:cover;background-position:center;margin:2px 0 16px}
 .wel-steps{display:grid;gap:16px;margin-top:4px}
 .wel-step{display:flex;gap:13px;align-items:flex-start}
 .wel-step-n{width:27px;height:27px;flex-shrink:0;border-radius:50%;background:var(--ember);color:#fff;font-weight:800;font-size:13.5px;display:grid;place-items:center;margin-top:1px}
 .wel-step-body{flex:1;min-width:0}
 .wel-step-body p{font-size:15px;line-height:1.55;color:var(--ink)}
-.wel-step-img{width:100%;height:160px;border-radius:12px;background-color:#e9ede9;background-size:cover;background-position:center;margin-top:10px}
+.wel-step-img{width:100%;aspect-ratio:1/1;border-radius:14px;background-color:#e9ede9;background-size:cover;background-position:center;margin-top:10px}
 .wel-dirs{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
 .wel-dir{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--line);border-radius:100px;padding:11px 18px;font-weight:700;font-size:14px;color:var(--pine);text-decoration:none}
 .wel-dir:hover{border-color:var(--ember);color:var(--ember)}
