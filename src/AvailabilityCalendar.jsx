@@ -459,7 +459,7 @@ export default function AvailabilityCalendar({
                 </label>
               </div>
             )}
-            <label className="bk-cot" style={{ marginTop: 8 }}>
+            <label className="bk-cot" style={{ marginTop: 14, marginBottom: 16 }}>
               <input type="checkbox" checked={hasPet} onChange={(e) => setHasPet(e.target.checked)} />
               {t("bk_pet")}
             </label>
@@ -502,7 +502,7 @@ export default function AvailabilityCalendar({
             {userDisc && !discApplies && (
               <p className="bk-soon" style={{ color: "#c0392b" }}>{t("code_email_hint", { e: accEmail })}</p>
             )}
-            <label className="bk-cot" style={{ marginTop: 10 }}>
+            <label className="bk-cot" style={{ marginTop: 16, marginBottom: 20 }}>
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               {t("bk_consent")}
             </label>

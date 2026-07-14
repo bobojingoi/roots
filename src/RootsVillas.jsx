@@ -571,7 +571,8 @@ export function iconsFor(texts) {
 
 /* ============================ STYLES ============================ */
 export const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap');
+/* Fonturile (Fraunces + Manrope) se încarcă din <link> în index.html <head>,
+   NU prin @import aici — @import într-un <style> injectat de React producea FOUC pe iOS. */
 
 :root{
   --pine:#122B22; --pine-2:#1B4033; --pine-3:#0C1F19;
