@@ -193,6 +193,7 @@ const ICONS = {
   sec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h16M4 19h10"/></svg>',
   media: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 3 3 4-4 4 4"/></svg>',
   fin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M2.5 10h19"/><path d="M6 14.5h4"/></svg>',
+  mkt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v3l4 1 8 4V5l-8 4-4 1z"/><path d="M15 8a4 4 0 0 1 0 8"/><path d="M7 15v4"/></svg>',
 };
 
 /* ============ helpers ============ */
@@ -265,6 +266,8 @@ function renderNav() {
   if (can('financiar')) h += `<button class="nav-i ${TAB === 'finance' ? 'on' : ''}" onclick="go('finance')">${ICONS.fin} Financiar</button>`;
   if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
+  if (can('marketing')) h += `<div class="nav-cap">Marketing</div>
+    <button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
   if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
   if (can('seo')) h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
   if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
@@ -371,6 +374,7 @@ async function renderMain() {
   if (TAB === 'heatmap') { renderHeatmap(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
   if (TAB === 'finance') { renderFinance(); return; }
+  if (TAB === 'marketing') { renderMarketing(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
   if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
@@ -795,6 +799,80 @@ function renderBookingsList() {
           <span class="badge ${b.status === 'confirmed' ? 'pub' : 'mod'}" style="margin-left:8px">${esc(b.status)}</span></span>
       </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare pe filtrele alese.</div>'}`;
 }
+/* ============ Marketing: campanii Meta Ads ============ */
+let MK_DAYS = 28;
+const mkN = (v, d) => Number(v || 0).toLocaleString('ro-RO', { minimumFractionDigits: d || 0, maximumFractionDigits: d == null ? 0 : d });
+function mkDays(v) { MK_DAYS = Number(v); renderMarketing(); }
+async function renderMarketing(refresh) {
+  $('main').innerHTML = `<div class="sec-head"><div><h1>Campanii</h1><div class="lead">Se încarcă datele din Meta…</div></div></div>`;
+  let j;
+  try {
+    j = await api('/api/v1/admin/marketing?days=' + MK_DAYS + (refresh ? '&refresh=1' : ''));
+  } catch (e) {
+    $('main').innerHTML = `<div class="sec-head"><div><h1>Campanii</h1></div></div>
+      <div class="card"><b>Meta nu a răspuns</b><div class="hint">${esc(e.message)}</div>
+      <div style="margin-top:12px"><button class="btn p" onclick="renderMarketing()">Reîncearcă</button>
+      ${ME && ME.role === 'owner' ? '<button class="btn" style="margin-left:8px" onclick="renderMarketingSetup()">Configurare</button>' : ''}</div></div>`;
+    return;
+  }
+  if (!j.configured) { renderMarketingSetup(); return; }
+  const s = j.summary, cur = j.currency || '';
+  const card = (label, val, hint) => `<div class="card" style="padding:16px 18px"><div class="hint">${label}</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px">${val}</div>${hint ? `<div class="hint" style="margin-top:4px">${hint}</div>` : ''}</div>`;
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Campanii</h1><div class="lead">Meta Ads — ${esc(j.accountName || '')} · date live din Graph API (cache 30 min). Urmează: legarea cu profilurile clienților (Roots Leads).</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="f" style="max-width:150px" onchange="mkDays(this.value)">
+          ${[7, 28, 90].map((d) => `<option value="${d}" ${d === MK_DAYS ? 'selected' : ''}>Ultimele ${d} zile</option>`).join('')}</select>
+        <button class="btn" onclick="renderMarketing(true)" title="Ocolește cache-ul de 30 min">↻</button>
+        ${ME && ME.role === 'owner' ? '<button class="btn" onclick="renderMarketingSetup()">Configurare</button>' : ''}
+      </div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px">
+      ${card('Cheltuit', mkN(s.spend, 2) + ' ' + esc(cur), 'reach ' + mkN(s.reach))}
+      ${card('Afișări', mkN(s.impressions), 'CTR ' + mkN(s.ctr, 2) + '%')}
+      ${card('Click-uri', mkN(s.clicks), 'CPC ' + mkN(s.cpc, 2) + ' ' + esc(cur))}
+      ${card('Rezervări (purchase)', mkN(s.purchases), s.purchaseValue ? 'valoare ' + mkN(s.purchaseValue, 0) + ' ' + esc(cur) : 'pixelul raportează valoarea plăților')}
+      ${card('ROAS', s.roas != null ? mkN(s.roas, 2) + '×' : '—', s.roas != null ? 'valoare rezervări / cheltuit' : 'apare după primele conversii')}
+    </div>
+    <div class="card" style="padding:8px 20px">
+      <div class="vrow" style="color:#5c6b64"><span><b>${j.campaigns.length}</b> campanii</span><span>sortate după cheltuieli</span></div>
+      ${j.campaigns.map((c) => `
+        <div class="vrow" style="gap:14px">
+          <span style="min-width:0"><b>${esc(c.name)}</b>
+            <span style="color:#9aa8a1"> · ${mkN(c.impressions)} afișări · ${mkN(c.clicks)} click-uri · CTR ${mkN(c.ctr, 2)}% · CPC ${mkN(c.cpc, 2)} ${esc(cur)}</span></span>
+          <span style="white-space:nowrap"><b>${mkN(c.spend, 2)} ${esc(cur)}</b>
+            ${c.purchases ? `<span class="badge pub" style="margin-left:8px">${c.purchases} rez. · ${mkN(c.purchaseValue, 0)} ${esc(cur)}</span>` : ''}</span>
+        </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio campanie în intervalul ales.</div>'}
+    </div>
+    <div class="hint" style="margin-top:10px">Actualizat: ${new Date(j.generatedAt).toLocaleString('ro-RO')}</div>`;
+}
+async function renderMarketingSetup() {
+  let cfg = { configured: false, accountId: '', tokenHint: '' };
+  try { cfg = await api('/api/v1/admin/marketing/config'); } catch (e) { /* non-owner: 403 */ }
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Campanii — configurare Meta</h1><div class="lead">Conectezi contul de reclame o singură dată; datele apar apoi pentru toți cei cu acces la Marketing.</div></div></div>
+    <div class="card" style="max-width:640px">
+      <label class="f">Ad Account ID</label>
+      <input class="f" id="mkAcc" placeholder="ex. 411658683164598" value="${esc(cfg.accountId || '')}" />
+      <label class="f" style="margin-top:10px">Access token (ads_read)${cfg.tokenHint ? ' — salvat: ' + esc(cfg.tokenHint) : ''}</label>
+      <input class="f" id="mkTok" type="password" placeholder="tokenul System User din Business Settings" />
+      <div class="hint" style="margin-top:8px">Business Settings → System Users → Generate token → bifezi <b>ads_read</b> și dai acces la contul de reclame Roots Villa. Tokenul se salvează doar în baza de date a hub-ului.</div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn p" onclick="saveMarketingCfg()">Salvează & testează</button>
+        <button class="btn" onclick="renderMarketing()">Înapoi</button>
+      </div></div>`;
+}
+async function saveMarketingCfg() {
+  const accountId = $('mkAcc').value.trim();
+  const token = $('mkTok').value.trim();
+  if (!accountId || !token) { toast('Completează și contul, și tokenul.'); return; }
+  try {
+    await api('/api/v1/admin/marketing/config', { method: 'POST', body: JSON.stringify({ accountId, token }) });
+    toast('Salvat ✓');
+    renderMarketing(true);
+  } catch (e) { toast('Eroare: ' + e.message); }
+}
+
 /* ============ Financiar: plăți online (Stripe) ============ */
 let FIN = [], FIN_F = { y: '', m: '' }, FIN_CFG = false;
 const finLei = (v) => (v == null ? '—' : Number(v).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' lei');
@@ -1712,11 +1790,12 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
     } catch (e) { SECTIONS = []; }
     // deschide primul tab la care rolul are acces
     if (!can('panou')) {
-      const first = ['continut', 'rezervari', 'financiar', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
+      const first = ['continut', 'rezervari', 'financiar', 'marketing', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
       TAB = first === 'continut' ? 'sec:' + (SECTIONS[0] ? SECTIONS[0].section_key : 'hero')
         : first === 'rezervari' ? 'bookings' : first === 'clienti' ? 'guests'
         : first === 'recenzii' ? 'greviews' : first === 'blog' ? 'blog'
         : first === 'oferte' ? 'offers' : first === 'financiar' ? 'finance'
+        : first === 'marketing' ? 'marketing'
         : first === 'media' ? 'media' : first || 'panou';
       if (!first) TAB = 'noaccess';
     }

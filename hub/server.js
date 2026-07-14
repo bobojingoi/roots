@@ -293,6 +293,7 @@ const PERM_AREAS = [
   ['membership', 'Membership & Puncte'],
   ['smart', 'Smart Roots (dispozitive)'],
   ['financiar', 'Financiar (plăți online)'],
+  ['marketing', 'Marketing (campanii ads)'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
@@ -1606,6 +1607,114 @@ app.get('/api/v1/admin/finance', requirePerm('financiar'), async (_req, res) => 
      FROM payments ORDER BY created_at DESC LIMIT 1000`
   );
   res.json({ payments: r.rows, stripeConfigured });
+});
+
+/* ============ Marketing: campanii Meta Ads (Graph API, doar citire) ============
+   Portat din dashboard-ul TravelScan: insights la nivel de cont + pe campanii,
+   cu purchases/valoare (pixelul Roots) → ROAS. Tokenul (ads_read) și contul se
+   salvează din admin în settings (fără redeploy); env META_ADS_TOKEN e fallback.
+   Cache 30 min per interval — Graph API are rate limits stricte. */
+let adsCache = new Map(); // days -> { at, value }
+
+async function metaAdsConfig() {
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'meta_ads'");
+    const v = (r.rows[0] && r.rows[0].value) || {};
+    if (v.token && v.accountId) return { token: String(v.token), accountId: String(v.accountId) };
+  } catch (e) { /* tabela poate lipsi la primul boot */ }
+  const token = (process.env.META_ADS_TOKEN || '').trim();
+  const accountId = (process.env.META_AD_ACCOUNT_ID || '').trim();
+  return token && accountId ? { token, accountId } : null;
+}
+const metaActId = (id) => (String(id).startsWith('act_') ? String(id) : 'act_' + String(id).replace(/\D+/g, ''));
+
+async function metaGet(cfg, path, params) {
+  const q = new URLSearchParams({ ...params, access_token: cfg.token });
+  const r = await fetch('https://graph.facebook.com/v21.0/' + path + '?' + q.toString(), { signal: AbortSignal.timeout(20000) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('Meta API ' + r.status + ': ' + JSON.stringify(j.error && j.error.message ? j.error.message : j).slice(0, 200));
+  return j;
+}
+
+// purchases + valoarea lor din listele actions/action_values ale Graph API
+function metaActions(actions, values) {
+  let purchases = 0, leads = 0, purchaseValue = 0;
+  for (const a of actions || []) {
+    const t = String(a.action_type || '');
+    if (t === 'purchase' || t.endsWith('.purchase') || t === 'offsite_conversion.fb_pixel_purchase') purchases = Math.max(purchases, Math.round(Number(a.value) || 0));
+    if (t.includes('lead')) leads = Math.max(leads, Math.round(Number(a.value) || 0));
+  }
+  for (const a of values || []) {
+    const t = String(a.action_type || '');
+    if (t === 'purchase' || t.endsWith('.purchase') || t === 'offsite_conversion.fb_pixel_purchase') purchaseValue = Math.max(purchaseValue, Number(a.value) || 0);
+  }
+  return { purchases, leads, purchaseValue };
+}
+
+app.get('/api/v1/admin/marketing', requirePerm('marketing'), async (req, res) => {
+  const cfg = await metaAdsConfig();
+  if (!cfg) return res.json({ configured: false });
+  const days = [7, 28, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 28;
+  const preset = { 7: 'last_7d', 28: 'last_28d', 90: 'last_90d' }[days];
+  const hit = adsCache.get(days);
+  if (req.query.refresh !== '1' && hit && Date.now() - hit.at < 30 * 60e3) return res.json(hit.value);
+  try {
+    const account = metaActId(cfg.accountId);
+    const [meta, acc, camp] = await Promise.all([
+      metaGet(cfg, account, { fields: 'currency,name' }),
+      metaGet(cfg, account + '/insights', { fields: 'spend,impressions,clicks,ctr,cpc,reach,actions,action_values', date_preset: preset }),
+      metaGet(cfg, account + '/insights', {
+        level: 'campaign',
+        fields: 'campaign_name,spend,impressions,clicks,cpc,ctr,actions,action_values',
+        date_preset: preset, sort: 'spend_descending', limit: '25',
+      }),
+    ]);
+    const row = (acc.data && acc.data[0]) || {};
+    const sums = metaActions(row.actions, row.action_values);
+    const spend = Number(row.spend) || 0;
+    const value = {
+      configured: true, days,
+      currency: meta.currency || '', accountName: meta.name || '',
+      summary: {
+        spend, impressions: Number(row.impressions) || 0, clicks: Number(row.clicks) || 0,
+        ctr: Number(row.ctr) || 0, cpc: Number(row.cpc) || 0, reach: Number(row.reach) || 0,
+        purchases: sums.purchases, purchaseValue: sums.purchaseValue, leads: sums.leads,
+        roas: spend > 0 && sums.purchaseValue > 0 ? sums.purchaseValue / spend : null,
+      },
+      campaigns: (camp.data || []).map((c) => {
+        const s = metaActions(c.actions, c.action_values);
+        return {
+          name: c.campaign_name || '(fără nume)', spend: Number(c.spend) || 0,
+          impressions: Number(c.impressions) || 0, clicks: Number(c.clicks) || 0,
+          cpc: Number(c.cpc) || 0, ctr: Number(c.ctr) || 0,
+          purchases: s.purchases, purchaseValue: s.purchaseValue,
+        };
+      }),
+      generatedAt: new Date().toISOString(),
+    };
+    adsCache.set(days, { at: Date.now(), value });
+    res.json(value);
+  } catch (e) {
+    res.status(502).json({ configured: true, error: String((e && e.message) || e) });
+  }
+});
+
+/* configurarea (token + ad account) — doar owner; tokenul nu se întoarce niciodată întreg */
+app.get('/api/v1/admin/marketing/config', requireOwnerStrict, async (_req, res) => {
+  const cfg = await metaAdsConfig();
+  res.json({ configured: !!cfg, accountId: cfg ? cfg.accountId : '', tokenHint: cfg && cfg.token ? '···' + cfg.token.slice(-4) : '' });
+});
+app.post('/api/v1/admin/marketing/config', requireOwnerStrict, async (req, res) => {
+  const token = String((req.body && req.body.token) || '').trim();
+  const accountId = String((req.body && req.body.accountId) || '').trim();
+  if (!token || !accountId) return res.status(400).json({ error: 'Token-ul și Ad Account ID-ul sunt obligatorii.' });
+  await pool.query(
+    `INSERT INTO settings (key, value, updated_at) VALUES ('meta_ads', $1, now())
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
+    [JSON.stringify({ token, accountId })]
+  );
+  adsCache = new Map();
+  res.json({ ok: true });
 });
 
 app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
