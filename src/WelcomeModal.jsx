@@ -60,7 +60,7 @@ export default function WelcomeModal() {
   const [sel, setSel] = useState(null); // numărul de persoane ales
   const boxRef = useRef(null);
   const lastFocus = useRef(null); // elementul focusat înainte de modal
-  const small = sel != null && sel < 4;
+  const picked = sel != null; // orice selecție arată info-ul despre închirierea integrală
 
   // se deschide o dată pe sesiune, puțin după încărcare; nu și în editor
   useEffect(() => {
@@ -107,11 +107,9 @@ export default function WelcomeModal() {
 
   if (!open) return null;
 
-  // 1–3 → info despre închirierea integrală; 4/4+ → continuă direct
-  const pick = (n) => {
-    setSel(n);
-    if (n >= 4) close();
-  };
+  // orice selecție arată info-ul (prețul e per vilă întreagă, indiferent de număr);
+  // modalul se închide doar din „Am înțeles — continuă", X, overlay sau Esc
+  const pick = (n) => setSel(n);
 
   return (
     <div className="wm-ovl" onClick={(e) => { if (e.target.classList.contains("wm-ovl")) close(); }}>
@@ -126,7 +124,7 @@ export default function WelcomeModal() {
           ))}
           <button type="button" className={"wm-opt" + (sel === 5 ? " on" : "")} onClick={() => pick(5)}>4+</button>
         </div>
-        {small && (
+        {picked && (
           <>
             <div className="wm-info" role="note">
               <span className="wm-info-ic" aria-hidden="true">ℹ️</span>

@@ -281,7 +281,7 @@ const D = {
 
   /* modalul de întâmpinare (pagina principală) */
   wm_eyebrow:  { ro: "Bine ai venit la Roots", en: "Welcome to Roots", he: "ברוכים הבאים ל-Roots", fr: "Bienvenue chez Roots" },
-  wm_question: { ro: "Pentru câte persoane faci rezervarea?", en: "How many guests are you booking for?", he: "עבור כמה אורחים ההזמנה?", fr: "Pour combien de personnes réservez-vous ?" },
+  wm_question: { ro: "Pentru câte persoane dorești să faci rezervarea?", en: "How many guests would you like to book for?", he: "עבור כמה אורחים תרצו לבצע את ההזמנה?", fr: "Pour combien de personnes souhaitez-vous réserver ?" },
   wm_info:     { ro: "Cazarea se închiriază integral. Indiferent dacă rezervi pentru 1, 2 sau 3 persoane, ai la dispoziție întreaga unitate — iar prețul rămâne același ca pentru 8 persoane (4 camere). Astfel te bucuri de tot spațiul, în intimitate deplină.",
                  en: "The property is rented in its entirety. Whether you book for 1, 2 or 3 guests, the whole unit is yours — and the price stays the same as for 8 guests (4 bedrooms). You enjoy all the space, in complete privacy.",
                  he: "האירוח מושכר בשלמותו. בין אם תזמינו עבור 1, 2 או 3 אורחים, היחידה כולה עומדת לרשותכם — והמחיר נשאר זהה למחיר עבור 8 אורחים (4 חדרים). כך תיהנו מכל המרחב, בפרטיות מלאה.",
