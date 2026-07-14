@@ -267,6 +267,7 @@ function renderNav() {
   if (can('financiar')) h += `<button class="nav-i ${TAB === 'finance' ? 'on' : ''}" onclick="go('finance')">${ICONS.fin} Financiar</button>`;
   if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
+  if (can('curatenie')) h += `<div class="nav-cap">Curățenie</div><button class="nav-i ${TAB === 'cleaning' ? 'on' : ''}" onclick="go('cleaning')">${ICONS.cal} Calendar curățenie</button>`;
   if (can('marketing')) h += `<div class="nav-cap">Marketing</div>
     <button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
   if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
@@ -292,6 +293,93 @@ function renderNav() {
   $('nav').innerHTML = h;
 }
 function go(tab) { TAB = tab; renderNav(); renderMain(); }
+
+/* ============ Calendar curățenie (rol curatenie) ============ */
+async function renderCleaning() {
+  const M = $('main');
+  M.innerHTML = `<h1>Calendar curățenie</h1>
+    <div class="lead">Când vin și când pleacă oaspeții la fiecare vilă. <b style="color:#2e7d55">Verde</b> = sosire (check-in), <b style="color:#c0392b">portocaliu</b> = plecare (se face curățenie după).</div>
+    <div class="card">Se încarcă…</div>`;
+  let bookings = [];
+  try { bookings = (await api('/api/v1/admin/cleaning')).bookings || []; }
+  catch (e) { M.innerHTML = '<div class="card">Nu am putut încărca rezervările.</div>'; return; }
+
+  const MON = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const DOWs = ['L', 'Ma', 'Mi', 'J', 'V', 'S', 'D'];
+  const DOWf = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const todayStr = iso(new Date());
+  const fmt = (ds) => { const d = new Date(ds + 'T12:00:00'); return `${DOWf[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MON[d.getMonth()]}`; };
+
+  function sets(villa) {
+    const occ = new Set(), ci = new Set(), co = new Set();
+    bookings.filter((b) => b.villa === villa).forEach((b) => {
+      ci.add(b.arrival); co.add(b.departure);
+      let d = new Date(b.arrival + 'T12:00:00'); const end = new Date(b.departure + 'T12:00:00');
+      while (d < end) { occ.add(iso(d)); d.setDate(d.getDate() + 1); }
+    });
+    return { occ, ci, co };
+  }
+  function monthGrid(y, m, S) {
+    const start = (new Date(y, m, 1).getDay() + 6) % 7;
+    const days = new Date(y, m + 1, 0).getDate();
+    let cells = '';
+    for (let i = 0; i < start; i++) cells += '<div class="cl-cd cl-empty"></div>';
+    for (let dd = 1; dd <= days; dd++) {
+      const ds = `${y}-${pad(m + 1)}-${pad(dd)}`;
+      let cls = 'cl-cd';
+      if (S.occ.has(ds)) cls += ' cl-occ';
+      if (S.ci.has(ds)) cls += ' cl-ci';
+      if (S.co.has(ds)) cls += ' cl-co';
+      if (ds === todayStr) cls += ' cl-today';
+      cells += `<div class="${cls}">${dd}</div>`;
+    }
+    return `<div class="cl-mon"><div class="cl-mh">${MON[m]} ${y}</div><div class="cl-dow">${DOWs.map((x) => `<span>${x}</span>`).join('')}</div><div class="cl-grid">${cells}</div></div>`;
+  }
+
+  const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
+  let html = `<style>
+    .cl-wrap{display:grid;gap:16px}
+    .cl-cal{display:flex;gap:22px;flex-wrap:wrap}
+    .cl-mon{flex:1;min-width:220px}
+    .cl-mh{font-weight:800;color:var(--brand-d);text-transform:capitalize;margin-bottom:8px}
+    .cl-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px}
+    .cl-dow span{text-align:center;font-size:11px;font-weight:700;color:#9aa8a1}
+    .cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+    .cl-cd{aspect-ratio:1;display:grid;place-items:center;font-size:13px;border-radius:7px;color:#3a4a42}
+    .cl-empty{background:none}
+    .cl-occ{background:#f0e9dc}
+    .cl-ci{box-shadow:inset 3px 0 0 #2e7d55}
+    .cl-co{box-shadow:inset -3px 0 0 #c0392b}
+    .cl-ci.cl-co{box-shadow:inset 3px 0 0 #2e7d55, inset -3px 0 0 #c0392b}
+    .cl-today{outline:2px solid var(--brand)}
+    .cl-list .cl-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+    .cl-list .cl-row:last-child{border:none}
+    .cl-co-d{font-weight:800;color:#c0392b}
+  </style><div class="cl-wrap">`;
+
+  ['Redwood', 'Sequoia'].forEach((villa) => {
+    const S = sets(villa);
+    const up = bookings.filter((b) => b.villa === villa && b.departure >= todayStr).sort((a, b) => (a.departure < b.departure ? -1 : a.departure > b.departure ? 1 : 0));
+    const arrivals = bookings.filter((b) => b.villa === villa).map((b) => b.arrival).sort();
+    const list = up.slice(0, 12).map((b) => {
+      const nextIn = arrivals.find((a) => a >= b.departure);
+      const sameDay = nextIn === b.departure;
+      return `<div class="cl-row">
+        <span><span class="cl-co-d">🧹 ${fmt(b.departure)}</span> — pleacă grupul</span>
+        <span style="text-align:right;color:#5c6b64;font-size:12.5px">${nextIn ? (sameDay ? '⚠️ vine grup nou în aceeași zi' : 'următorul check-in: ' + fmt(nextIn)) : 'liber după'}</span>
+      </div>`;
+    }).join('') || '<div class="hint">Nicio plecare programată.</div>';
+    html += `<div class="card">
+      <h2 style="margin:0 0 4px">Vila ${villa}</h2>
+      <div class="cl-cal">${monthGrid(y, mo, S)}${monthGrid(mo === 11 ? y + 1 : y, (mo + 1) % 12, S)}</div>
+      <div style="font-weight:800;color:var(--brand-d);margin:16px 0 4px">Următoarele plecări (curățenie)</div>
+      <div class="cl-list">${list}</div>
+    </div>`;
+  });
+  M.innerHTML = html + '</div>';
+}
 
 /* ============ editor generic (recursiv) ============ */
 function fieldHtml(path, key, val) {
@@ -374,6 +462,7 @@ async function renderMain() {
   if (TAB === 'seo') { renderSeo(); return; }
   if (TAB === 'heatmap') { renderHeatmap(); return; }
   if (TAB === 'bookings') { renderBookings(); return; }
+  if (TAB === 'cleaning') { renderCleaning(); return; }
   if (TAB === 'finance') { renderFinance(); return; }
   if (TAB === 'marketing') { renderMarketing(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
@@ -1845,12 +1934,12 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
     } catch (e) { SECTIONS = []; }
     // deschide primul tab la care rolul are acces
     if (!can('panou')) {
-      const first = ['continut', 'rezervari', 'financiar', 'marketing', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
+      const first = ['continut', 'rezervari', 'curatenie', 'financiar', 'marketing', 'clienti', 'recenzii', 'seo', 'heatmap', 'blog', 'media', 'oferte', 'membership', 'smart'].find(can);
       TAB = first === 'continut' ? 'sec:' + (SECTIONS[0] ? SECTIONS[0].section_key : 'hero')
         : first === 'rezervari' ? 'bookings' : first === 'clienti' ? 'guests'
         : first === 'recenzii' ? 'greviews' : first === 'blog' ? 'blog'
         : first === 'oferte' ? 'offers' : first === 'financiar' ? 'finance'
-        : first === 'marketing' ? 'marketing'
+        : first === 'marketing' ? 'marketing' : first === 'curatenie' ? 'cleaning'
         : first === 'media' ? 'media' : first || 'panou';
       if (!first) TAB = 'noaccess';
     }

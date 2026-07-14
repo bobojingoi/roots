@@ -660,11 +660,13 @@ const PERM_AREAS = [
   ['smart', 'Smart Roots (dispozitive)'],
   ['financiar', 'Financiar (plăți online)'],
   ['marketing', 'Marketing (campanii ads)'],
+  ['curatenie', 'Curățenie (calendar rezervări)'],
 ];
 const AREA_KEYS = PERM_AREAS.map(([k]) => k);
 const DEFAULT_PERMS = {
   admin: [...AREA_KEYS],
-  curatenie: ['panou', 'rezervari', 'smart'],
+  // curățenia vede DOAR calendarul de sosiri/plecări — fără date personale/financiare
+  curatenie: ['curatenie'],
   turist: [],
 };
 let permsCache = null; // { at, value }
@@ -1964,6 +1966,21 @@ app.get('/api/v1/admin/bookings', requirePerm('rezervari'), async (_req, res) =>
      WHERE status = 'paid' AND ref IS NOT NULL ORDER BY created_at DESC LIMIT 5000`
   );
   res.json({ bookings: r.rows, payments: p.rows });
+});
+/* Vedere CURĂȚENIE: doar vilă + sosire/plecare (fără nume/email/telefon/preț —
+   GDPR: personalul de curățenie nu are nevoie de datele oaspeților). Datele vin
+   ca string YYYY-MM-DD în fusul proprietății (Europe/Bucharest). */
+app.get('/api/v1/admin/cleaning', requirePerm('curatenie'), async (_req, res) => {
+  const r = await pool.query(
+    `SELECT villa,
+       to_char(arrival   AT TIME ZONE 'Europe/Bucharest', 'YYYY-MM-DD') AS arrival,
+       to_char(departure AT TIME ZONE 'Europe/Bucharest', 'YYYY-MM-DD') AS departure
+     FROM bookings
+     WHERE (departure AT TIME ZONE 'Europe/Bucharest')::date
+           >= (now() AT TIME ZONE 'Europe/Bucharest')::date - 3
+     ORDER BY arrival ASC LIMIT 400`
+  );
+  res.json({ bookings: r.rows });
 });
 /* Financiar: toate plățile online, cu comision/net/refund. La fiecare încărcare
    completăm comisioanele lipsă (max 10 — apel Stripe per plată, best-effort). */
