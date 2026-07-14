@@ -45,6 +45,7 @@
   .badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:100px}
   .badge.pub{background:var(--brand-soft);color:var(--brand-d)}
   .badge.mod{background:#faeeda;color:var(--amber)}
+  .badge.del{background:#fbe3e0;color:#c0392b}
   .btn{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:10px;padding:10px 16px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
   .btn.p{background:var(--brand);color:#fff}.btn.p:hover{background:var(--brand-d)}
   .btn.s{background:#fff;border:1.5px solid var(--line);color:var(--ink)}.btn.s:hover{border-color:var(--brand);color:var(--brand-d)}
@@ -800,9 +801,37 @@ function renderBookingsList() {
       </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio rezervare pe filtrele alese.</div>'}`;
 }
 /* ============ Marketing: campanii Meta Ads ============ */
-let MK_DAYS = 28;
+let MK_DAYS = 28, MK_CUR = '';
 const mkN = (v, d) => Number(v || 0).toLocaleString('ro-RO', { minimumFractionDigits: d || 0, maximumFractionDigits: d == null ? 0 : d });
 function mkDays(v) { MK_DAYS = Number(v); renderMarketing(); }
+/* badge de status al campaniei (effective_status reflectă și „în verificare") */
+function mkStatusBadge(c) {
+  const s = (c.effectiveStatus || c.status || '').toUpperCase();
+  if (s === 'ACTIVE') return '<span class="badge pub">activă</span>';
+  if (s === 'PAUSED') return '<span class="badge mod">pe pauză</span>';
+  if (s.includes('REVIEW') || s === 'PENDING_REVIEW') return '<span class="badge mod">în verificare</span>';
+  if (s.includes('DISAPPROVED') || s.includes('WITH_ISSUES')) return '<span class="badge del">problemă</span>';
+  return `<span class="badge mod">${esc(s.toLowerCase().replace(/_/g, ' '))}</span>`;
+}
+/* acțiuni de optimizare — confirmate, cu re-încărcare după */
+async function mkSetStatus(id, status) {
+  if (!confirm(status === 'PAUSED' ? 'Pui campania pe pauză?' : 'Activezi campania?')) return;
+  try { await api('/api/v1/admin/marketing/campaign/' + id + '/status', { method: 'POST', body: JSON.stringify({ status }) }); toast('Gata ✓'); renderMarketing(true); }
+  catch (e) { alert(e.message); }
+}
+async function mkSetBudget(id, current) {
+  const v = prompt('Buget zilnic nou' + (MK_CUR ? ' (' + MK_CUR + ')' : '') + ':', current != null ? current : '');
+  if (v == null) return;
+  const n = Number(String(v).replace(',', '.'));
+  if (!(n > 0)) { alert('Sumă invalidă.'); return; }
+  try { await api('/api/v1/admin/marketing/campaign/' + id + '/budget', { method: 'POST', body: JSON.stringify({ dailyBudget: n }) }); toast('Buget actualizat ✓'); renderMarketing(true); }
+  catch (e) { alert(e.message); }
+}
+async function mkDuplicate(id) {
+  if (!confirm('Duplic campania? Copia pornește PE PAUZĂ, ca s-o editezi înainte de lansare.')) return;
+  try { await api('/api/v1/admin/marketing/campaign/' + id + '/duplicate', { method: 'POST' }); toast('Duplicat ✓ — copia e pe pauză'); renderMarketing(true); }
+  catch (e) { alert(e.message); }
+}
 async function renderMarketing(refresh) {
   $('main').innerHTML = `<div class="sec-head"><div><h1>Campanii</h1><div class="lead">Se încarcă datele din Meta…</div></div></div>`;
   let j;
@@ -817,6 +846,7 @@ async function renderMarketing(refresh) {
   }
   if (!j.configured) { renderMarketingSetup(); return; }
   const s = j.summary, cur = j.currency || '';
+  MK_CUR = cur;
   const card = (label, val, hint) => `<div class="card" style="padding:16px 18px"><div class="hint">${label}</div>
     <div style="font-size:22px;font-weight:800;margin-top:4px">${val}</div>${hint ? `<div class="hint" style="margin-top:4px">${hint}</div>` : ''}</div>`;
   $('main').innerHTML = `
@@ -834,17 +864,27 @@ async function renderMarketing(refresh) {
       ${card('Rezervări (purchase)', mkN(s.purchases), s.purchaseValue ? 'valoare ' + mkN(s.purchaseValue, 0) + ' ' + esc(cur) : 'pixelul raportează valoarea plăților')}
       ${card('ROAS', s.roas != null ? mkN(s.roas, 2) + '×' : '—', s.roas != null ? 'valoare rezervări / cheltuit' : 'apare după primele conversii')}
     </div>
-    <div class="card" style="padding:8px 20px">
-      <div class="vrow" style="color:#5c6b64"><span><b>${j.campaigns.length}</b> campanii</span><span>sortate după cheltuieli</span></div>
-      ${j.campaigns.map((c) => `
-        <div class="vrow" style="gap:14px">
-          <span style="min-width:0"><b>${esc(c.name)}</b>
-            <span style="color:#9aa8a1"> · ${mkN(c.impressions)} afișări · ${mkN(c.clicks)} click-uri · CTR ${mkN(c.ctr, 2)}% · CPC ${mkN(c.cpc, 2)} ${esc(cur)}</span></span>
-          <span style="white-space:nowrap"><b>${mkN(c.spend, 2)} ${esc(cur)}</b>
-            ${c.purchases ? `<span class="badge pub" style="margin-left:8px">${c.purchases} rez. · ${mkN(c.purchaseValue, 0)} ${esc(cur)}</span>` : ''}</span>
-        </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio campanie în intervalul ales.</div>'}
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${j.campaigns.map((c) => {
+        const active = (c.status || '').toUpperCase() === 'ACTIVE';
+        return `
+        <div class="card" style="padding:14px 18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0"><b>${esc(c.name)}</b> ${mkStatusBadge(c)}</div>
+            <div style="white-space:nowrap"><b>${mkN(c.spend, 2)} ${esc(cur)}</b>
+              ${c.purchases ? `<span class="badge pub" style="margin-left:8px">${c.purchases} rez. · ${mkN(c.purchaseValue, 0)} ${esc(cur)}</span>` : ''}</div>
+          </div>
+          <div class="hint" style="margin-top:6px">${mkN(c.impressions)} afișări · ${mkN(c.clicks)} click-uri · CTR ${mkN(c.ctr, 2)}% · CPC ${mkN(c.cpc, 2)} ${esc(cur)}${c.dailyBudget != null ? ' · buget ' + mkN(c.dailyBudget, 2) + ' ' + esc(cur) + '/zi' : ''}</div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn" onclick="mkSetStatus('${c.id}','${active ? 'PAUSED' : 'ACTIVE'}')">${active ? '⏸ Pauză' : '▶ Activează'}</button>
+            ${c.dailyBudget != null ? `<button class="btn" onclick="mkSetBudget('${c.id}',${c.dailyBudget})">✎ Buget</button>` : ''}
+            <button class="btn" onclick="mkDuplicate('${c.id}')">⧉ Duplică</button>
+            <a class="btn" href="https://adsmanager.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}" target="_blank" rel="noopener">↗ Ads Manager</a>
+          </div>
+        </div>`;
+      }).join('') || '<div class="card"><div class="hint" style="padding:12px 0">Nicio campanie încă. Prima o creezi din Ads Manager; aici o gestionezi.</div></div>'}
     </div>
-    <div class="hint" style="margin-top:10px">Actualizat: ${new Date(j.generatedAt).toLocaleString('ro-RO')}</div>`;
+    <div class="hint" style="margin-top:10px">Actualizat: ${new Date(j.generatedAt).toLocaleString('ro-RO')} · acțiunile de optimizare cer un token cu ads_management (Configurare).</div>`;
 }
 async function renderMarketingSetup() {
   let cfg = { configured: false, accountId: '', tokenHint: '' };

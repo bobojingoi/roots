@@ -1636,6 +1636,27 @@ async function metaGet(cfg, path, params) {
   return j;
 }
 
+/* scriere în Marketing API (pauză/buget/duplicare) — cere token cu ads_management */
+async function metaPost(cfg, path, params) {
+  const body = new URLSearchParams({ ...params, access_token: cfg.token });
+  const r = await fetch('https://graph.facebook.com/v21.0/' + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(), signal: AbortSignal.timeout(20000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('Meta API ' + r.status + ': ' + JSON.stringify(j.error && j.error.message ? j.error.message : j).slice(0, 300));
+  return j;
+}
+
+/* traduce erorile Meta în ceva util — mai ales lipsa permisiunii de scriere */
+function metaWriteError(e) {
+  const m = String((e && e.message) || e);
+  if (/permission|ads_management|\(#10\)|\(#200\)|#3\b/i.test(m)) {
+    return 'Tokenul salvat are doar drept de citire (ads_read). Pentru pauză/buget/duplicare, generează în Meta un token cu permisiunea ads_management și salvează-l la „Configurare".';
+  }
+  return m;
+}
+
 // purchases + valoarea lor din listele actions/action_values ale Graph API
 function metaActions(actions, values) {
   let purchases = 0, leads = 0, purchaseValue = 0;
@@ -1660,18 +1681,22 @@ app.get('/api/v1/admin/marketing', requirePerm('marketing'), async (req, res) =>
   if (req.query.refresh !== '1' && hit && Date.now() - hit.at < 30 * 60e3) return res.json(hit.value);
   try {
     const account = metaActId(cfg.accountId);
-    const [meta, acc, camp] = await Promise.all([
+    const [meta, acc, camp, entities] = await Promise.all([
       metaGet(cfg, account, { fields: 'currency,name' }),
       metaGet(cfg, account + '/insights', { fields: 'spend,impressions,clicks,ctr,cpc,reach,actions,action_values', date_preset: preset }),
       metaGet(cfg, account + '/insights', {
         level: 'campaign',
-        fields: 'campaign_name,spend,impressions,clicks,cpc,ctr,actions,action_values',
-        date_preset: preset, sort: 'spend_descending', limit: '25',
+        fields: 'campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,actions,action_values',
+        date_preset: preset, limit: '50',
       }),
+      // entitățile de campanie: status + buget (insights nu le au); include și cele fără cheltuieli
+      metaGet(cfg, account + '/campaigns', { fields: 'id,name,status,effective_status,daily_budget', limit: '50' }),
     ]);
     const row = (acc.data && acc.data[0]) || {};
     const sums = metaActions(row.actions, row.action_values);
     const spend = Number(row.spend) || 0;
+    const insightsById = {};
+    for (const c of camp.data || []) insightsById[c.campaign_id] = c;
     const value = {
       configured: true, days,
       currency: meta.currency || '', accountName: meta.name || '',
@@ -1681,15 +1706,18 @@ app.get('/api/v1/admin/marketing', requirePerm('marketing'), async (req, res) =>
         purchases: sums.purchases, purchaseValue: sums.purchaseValue, leads: sums.leads,
         roas: spend > 0 && sums.purchaseValue > 0 ? sums.purchaseValue / spend : null,
       },
-      campaigns: (camp.data || []).map((c) => {
+      campaigns: (entities.data || []).map((e) => {
+        const c = insightsById[e.id] || {};
         const s = metaActions(c.actions, c.action_values);
         return {
-          name: c.campaign_name || '(fără nume)', spend: Number(c.spend) || 0,
-          impressions: Number(c.impressions) || 0, clicks: Number(c.clicks) || 0,
+          id: e.id, name: e.name || c.campaign_name || '(fără nume)',
+          status: e.status, effectiveStatus: e.effective_status,
+          dailyBudget: e.daily_budget != null ? Number(e.daily_budget) / 100 : null,
+          spend: Number(c.spend) || 0, impressions: Number(c.impressions) || 0, clicks: Number(c.clicks) || 0,
           cpc: Number(c.cpc) || 0, ctr: Number(c.ctr) || 0,
           purchases: s.purchases, purchaseValue: s.purchaseValue,
         };
-      }),
+      }).sort((a, b) => b.spend - a.spend),
       generatedAt: new Date().toISOString(),
     };
     adsCache.set(days, { at: Date.now(), value });
@@ -1715,6 +1743,55 @@ app.post('/api/v1/admin/marketing/config', requireOwnerStrict, async (req, res) 
   );
   adsCache = new Map();
   res.json({ ok: true });
+});
+
+/* ---- acțiuni de optimizare pe campanii (cer token ads_management) ---- */
+const cleanCampId = (v) => String(v || '').replace(/[^0-9]/g, '');
+
+// pauză / activare
+app.post('/api/v1/admin/marketing/campaign/:id/status', requirePerm('marketing'), async (req, res) => {
+  const cfg = await metaAdsConfig();
+  if (!cfg) return res.status(503).json({ error: 'Meta neconfigurat.' });
+  const status = String((req.body && req.body.status) || '').toUpperCase();
+  if (!['ACTIVE', 'PAUSED'].includes(status)) return res.status(400).json({ error: 'Status invalid (ACTIVE/PAUSED).' });
+  const id = cleanCampId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID campanie invalid.' });
+  try {
+    await metaPost(cfg, id, { status });
+    adsCache = new Map();
+    emit('AdsCampaignUpdated', { id, action: 'status', status, by: req.user && req.user.email });
+    res.json({ ok: true });
+  } catch (e) { res.status(502).json({ error: metaWriteError(e) }); }
+});
+
+// buget zilnic (în unitatea contului; Meta cere cenți)
+app.post('/api/v1/admin/marketing/campaign/:id/budget', requirePerm('marketing'), async (req, res) => {
+  const cfg = await metaAdsConfig();
+  if (!cfg) return res.status(503).json({ error: 'Meta neconfigurat.' });
+  const amount = Number(req.body && req.body.dailyBudget);
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Buget invalid.' });
+  const id = cleanCampId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID campanie invalid.' });
+  try {
+    await metaPost(cfg, id, { daily_budget: Math.round(amount * 100) });
+    adsCache = new Map();
+    emit('AdsCampaignUpdated', { id, action: 'budget', dailyBudget: amount, by: req.user && req.user.email });
+    res.json({ ok: true });
+  } catch (e) { res.status(502).json({ error: metaWriteError(e) }); }
+});
+
+// duplicare — copia pornește pe PAUZĂ ca să poată fi editată înainte de lansare
+app.post('/api/v1/admin/marketing/campaign/:id/duplicate', requirePerm('marketing'), async (req, res) => {
+  const cfg = await metaAdsConfig();
+  if (!cfg) return res.status(503).json({ error: 'Meta neconfigurat.' });
+  const id = cleanCampId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'ID campanie invalid.' });
+  try {
+    const j = await metaPost(cfg, id + '/copies', { deep_copy: true, status_option: 'PAUSED' });
+    adsCache = new Map();
+    emit('AdsCampaignUpdated', { id, action: 'duplicate', newId: j.copied_campaign_id || null, by: req.user && req.user.email });
+    res.json({ ok: true, newId: j.copied_campaign_id || j.id || null });
+  } catch (e) { res.status(502).json({ error: metaWriteError(e) }); }
 });
 
 app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
