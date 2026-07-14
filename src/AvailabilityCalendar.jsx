@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { t } from "./i18n.js";
+import { t, LANG } from "./i18n.js";
 import { track } from "./tracking.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
@@ -340,6 +340,7 @@ export default function AvailabilityCalendar({
           discountCode: effDisc ? effDisc.code : undefined,
           expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
           marketingConsent: consent,
+          lang: LANG, // limba activă pe site → email de confirmare în aceeași limbă
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),

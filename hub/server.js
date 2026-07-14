@@ -108,25 +108,79 @@ async function hubSendMail({ to, subject, html }) {
     return r.ok;
   } catch { return false; }
 }
-function bookingConfirmHtml(d) {
+/* i18n email de confirmare (plată-întâi). OGLINDĂ a dicționarului din api/_email.js
+   (deploy separat — nu putem importa). Dacă modifici aici, actualizează și acolo.
+   ⚠️ Traducerea HE (RTL) e de verificat cu un vorbitor nativ. */
+const emailLang = (l) => (['ro', 'en', 'he', 'fr'].includes(l) ? l : 'ro');
+const CONF_S = {
+  ro: {
+    dir: 'ltr', locale: 'ro-RO', cur: 'lei',
+    title: 'Rezervare confirmată ✓',
+    greet: (n, v) => `Bună ${n}, îți mulțumim! Avansul a fost plătit, iar rezervarea ta la <b>${v}</b> este confirmată.`,
+    checkin: 'Check-in', checkout: 'Check-out', nights: 'Nopți', guests: 'Oaspeți',
+    total: 'Total sejur', deposit_paid: 'Avans plătit', rest: 'Rest la check-in', ref: 'Referință',
+    foot: 'Ne vedem la Brașov! Pentru orice întrebare, răspunde la acest email.',
+    sign: 'ROOTS Villas · Stupini, Brașov · rootsvillas.ro',
+    subj: (v) => `Rezervare confirmată — ${v}`,
+  },
+  en: {
+    dir: 'ltr', locale: 'en-US', cur: 'RON',
+    title: 'Reservation confirmed ✓',
+    greet: (n, v) => `Hi ${n}, thank you! The deposit has been paid and your booking at <b>${v}</b> is confirmed.`,
+    checkin: 'Check-in', checkout: 'Check-out', nights: 'Nights', guests: 'Guests',
+    total: 'Stay total', deposit_paid: 'Deposit paid', rest: 'Balance at check-in', ref: 'Reference',
+    foot: 'See you in Brașov! For any questions, just reply to this email.',
+    sign: 'ROOTS Villas · Stupini, Brașov · rootsvillas.ro',
+    subj: (v) => `Reservation confirmed — ${v}`,
+  },
+  fr: {
+    dir: 'ltr', locale: 'fr-FR', cur: 'RON',
+    title: 'Réservation confirmée ✓',
+    greet: (n, v) => `Bonjour ${n}, merci ! L'acompte a été payé et votre réservation à <b>${v}</b> est confirmée.`,
+    checkin: 'Arrivée', checkout: 'Départ', nights: 'Nuits', guests: 'Personnes',
+    total: 'Total du séjour', deposit_paid: 'Acompte payé', rest: 'Solde à l\'arrivée', ref: 'Référence',
+    foot: 'À bientôt à Brașov ! Pour toute question, répondez à cet e-mail.',
+    sign: 'ROOTS Villas · Stupini, Brașov · rootsvillas.ro',
+    subj: (v) => `Réservation confirmée — ${v}`,
+  },
+  he: {
+    dir: 'rtl', locale: 'he-IL', cur: 'RON',
+    title: 'ההזמנה אושרה ✓',
+    greet: (n, v) => `שלום ${n}, תודה! המקדמה שולמה וההזמנה שלך ב־<b>${v}</b> מאושרת.`,
+    checkin: 'צ׳ק-אין', checkout: 'צ׳ק-אאוט', nights: 'לילות', guests: 'אורחים',
+    total: 'סה״כ שהייה', deposit_paid: 'מקדמה שולמה', rest: 'יתרה בצ׳ק-אין', ref: 'אסמכתא',
+    foot: 'נתראה בברשוב! לכל שאלה, השב/י למייל זה.',
+    sign: 'ROOTS Villas · Stupini, Brașov · rootsvillas.ro',
+    subj: (v) => `ההזמנה אושרה — ${v}`,
+  },
+};
+const confMoney = (n, s) => Number(n).toLocaleString(s.locale) + ' ' + s.cur;
+
+function bookingConfirmSubject(lang, villaName) {
+  return CONF_S[emailLang(lang)].subj(villaName);
+}
+
+function bookingConfirmHtml(d, lang) {
+  const s = CONF_S[emailLang(lang)];
+  const valAlign = s.dir === 'rtl' ? 'left' : 'right';
   const row = (k, v) =>
     `<tr><td style="padding:7px 0;color:#5A6A61;font-size:14px">${k}</td>` +
-    `<td style="padding:7px 0;text-align:right;font-weight:600;color:#122B22;font-size:14px">${v}</td></tr>`;
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#1E2A24">
-    <h2 style="color:#122B22;font-size:20px;margin:0 0 6px">Rezervare confirmată ✓</h2>
-    <p style="font-size:14px;line-height:1.6">Bună ${d.firstName || ''}, îți mulțumim! Avansul a fost plătit, iar rezervarea ta la <b>${d.villaName}</b> este confirmată.</p>
+    `<td style="padding:7px 0;text-align:${valAlign};font-weight:600;color:#122B22;font-size:14px">${v}</td></tr>`;
+  return `<div dir="${s.dir}" style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#1E2A24;direction:${s.dir};text-align:${s.dir === 'rtl' ? 'right' : 'left'}">
+    <h2 style="color:#122B22;font-size:20px;margin:0 0 6px">${s.title}</h2>
+    <p style="font-size:14px;line-height:1.6">${s.greet(d.firstName || '', d.villaName)}</p>
     <table style="width:100%;border-collapse:collapse;margin:14px 0;border-top:1px solid #eadfce">
-      ${row('Check-in', d.arrivalDate)}
-      ${row('Check-out', d.departureDate)}
-      ${row('Nopți', d.nights)}
-      ${d.guests ? row('Oaspeți', d.guests) : ''}
-      ${d.total ? row('Total sejur', Number(d.total).toLocaleString('ro-RO') + ' lei') : ''}
-      ${d.deposit ? row('Avans plătit', Number(d.deposit).toLocaleString('ro-RO') + ' lei') : ''}
-      ${d.rest ? row('Rest la check-in', Number(d.rest).toLocaleString('ro-RO') + ' lei') : ''}
-      ${d.reservationRef ? row('Referință', '#' + d.reservationRef) : ''}
+      ${row(s.checkin, d.arrivalDate)}
+      ${row(s.checkout, d.departureDate)}
+      ${row(s.nights, d.nights)}
+      ${d.guests ? row(s.guests, d.guests) : ''}
+      ${d.total ? row(s.total, confMoney(d.total, s)) : ''}
+      ${d.deposit ? row(s.deposit_paid, confMoney(d.deposit, s)) : ''}
+      ${d.rest ? row(s.rest, confMoney(d.rest, s)) : ''}
+      ${d.reservationRef ? row(s.ref, '#' + d.reservationRef) : ''}
     </table>
-    <p style="color:#5A6A61;font-size:13px;line-height:1.6">Ne vedem la Brașov! Pentru orice întrebare, răspunde la acest email.</p>
-    <p style="color:#5A6A61;font-size:13px;margin-top:18px">ROOTS Villas · Stupini, Brașov · rootsvillas.ro</p>
+    <p style="color:#5A6A61;font-size:13px;line-height:1.6">${s.foot}</p>
+    <p style="color:#5A6A61;font-size:13px;margin-top:18px">${s.sign}</p>
   </div>`;
 }
 
@@ -371,8 +425,8 @@ async function processPendingBooking(pendingId, session) {
   };
   const emailed = await hubSendMail({
     to: [pb.email, (process.env.EMAIL_TO || '').trim()],
-    subject: `Rezervare confirmată — ${p.villaName}`,
-    html: bookingConfirmHtml(emailData),
+    subject: bookingConfirmSubject(p.lang, p.villaName),
+    html: bookingConfirmHtml(emailData, p.lang),
   });
   emit('BookingCreatedAfterPayment', { pendingId: pb.id, ref, emailed, consent: pb.marketing_consent });
 }

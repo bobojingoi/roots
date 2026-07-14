@@ -1,5 +1,5 @@
 import { clean, signedGet, signedPost } from "./_smoobu.js";
-import { sendBookingEmail, bookingEmailHtml } from "./_email.js";
+import { sendBookingEmail, bookingEmailHtml, bookingSubject, okLang } from "./_email.js";
 
 /* ============================================================
    Creare rezervare Smoobu (POST /api/reservations).
@@ -84,6 +84,7 @@ export default async function handler(req, res) {
   const apiSecret = clean(process.env.SMOOBU_API_SECRET);
   const live = clean(process.env.BOOKING_LIVE) === "true";
   const b = req.body || {};
+  const lang = okLang(b.lang); // limba în care a rezervat clientul → email localizat
 
   // status sigur (nu creează nimic): confirmă dacă rezervările live sunt active
   if (req.method === "GET" && (req.query || {}).emailtest === "1") {
@@ -351,7 +352,7 @@ export default async function handler(req, res) {
             aptIds, arrivalDate, departureDate, adults: nA, children: nC,
             villaName: villaNamePF, nights, discountCode: discountCode || null,
             guest: { firstName: firstName || "", lastName: lastName || "", email: email || "", phone: phone || "" },
-            reservations,
+            reservations, lang,
           },
           email: String(email || "").trim().toLowerCase() || null,
           total, deposit: depositPF, marketingConsent: !!b.marketingConsent,
@@ -391,7 +392,7 @@ export default async function handler(req, res) {
     const deposit = Math.round(total * depositPct / 100);
     const html = bookingEmailHtml({
       villaName,
-      firstName: guest.firstName || "oaspete",
+      firstName: guest.firstName || "",
       arrivalDate,
       departureDate,
       nights,
@@ -399,10 +400,10 @@ export default async function handler(req, res) {
       total,
       deposit,
       reservationId,
-    });
+    }, lang);
     const emailed = await sendBookingEmail({
       to: [guest.email, clean(process.env.EMAIL_TO)],
-      subject: `Confirmare rezervare — ${villaName}`,
+      subject: bookingSubject(lang, villaName),
       html,
     });
 
