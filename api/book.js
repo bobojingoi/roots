@@ -36,14 +36,15 @@ const addDay = (s) => {
    ============================================================ */
 const SITE_URL = "https://rootsvillas.ro";
 
-async function createDepositCheckout({ deposit, total, villaName, ref, email, arrivalDate, departureDate, nights }) {
+async function createDepositCheckout({ deposit, total, villaName, ref, pendingId, email, arrivalDate, departureDate, nights }) {
   const sk = clean(process.env.STRIPE_SECRET_KEY);
   if (!sk || !(deposit > 0)) return null;
   const site = (clean(process.env.SITE_URL) || SITE_URL).replace(/\/$/, "");
   const p = new URLSearchParams();
   p.set("mode", "payment");
-  p.set("success_url", `${site}/rezervare?plata=ok&ref=${encodeURIComponent(ref || "")}`);
-  p.set("cancel_url", `${site}/rezervare?plata=anulata&ref=${encodeURIComponent(ref || "")}`);
+  const pbSuffix = pendingId ? "&pb=" + encodeURIComponent(pendingId) : "";
+  p.set("success_url", `${site}/rezervare?plata=ok&ref=${encodeURIComponent(ref || "")}${pbSuffix}`);
+  p.set("cancel_url", `${site}/rezervare?plata=anulata&ref=${encodeURIComponent(ref || "")}${pbSuffix}`);
   if (email) p.set("customer_email", email);
   p.set("line_items[0][quantity]", "1");
   p.set("line_items[0][price_data][currency]", "ron");
@@ -55,6 +56,7 @@ async function createDepositCheckout({ deposit, total, villaName, ref, email, ar
   );
   // ref = ID-urile Smoobu — webhook-ul din Hub leagă plata de rezervare prin el
   p.set("metadata[ref]", String(ref || ""));
+  if (pendingId) p.set("metadata[pendingId]", String(pendingId)); // webhook-ul creează rezervarea din pending
   p.set("metadata[villa]", String(villaName || ""));
   p.set("metadata[arrival]", String(arrivalDate || ""));
   p.set("metadata[departure]", String(departureDate || ""));
@@ -220,14 +222,14 @@ export default async function handler(req, res) {
     const j = await r.json();
     offers = j.offers || [];
   } catch (e) { /* fără oferte dacă hub-ul nu răspunde */ }
-  let codePct = 0;
+  let codePct = 0, codeAmount = 0;
   const discountCode = String(b.discountCode || "").trim().toUpperCase();
   if (discountCode) {
     try {
       // codul e valabil doar dacă e ATAȘAT contului cu emailul rezervării (nu circulă liber)
       const r = await fetch(HUB + "/api/v1/discount?code=" + encodeURIComponent(discountCode) + "&email=" + encodeURIComponent(String(email || "").trim().toLowerCase()));
       const j = await r.json();
-      if (j.ok) codePct = Number(j.pct) || 0;
+      if (j.ok) { codePct = Number(j.pct) || 0; codeAmount = Number(j.amountLei) || 0; }
     } catch (e) { /* cod ignorat dacă validarea pică */ }
   }
   const baseTotal = total;
@@ -260,7 +262,8 @@ export default async function handler(req, res) {
   const comboOffer = aptIds.length > 1 ? offers.find((o) => o.type === "combo" && Number(o.amount_lei) > 0) : null;
   const comboDiscount = comboOffer ? Math.max(0, Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights))) : 0;
   const afterOffers = Math.max(0, baseTotal - offerDiscount - comboDiscount);
-  const codeDiscount = codePct ? Math.round((afterOffers * codePct) / 100) : 0;
+  // fix în lei (ex. bonusul de bun venit) SAU procentual — nu se cumulează
+  const codeDiscount = codeAmount > 0 ? Math.min(Math.round(codeAmount), afterOffers) : codePct ? Math.round((afterOffers * codePct) / 100) : 0;
   const totalDiscount = offerDiscount + comboDiscount + codeDiscount;
 
   // taxa pentru oaspeții extra — recalculată server-side
@@ -300,7 +303,7 @@ export default async function handler(req, res) {
     needCot ? "Solicită PĂTUȚ pentru bebeluș (gratuit)." : "",
     offerDiscount > 0 && bestOffer ? `OFERTĂ: ${bestOffer.title} (−${offerDiscount} lei).` : "",
     comboDiscount > 0 && comboOffer ? `COMBO: ${comboOffer.title} (−${comboDiscount} lei).` : "",
-    codeDiscount > 0 ? `COD REDUCERE: ${discountCode} −${codePct}% (−${codeDiscount} lei).` : "",
+    codeDiscount > 0 ? `COD REDUCERE: ${discountCode} ${codeAmount > 0 ? "" : "−" + codePct + "% "}(−${codeDiscount} lei).` : "",
   ].filter(Boolean).join(" ");
 
   const combined = aptIds.length > 1;
@@ -329,6 +332,43 @@ export default async function handler(req, res) {
   // --- dry-run: validat, dar fără a crea rezervarea reală ---
   if (!live) {
     return res.status(200).json({ ok: true, dryRun: true, nights, price: total, reservation: combined ? reservations : reservations[0] });
+  }
+
+  // --- PLATĂ-ÎNTÂI (implicit când Stripe + hub-ul sunt configurate): rezervarea
+  //     Smoobu se creează ABIA în webhook, după încasarea avansului. Dacă hub-ul
+  //     sau Stripe nu răspund, cădem pe fluxul vechi (creare directă) de mai jos. ---
+  const depositPctPF = 30; // constantă de business — nu din client
+  const depositPF = Math.round(total * depositPctPF / 100);
+  const villaNamePF = (b.villaName && String(b.villaName)) || "Vila ROOTS";
+  if (clean(process.env.STRIPE_SECRET_KEY) && clean(process.env.BOOKING_SYNC_SECRET)) {
+    try {
+      const pr = await fetch(HUB + "/api/v1/bookings/pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Booking-Secret": clean(process.env.BOOKING_SYNC_SECRET) },
+        body: JSON.stringify({
+          payload: {
+            aptIds, arrivalDate, departureDate, adults: nA, children: nC,
+            villaName: villaNamePF, nights, discountCode: discountCode || null,
+            guest: { firstName: firstName || "", lastName: lastName || "", email: email || "", phone: phone || "" },
+            reservations,
+          },
+          email: String(email || "").trim().toLowerCase() || null,
+          total, deposit: depositPF, marketingConsent: !!b.marketingConsent,
+        }),
+      });
+      const pj = await pr.json().catch(() => ({}));
+      if (pr.ok && pj.id) {
+        const pay = await createDepositCheckout({
+          deposit: depositPF, total, villaName: villaNamePF, ref: "PB-" + pj.id, pendingId: pj.id,
+          email, arrivalDate, departureDate, nights,
+        });
+        if (pay) {
+          return res.status(200).json({ ok: true, dryRun: false, payFirst: true, pendingId: pj.id, price: total, payUrl: pay.url });
+        }
+      }
+    } catch (e) {
+      console.error("[book] pending indisponibil, fallback pe creare directă:", String((e && e.message) || e));
+    }
   }
 
   // --- live: creează rezervarea în Smoobu (una per apartament, secvențial) ---
@@ -371,6 +411,15 @@ export default async function handler(req, res) {
       deposit, total, villaName, ref: reservationId,
       email: guest.email, arrivalDate, departureDate, nights,
     });
+
+    // și fluxul vechi consumă codurile single-use (plată-întâi o face în webhook)
+    if (discountCode && clean(process.env.BOOKING_SYNC_SECRET)) {
+      fetch(HUB + "/api/v1/discount/consume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Booking-Secret": clean(process.env.BOOKING_SYNC_SECRET) },
+        body: JSON.stringify({ code: discountCode }),
+      }).catch(() => {});
+    }
 
     return res.status(200).json({ ok: true, dryRun: false, reservationId, price: total, emailed, payUrl: pay ? pay.url : null });
   } catch (e) {

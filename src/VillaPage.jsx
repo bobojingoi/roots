@@ -122,6 +122,11 @@ export const VILLA_CSS = `
 .bk-cta{display:block;text-align:center;background:var(--ember);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:100px;text-decoration:none;box-shadow:0 10px 26px rgba(232,114,44,.4);transition:transform .2s,background .2s}
 .bk-cta:hover{background:var(--ember-2);transform:translateY(-2px)}
 .bk-cta:disabled{background:var(--sand);color:var(--ink-soft);box-shadow:none;cursor:not-allowed;transform:none}
+/* oferta „cont nou = −300 lei" din pasul de date */
+.bk-acc300{display:block;width:100%;text-align:center;background:rgba(233,184,114,.16);border:1.5px dashed var(--gold);
+  color:var(--ink);font:700 13.5px 'Manrope',sans-serif;padding:12px 14px;border-radius:14px;cursor:pointer;
+  margin-top:12px;transition:background .2s,transform .2s}
+.bk-acc300:hover{background:rgba(233,184,114,.26);transform:translateY(-1px)}
 .bk-cta.grow{flex:1}
 .bk-soon{margin-top:12px;font-size:12.5px;color:var(--ink-soft);text-align:center;line-height:1.5}
 .bk-soon a{color:var(--ember);font-weight:700}

@@ -14,16 +14,16 @@ const CK_CSS = `
 .ckbar p{flex:1 1 320px;margin:0;font-size:13.5px;line-height:1.6;color:rgba(251,247,239,.85)}
 .ckbar a{color:#E9B872;font-weight:700;text-decoration:underline}
 .ck-actions{display:flex;gap:10px;flex-wrap:wrap}
-.ckbar button{border:none;border-radius:100px;padding:11px 20px;font:700 13.5px 'Manrope',sans-serif;cursor:pointer;transition:transform .2s}
+.ckbar button{border:none;border-radius:100px;padding:8px 15px;font:700 12.5px 'Manrope',sans-serif;cursor:pointer;transition:transform .2s}
 .ckbar button:hover{transform:translateY(-1px)}
 .ck-yes{background:#E8722C;color:#fff}
 .ck-no{background:none;color:rgba(251,247,239,.75);border:1.5px solid rgba(251,247,239,.3)!important}
 @media(max-width:560px){
-  .ckbar{flex-direction:column;align-items:stretch;text-align:center;gap:12px;padding:15px 18px}
+  .ckbar{flex-direction:column;align-items:stretch;text-align:center;gap:10px;padding:13px 16px}
   /* în coloană, flex-basis:320px devenea ÎNĂLȚIME (bară uriașă) — o resetăm */
-  .ckbar p{flex:0 0 auto}
-  .ck-actions{justify-content:stretch}
-  .ckbar button{flex:1}
+  .ckbar p{flex:0 0 auto;font-size:12.5px}
+  .ck-actions{justify-content:center}
+  .ckbar button{padding:8px 18px}
 }
 `;
 

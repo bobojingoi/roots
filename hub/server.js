@@ -84,6 +84,299 @@ async function buildSiteContent() {
 
 /* ============ PUBLIC ============ */
 
+/* ============ Fluxul plată-întâi: rezervarea se creează DUPĂ avans ============
+   Site-ul validează disponibilitatea + prețul și depune aici o „rezervare în
+   așteptare"; webhook-ul Stripe o transformă în rezervare Smoobu reală. */
+
+const BOOKING_SECRET = () => (process.env.BOOKING_SYNC_SECRET || '').trim();
+
+function hubMailReady() {
+  return Boolean((process.env.RESEND_API_KEY || '').trim() && (process.env.EMAIL_FROM || '').trim());
+}
+async function hubSendMail({ to, subject, html }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.EMAIL_FROM || '').trim();
+  const recipients = (to || []).filter(Boolean);
+  if (!key || !from || !recipients.length) return false;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: recipients, subject, html }),
+      signal: AbortSignal.timeout(15000),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+function bookingConfirmHtml(d) {
+  const row = (k, v) =>
+    `<tr><td style="padding:7px 0;color:#5A6A61;font-size:14px">${k}</td>` +
+    `<td style="padding:7px 0;text-align:right;font-weight:600;color:#122B22;font-size:14px">${v}</td></tr>`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#1E2A24">
+    <h2 style="color:#122B22;font-size:20px;margin:0 0 6px">Rezervare confirmată ✓</h2>
+    <p style="font-size:14px;line-height:1.6">Bună ${d.firstName || ''}, îți mulțumim! Avansul a fost plătit, iar rezervarea ta la <b>${d.villaName}</b> este confirmată.</p>
+    <table style="width:100%;border-collapse:collapse;margin:14px 0;border-top:1px solid #eadfce">
+      ${row('Check-in', d.arrivalDate)}
+      ${row('Check-out', d.departureDate)}
+      ${row('Nopți', d.nights)}
+      ${d.guests ? row('Oaspeți', d.guests) : ''}
+      ${d.total ? row('Total sejur', Number(d.total).toLocaleString('ro-RO') + ' lei') : ''}
+      ${d.deposit ? row('Avans plătit', Number(d.deposit).toLocaleString('ro-RO') + ' lei') : ''}
+      ${d.rest ? row('Rest la check-in', Number(d.rest).toLocaleString('ro-RO') + ' lei') : ''}
+      ${d.reservationRef ? row('Referință', '#' + d.reservationRef) : ''}
+    </table>
+    <p style="color:#5A6A61;font-size:13px;line-height:1.6">Ne vedem la Brașov! Pentru orice întrebare, răspunde la acest email.</p>
+    <p style="color:#5A6A61;font-size:13px;margin-top:18px">ROOTS Villas · Stupini, Brașov · rootsvillas.ro</p>
+  </div>`;
+}
+
+const addDayStr = (s) => {
+  const d = new Date(s + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
+
+async function stripeRefund(paymentIntent) {
+  const sk = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!sk || !paymentIntent) return false;
+  try {
+    const r = await fetch('https://api.stripe.com/v1/refunds', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + sk, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ payment_intent: paymentIntent }).toString(),
+      signal: AbortSignal.timeout(20000),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+// site-ul depune rezervarea în așteptare (protejat cu secret partajat).
+// Refuzăm dacă hub-ul nu poate onora fluxul (fără chei Smoobu nu putem crea
+// rezervarea, fără cheia Stripe nu putem face refund la conflict) — site-ul
+// cade atunci automat pe fluxul vechi, care e sigur.
+app.post('/api/v1/bookings/pending', async (req, res) => {
+  try {
+    const secret = BOOKING_SECRET();
+    if (!secret) return res.status(503).json({ error: 'BOOKING_SYNC_SECRET neconfigurat pe hub.' });
+    if (req.headers['x-booking-secret'] !== secret) return res.status(403).json({ error: 'Secret invalid.' });
+    if (!smoobu.smoobuReady()) return res.status(503).json({ error: 'Cheile Smoobu lipsesc pe hub.' });
+    if (!(process.env.STRIPE_SECRET_KEY || '').trim()) return res.status(503).json({ error: 'STRIPE_SECRET_KEY lipsește pe hub (necesar pentru refund la conflict).' });
+    const b = req.body || {};
+    const p = b.payload;
+    if (!p || !Array.isArray(p.reservations) || !p.reservations.length || !Array.isArray(p.aptIds) || !p.aptIds.length || !p.arrivalDate || !p.departureDate) {
+      return res.status(400).json({ error: 'Payload incomplet.' });
+    }
+    const r = await pool.query(
+      `INSERT INTO pending_bookings (payload, email, total, deposit, marketing_consent)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [JSON.stringify(p), b.email || null, b.total || null, b.deposit || null, !!b.marketingConsent]
+    );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (e) {
+    console.error('[pending] insert:', e.message);
+    res.status(500).json({ error: 'Eroare la înregistrare.' });
+  }
+});
+
+const isUuidV4ish = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ''));
+
+// pagina de mulțumire citește starea (id-ul UUID e cheia — doar plătitorul îl are)
+app.get('/api/v1/bookings/pending/:id', async (req, res) => {
+  try {
+    // fără validare, un id non-UUID ar arunca 22P02 din Postgres (handler async
+    // neprins = proces mort pe Node 20) — DoS trivial pe serviciul de plăți
+    if (!isUuidV4ish(req.params.id)) return res.status(404).json({ error: 'Nu există.' });
+    const r = await pool.query('SELECT * FROM pending_bookings WHERE id = $1', [String(req.params.id)]);
+    const pb = r.rows[0];
+    if (!pb) return res.status(404).json({ error: 'Nu există.' });
+    const p = pb.payload || {};
+    res.json({
+      status: pb.status,
+      villaName: p.villaName || '',
+      arrivalDate: p.arrivalDate, departureDate: p.departureDate,
+      nights: p.nights, guests: (Number(p.adults) || 0) + (Number(p.children) || 0) || null,
+      total: pb.total != null ? Number(pb.total) : null,
+      deposit: pb.deposit != null ? Number(pb.deposit) : null,
+      reservationRef: pb.reservation_ref || null,
+      firstName: (p.guest && p.guest.firstName) || '',
+    });
+  } catch (e) {
+    console.error('[pending] get:', e.message);
+    res.status(500).json({ error: 'Eroare.' });
+  }
+});
+
+// clientul s-a întors cu plata anulată → curățăm pending-ul (doar din 'pending';
+// id-ul UUID nedivulgat e cheia, iar o anulare falsă nu poate atinge stări plătite)
+app.post('/api/v1/bookings/pending/:id/cancel', async (req, res) => {
+  try {
+    if (!isUuidV4ish(req.params.id)) return res.status(404).json({ error: 'Nu există.' });
+    await pool.query(
+      "UPDATE pending_bookings SET status = 'cancelled', updated_at = now() WHERE id = $1 AND status = 'pending'",
+      [String(req.params.id)]
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Eroare.' }); }
+});
+
+// fluxul VECHI (fallback, fără plată-întâi) consumă și el codurile single-use
+// după crearea rezervării — protejat cu același secret partajat
+app.post('/api/v1/discount/consume', async (req, res) => {
+  try {
+    const secret = BOOKING_SECRET();
+    if (!secret || req.headers['x-booking-secret'] !== secret) return res.status(403).json({ error: 'Secret invalid.' });
+    const code = String((req.body || {}).code || '').trim().toUpperCase();
+    if (!code) return res.status(400).json({ error: 'Cod lipsă.' });
+    const r = await pool.query(
+      'UPDATE discount_codes SET active = false, used_at = now() WHERE upper(code) = $1 AND single_use AND active RETURNING code',
+      [code]
+    );
+    res.json({ ok: true, consumed: r.rowCount > 0 });
+  } catch (e) { res.status(500).json({ error: 'Eroare.' }); }
+});
+
+/* după plată: re-verifică disponibilitatea, creează rezervările Smoobu, notează
+   consimțământul, consumă codul single-use, trimite emailurile. Idempotent —
+   Stripe poate livra evenimentul de mai multe ori. Aruncă la erori TEHNICE
+   (webhook 500 → Stripe reîncearcă); conflictul de date NU aruncă (refund + 200). */
+async function processPendingBooking(pendingId, session) {
+  // starea anterioară decide politica de refund: după un eșec tehnic ('failed')
+  // e posibil să existe o rezervare creată dar nepersistată — fără refund automat
+  const prev = await pool.query('SELECT status FROM pending_bookings WHERE id = $1', [pendingId]);
+  if (!prev.rows.length) return;
+  const wasClean = ['pending'].includes(prev.rows[0].status);
+
+  // CLAIM ATOMIC: exact o invocare câștigă rândul; livrările duble/concurente ies aici.
+  // 'paid' vechi de 15+ min = procesare moartă în zbor → recuperare (ca failed, fără refund automat)
+  const { rows } = await pool.query(
+    `UPDATE pending_bookings SET status = 'paid', session_id = COALESCE($2, session_id), updated_at = now()
+     WHERE id = $1 AND (status IN ('pending', 'failed') OR (status = 'paid' AND updated_at < now() - interval '15 minutes'))
+     RETURNING *`,
+    [pendingId, (session && session.id) || null]
+  );
+  const pb = rows[0];
+  if (!pb) return; // inexistent, terminal sau în curs de procesare la altă invocare
+  const p = pb.payload || {};
+  const createdIds = Array.isArray(pb.created_refs) ? pb.created_refs.slice() : [];
+
+  // 1) re-verificare disponibilitate — DOAR la prima trecere curată, fără creări parțiale
+  //    (la retry, „ocupat" ar putea fi propria rezervare creată înainte de eșec)
+  if (wasClean && createdIds.length === 0) {
+    let allFree = true;
+    for (const aptId of p.aptIds) {
+      const q = [`apartments%5B%5D=${aptId}`, `end_date=${p.departureDate}`, `start_date=${p.arrivalDate}`].sort().join('&');
+      const j = await smoobu.signedGet('/api/rates', q);
+      const per = (j.data && j.data[aptId]) || {};
+      for (let d = p.arrivalDate; d < p.departureDate; d = addDayStr(d)) {
+        const info = per[d];
+        if (!info || info.available === 0) { allFree = false; break; }
+      }
+      if (!allFree) break;
+    }
+    if (!allFree) {
+      const pi = (session && typeof session.payment_intent === 'string' && session.payment_intent) || null;
+      const refunded = await stripeRefund(pi);
+      // refund reușit = stare terminală; refund eșuat = 'failed' + intervenție umană
+      await pool.query(
+        `UPDATE pending_bookings SET status = $2, error = $3, updated_at = now() WHERE id = $1 AND status = 'paid'`,
+        [pb.id, refunded ? 'conflict_refunded' : 'failed',
+         refunded ? 'interval ocupat între timp — avans returnat automat' : 'interval ocupat — REFUND AUTOMAT EȘUAT, refund manual din Stripe']
+      );
+      emit('BookingConflictRefunded', { pendingId: pb.id, refunded });
+      await hubSendMail({
+        to: [pb.email],
+        subject: 'Rezervarea nu a putut fi finalizată — îți returnăm avansul integral',
+        html: `<p>Bună ${(p.guest && p.guest.firstName) || ''},</p><p>Ne pare rău — intervalul ales pentru <b>${p.villaName}</b> (${p.arrivalDate} → ${p.departureDate}) tocmai a fost ocupat de o altă rezervare, chiar în timpul plății.</p><p>${refunded ? '<b>Avansul tău se returnează integral, automat</b> (apare pe card în câteva zile lucrătoare).' : '<b>Îți returnăm avansul integral</b> — procesăm returul manual și revenim cu confirmarea în cel mai scurt timp.'}</p><p>Alege te rugăm alte date pe rootsvillas.ro — sau răspunde la acest email și te ajutăm noi.</p><p>ROOTS Villas · Brașov</p>`,
+      });
+      await hubSendMail({
+        to: [(process.env.EMAIL_TO || '').trim()],
+        subject: refunded ? '⚠️ Conflict rezervare: plată pe interval ocupat (refund automat OK)' : '🔴 URGENT: conflict rezervare + REFUND EȘUAT — fă refund manual din Stripe',
+        html: `<p>Pending ${pb.id} · ${p.villaName} ${p.arrivalDate}→${p.departureDate} · ${pb.email} · avans ${pb.deposit} lei. ${refunded ? 'Refund emis automat.' : 'Refundul automat NU a mers — emite-l manual din Stripe (payment_intent: ' + (pi || 'vezi sesiunea') + ') și verifică pending-ul.'}</p>`,
+      });
+      return;
+    }
+  }
+
+  // 2) creare rezervări Smoobu — reia de unde a rămas, persistă după FIECARE creare
+  //    (idempotență: retry-ul nu re-creează ce există deja)
+  for (let i = createdIds.length; i < p.reservations.length; i++) {
+    const j = await smoobu.signedPost('/api/reservations', p.reservations[i]);
+    createdIds.push(j.id || j.reservationId || null);
+    await pool.query(
+      'UPDATE pending_bookings SET created_refs = $2::jsonb, updated_at = now() WHERE id = $1',
+      [pb.id, JSON.stringify(createdIds)]
+    );
+  }
+  const ref = createdIds.filter(Boolean).join(' + ') || null;
+  await pool.query(
+    "UPDATE pending_bookings SET status = 'created', reservation_ref = $2, error = NULL, updated_at = now() WHERE id = $1 AND status = 'paid'",
+    [pb.id, ref]
+  );
+  if (ref && session && session.id) {
+    await pool.query('UPDATE payments SET ref = $2 WHERE session_id = $1', [session.id, ref]);
+  }
+
+  // 3) consimțământul de marketing pe profilul de client (GDPR: sursă + moment)
+  try {
+    if (pb.email) {
+      const g = await pool.query('SELECT id FROM guests WHERE lower(email) = lower($1) LIMIT 1', [pb.email]);
+      const gname = [((p.guest || {}).firstName || ''), ((p.guest || {}).lastName || '')].join(' ').trim() || null;
+      if (g.rows.length) {
+        if (pb.marketing_consent) {
+          await pool.query(
+            "UPDATE guests SET marketing_consent = true, consent_source = 'rezervare site', consent_at = now(), updated_at = now() WHERE id = $1",
+            [g.rows[0].id]
+          );
+        }
+      } else {
+        await pool.query(
+          `INSERT INTO guests (name, email, phone, marketing_consent, consent_source, consent_at)
+           VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN 'rezervare site' ELSE NULL END, CASE WHEN $4 THEN now() ELSE NULL END)`,
+          [gname, pb.email, (p.guest || {}).phone || null, pb.marketing_consent]
+        );
+      }
+    }
+  } catch (e) { console.error('[pending] guest consent:', e.message); }
+
+  // 4) codul de reducere single-use se consumă la prima rezervare plătită;
+  //    dacă era DEJA consumat (două checkout-uri paralele cu același cod),
+  //    rezervarea rămâne valabilă dar owner-ul e anunțat să decidă
+  try {
+    if (p.discountCode) {
+      const c = await pool.query(
+        'UPDATE discount_codes SET active = false, used_at = now() WHERE upper(code) = upper($1) AND single_use AND active RETURNING code',
+        [String(p.discountCode)]
+      );
+      if (!c.rowCount) {
+        const check = await pool.query('SELECT single_use FROM discount_codes WHERE upper(code) = upper($1)', [String(p.discountCode)]);
+        if (check.rows.length && check.rows[0].single_use) {
+          hubSendMail({
+            to: [(process.env.EMAIL_TO || '').trim()],
+            subject: '⚠️ Cod -300 folosit de DOUĂ ori (checkout-uri paralele)',
+            html: `<p>Codul ${p.discountCode} era deja consumat, dar rezervarea ${ref} (pending ${pb.id}, ${pb.email}) l-a folosit și ea. Reducerea s-a aplicat de două ori — decide dacă recuperezi diferența.</p>`,
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch (e) { console.error('[pending] cod reducere:', e.message); }
+
+  // 5) emailurile de confirmare (oaspete + proprietar)
+  const guests = (Number(p.adults) || 0) + (Number(p.children) || 0) || null;
+  const emailData = {
+    firstName: (p.guest || {}).firstName, villaName: p.villaName,
+    arrivalDate: p.arrivalDate, departureDate: p.departureDate, nights: p.nights,
+    guests, total: pb.total, deposit: pb.deposit,
+    rest: pb.total != null && pb.deposit != null ? Number(pb.total) - Number(pb.deposit) : null,
+    reservationRef: ref,
+  };
+  const emailed = await hubSendMail({
+    to: [pb.email, (process.env.EMAIL_TO || '').trim()],
+    subject: `Rezervare confirmată — ${p.villaName}`,
+    html: bookingConfirmHtml(emailData),
+  });
+  emit('BookingCreatedAfterPayment', { pendingId: pb.id, ref, emailed, consent: pb.marketing_consent });
+}
+
 /* ---- Stripe webhook: avansul plătit prin Checkout se înregistrează în payments ----
    Semnătura Stripe-Signature = HMAC-SHA256("t.rawBody", STRIPE_WEBHOOK_SECRET);
    verificăm pe byte-ii exacți (req.rawBody), cu toleranță anti-replay de 10 min. */
@@ -157,6 +450,25 @@ app.post('/api/v1/payments/stripe-webhook', async (req, res) => {
         const f = await stripeFeeFor((typeof s.payment_intent === 'string' && s.payment_intent) || null);
         if (f) await pool.query('UPDATE payments SET fee = $2, net = $3 WHERE session_id = $1', [s.id, f.fee, f.net]);
       } catch (e) { console.error('[stripe-webhook] fee lookup:', e.message); }
+      // fluxul plată-întâi: acum se creează rezervarea Smoobu. Erorile tehnice
+      // aruncă → webhook 500 → Stripe reîncearcă (procesarea e idempotentă).
+      if (md.pendingId) {
+        try {
+          await processPendingBooking(String(md.pendingId), s);
+        } catch (e) {
+          console.error('[pending] procesare:', e.message);
+          await pool.query(
+            "UPDATE pending_bookings SET status = 'failed', error = $2, updated_at = now() WHERE id = $1 AND status NOT IN ('created','conflict_refunded')",
+            [String(md.pendingId), String(e.message || e).slice(0, 300)]
+          ).catch(() => {});
+          hubSendMail({
+            to: [(process.env.EMAIL_TO || '').trim()],
+            subject: '⚠️ Plată încasată dar rezervarea NU s-a creat — verifică',
+            html: `<p>Pending ${md.pendingId}: ${String(e.message || e).slice(0, 300)}.</p><p>Plata e în Stripe; Stripe va reîncerca crearea automat. Dacă persistă, creeaz-o manual în Smoobu.</p>`,
+          }).catch(() => {});
+          throw e;
+        }
+      }
     } else if (ev.type === 'charge.refunded' || ev.type === 'charge.dispute.created') {
       // banii s-au întors / sunt contestați → badge-ul „Avans plătit" dispare
       // (admin listează doar status='paid'); potrivim prin payment_intent
@@ -415,12 +727,33 @@ app.post('/api/v1/site-register', async (req, res) => {
     }
   } catch (e) { console.error('[membership] bonus la înregistrare eșuat:', e.message); /* nu blochează înregistrarea */ }
 
+  // bonus de bun venit: cod UNIC de -300 lei la prima rezervare (single-use,
+  // cuplat pe emailul contului — /api/v1/discount îl validează doar pentru el)
+  let welcome = null;
+  try {
+    const lei = Number(process.env.WELCOME_DISCOUNT_LEI || 300);
+    if (lei > 0) {
+      for (let i = 0; i < 5 && !welcome; i++) {
+        const code = 'ROOTS300-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        try {
+          await pool.query(
+            'INSERT INTO discount_codes (code, pct, amount_lei, active, single_use) VALUES ($1, 0, $2, true, true)',
+            [code, lei]
+          );
+          welcome = code;
+        } catch (e) { if (e.code !== '23505') throw e; /* coliziune cod — reîncearcă */ }
+      }
+      if (welcome) await pool.query('UPDATE users SET discount_code = $2 WHERE id = $1', [user.id, welcome]);
+    }
+  } catch (e) { console.error('[register] bonus bun venit eșuat:', e.message); }
+
   const { signToken } = require('./auth');
-  emit('SiteRegister', { email: user.email, source: source || null });
+  emit('SiteRegister', { email: user.email, source: source || null, welcome });
   res.json({
     ok: true,
     token: signToken({ id: user.id, role: user.role, email: user.email }, 30 * 24 * 60 * 60),
     user: { name: user.name, email: user.email, role: user.role },
+    welcomeDiscount: welcome ? { code: welcome, amountLei: Number(process.env.WELCOME_DISCOUNT_LEI || 300) } : null,
   });
 });
 
@@ -449,16 +782,18 @@ app.get('/api/v1/discount', async (req, res) => {
   const code = String(req.query.code || '').trim().toUpperCase();
   if (!code) return res.json({ ok: false });
   const r = await pool.query(
-    'SELECT pct FROM discount_codes WHERE upper(code) = $1 AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
+    'SELECT pct, amount_lei FROM discount_codes WHERE upper(code) = $1 AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
     [code]
   );
   if (!r.rows.length) return res.json({ ok: false });
   const email = String(req.query.email || '').trim().toLowerCase();
-  if (email) {
-    const u = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1 AND upper(discount_code) = $2', [email, code]);
-    if (!u.rows.length) return res.json({ ok: false, reason: 'necuplat' });
+  // codurile deținute de un cont sunt valabile DOAR cu emailul acelui cont —
+  // fără excepția „email gol" (altfel codurile de bun venit ar circula liber)
+  const owner = await pool.query('SELECT lower(email) AS email FROM users WHERE upper(discount_code) = $1 LIMIT 1', [code]);
+  if (owner.rows.length && (!email || email !== owner.rows[0].email)) {
+    return res.json({ ok: false, reason: 'necuplat' });
   }
-  res.json({ ok: true, pct: Number(r.rows[0].pct) });
+  res.json({ ok: true, pct: Number(r.rows[0].pct) || 0, amountLei: r.rows[0].amount_lei != null ? Number(r.rows[0].amount_lei) : 0 });
 });
 // admin CRUD oferte
 const OFFER_TYPES = ['interval', 'lastminute', 'earlybird', 'longstay', 'combo', 'perk'];
@@ -1180,10 +1515,10 @@ app.get('/api/v1/my-account', requireAuth, async (req, res) => {
   let discount = null;
   if (user && user.discount_code) {
     const d = await pool.query(
-      'SELECT pct FROM discount_codes WHERE upper(code) = upper($1) AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
+      'SELECT pct, amount_lei FROM discount_codes WHERE upper(code) = upper($1) AND active AND (expires IS NULL OR expires >= CURRENT_DATE)',
       [user.discount_code]
     );
-    if (d.rows.length) discount = { code: user.discount_code, pct: Number(d.rows[0].pct) };
+    if (d.rows.length) discount = { code: user.discount_code, pct: Number(d.rows[0].pct) || 0, amountLei: d.rows[0].amount_lei != null ? Number(d.rows[0].amount_lei) : 0 };
   }
   res.json({ user, bookings: b.rows, discount });
 });

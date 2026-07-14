@@ -1821,6 +1821,21 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
     const me = await api('/api/v1/auth/me');
     ME = me.user;
     PERMS = me.perms || [];
+    // oaspeții NU au ce căuta în admin — contul lor (puncte, rezervări,
+    // recompense) trăiește pe site, la rootsvillas.ro/cont
+    if (ME && ME.role === 'turist') {
+      document.body.innerHTML = `
+        <div style="min-height:100vh;display:grid;place-items:center;background:#f6f3ec;font-family:'Manrope',system-ui,sans-serif;padding:20px">
+          <div style="background:#fff;border-radius:18px;padding:36px 32px;max-width:440px;text-align:center;box-shadow:0 16px 44px rgba(18,43,34,.12)">
+            <div style="font-size:40px;margin-bottom:10px">🌲</div>
+            <h2 style="margin:0 0 8px;color:#122B22">Contul tău de oaspete</h2>
+            <p style="color:#5A6A61;font-size:14.5px;line-height:1.6;margin:0 0 20px">Punctele, rezervările și recompensele tale sunt în contul de pe site — te ducem acolo.</p>
+            <a href="https://rootsvillas.ro/cont" style="display:inline-block;background:#E8722C;color:#fff;font-weight:700;padding:13px 26px;border-radius:100px;text-decoration:none">Deschide contul meu</a>
+          </div>
+        </div>`;
+      setTimeout(() => { location.href = 'https://rootsvillas.ro/cont'; }, 2500);
+      return;
+    }
     $('who').textContent = ME.email + ' · ' + ME.role;
     // rolurile fără acces la conținut nu pot citi secțiunile — nu blocăm boot-ul
     try {

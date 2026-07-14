@@ -232,7 +232,7 @@ export default function AccountPage() {
   function copyRef() {
     try { navigator.clipboard.writeText(mb.account.referral_code); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard indisponibil */ }
   }
-  const TIER_LABEL = { silver: "Silver", gold: "Gold", platinum: "Platinum" };
+  const TIER_LABEL = { silver: "Basic", gold: "Gold", platinum: "Platinum" };
 
   const SOURCES = [
     ["google", t("src_google")],
@@ -323,7 +323,9 @@ export default function AccountPage() {
               <b>{t("acc_code")}</b>
               {acc.discount ? (
                 <div className="acc-code-active">
-                  <span>🏷 {t("acc_code_active", { c: acc.discount.code, p: acc.discount.pct })}</span>
+                  <span>🏷 {Number(acc.discount.amountLei) > 0
+                    ? t("acc_code_active_fixed", { c: acc.discount.code, a: acc.discount.amountLei })
+                    : t("acc_code_active", { c: acc.discount.code, p: acc.discount.pct })}</span>
                   <button type="button" className="acc-code-rm" onClick={() => saveCode(true)}>{t("acc_code_remove")}</button>
                 </div>
               ) : (

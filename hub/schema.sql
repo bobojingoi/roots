@@ -106,6 +106,28 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS net NUMERIC(10,2);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount NUMERIC(10,2);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ;
 
+-- rezervări în așteptarea plății (fluxul plată-întâi): site-ul validează și
+-- calculează prețul, dar rezervarea Smoobu se creează ABIA după plata avansului
+-- (webhook-ul Stripe). payload = tot ce trebuie pentru creare + email + consimțământ.
+CREATE TABLE IF NOT EXISTS pending_bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | paid | created | conflict_refunded | failed | cancelled
+  payload JSONB NOT NULL,
+  email TEXT,
+  total NUMERIC(10,2),
+  deposit NUMERIC(10,2),
+  marketing_consent BOOLEAN NOT NULL DEFAULT false,
+  session_id TEXT,
+  reservation_ref TEXT,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pending_bookings_status ON pending_bookings(status, created_at DESC);
+-- progres incremental la crearea rezervărilor (idempotență la retry-ul webhook-ului):
+-- fiecare rezervare Smoobu creată se persistă IMEDIAT, ca retry-ul să reia de unde a rămas
+ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS created_refs JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 -- jurnal de evenimente interne (fundația webhook-urilor Travelscan)
 CREATE TABLE IF NOT EXISTS events_log (
   id BIGSERIAL PRIMARY KEY,
@@ -168,9 +190,17 @@ CREATE TABLE IF NOT EXISTS discount_codes (
   pct NUMERIC NOT NULL,
   active BOOLEAN NOT NULL DEFAULT true,
   expires DATE,
+  amount_lei NUMERIC,
+  single_use BOOLEAN NOT NULL DEFAULT false,
+  used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_code TEXT;
+-- bazele EXISTENTE primesc coloanele noi prin ALTER (cele noi le au din CREATE);
+-- ordinea contează: ALTER-ele stau DUPĂ CREATE, altfel bootstrap-ul pe bază goală pică
+ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS amount_lei NUMERIC;
+ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS single_use BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS used_at TIMESTAMPTZ;
 
 -- ================= MEMBERSHIP & PUNCTE (Task 3.1) =================
 -- cont de membru 1:1 cu user; tier-ul se DERIVĂ din lifetime_points la citire

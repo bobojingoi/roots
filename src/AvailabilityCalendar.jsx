@@ -141,8 +141,44 @@ export default function AvailabilityCalendar({
   const [extraBed, setExtraBed] = useState("pat"); // pat suplimentar | canapea (pentru oaspeții extra)
   const [childAges, setChildAges] = useState("");
   const [needCot, setNeedCot] = useState(false);
-  const [step, setStep] = useState("select"); // select | form | sending | done
+  const [step, setStep] = useState("select"); // select | form | sending | pay | done
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+  const [consent, setConsent] = useState(true); // acord promo — debifabil oricând
+  // oferta „cont nou = −300 lei": modal de înregistrare direct în fluxul de rezervare
+  const [logged, setLogged] = useState(() => { try { return !!localStorage.getItem("roots_auth"); } catch { return false; } });
+  const [accOpen, setAccOpen] = useState(false);
+  const [accMode, setAccMode] = useState("register"); // register | login
+  const [acc, setAcc] = useState({ name: "", email: "", password: "" });
+  const [accBusy, setAccBusy] = useState(false);
+  const [accErr, setAccErr] = useState("");
+  const [accEmail, setAccEmail] = useState(""); // emailul CONTULUI — codul e valabil doar cu el
+
+  async function accSubmit(e) {
+    e.preventDefault();
+    setAccBusy(true); setAccErr("");
+    try {
+      const path = accMode === "register" ? "/api/v1/site-register" : "/api/v1/site-login";
+      const body = accMode === "register"
+        ? { name: acc.name.trim(), email: acc.email.trim(), password: acc.password, source: "rezervare-300" }
+        : { email: acc.email.trim(), password: acc.password };
+      const r = await fetch(HUB_URL + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Nu am putut crea contul.");
+      try { localStorage.setItem("roots_auth", j.token); } catch { /* privat */ }
+      setLogged(true);
+      setAccEmail(((j.user && j.user.email) || acc.email.trim()).toLowerCase());
+      if (j.welcomeDiscount) {
+        setUserDisc({ code: j.welcomeDiscount.code, pct: 0, amountLei: Number(j.welcomeDiscount.amountLei) || 0 });
+      } else {
+        const m = await fetch(HUB_URL + "/api/v1/my-account", { headers: { Authorization: "Bearer " + j.token } })
+          .then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        if (m && m.discount) setUserDisc(m.discount);
+      }
+      if (!form.email && acc.email.trim()) setForm((f) => ({ ...f, email: acc.email.trim() }));
+      setAccOpen(false);
+    } catch (e2) { setAccErr(e2.message); }
+    setAccBusy(false);
+  }
   const [result, setResult] = useState(null);
   // ofertele active din Hub + codul de reducere al utilizatorului logat
   const [offers, setOffers] = useState([]);
@@ -160,7 +196,10 @@ export default function AvailabilityCalendar({
     if (tok) {
       fetch(HUB_URL + "/api/v1/my-account", { headers: { Authorization: "Bearer " + tok } })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j) => { if (j && j.discount) setUserDisc(j.discount); })
+        .then((j) => {
+          if (j && j.discount) setUserDisc(j.discount);
+          if (j && j.user && j.user.email) setAccEmail(String(j.user.email).toLowerCase());
+        })
         .catch(() => {});
     }
   }, [loadOffers]);
@@ -231,7 +270,16 @@ export default function AvailabilityCalendar({
   const comboOffer = multi ? offers.find((o) => o.type === "combo" && Number(o.amount_lei) > 0) : null;
   const comboDiscount = comboOffer ? Math.max(0, Math.min(baseTotal - offerDiscount, Math.round(Number(comboOffer.amount_lei) * nights.length))) : 0;
   const afterOffers = Math.max(0, baseTotal - offerDiscount - comboDiscount);
-  const codeDiscount = userDisc && userDisc.pct ? Math.round((afterOffers * userDisc.pct) / 100) : 0;
+  // codul contului e valabil DOAR cu emailul contului (serverul îl refuză altfel);
+  // dacă în formular e alt email, nu-l aplicăm nici vizual — altfel 409 în buclă
+  const discApplies = userDisc && (!form.email.trim() || !accEmail || form.email.trim().toLowerCase() === accEmail);
+  const effDisc = discApplies ? userDisc : null;
+  // fix în lei (bonusul de bun venit) SAU procentual — serverul recalculează identic
+  const codeDiscount = effDisc
+    ? (Number(effDisc.amountLei) > 0
+        ? Math.min(Math.round(Number(effDisc.amountLei)), afterOffers)
+        : effDisc.pct ? Math.round((afterOffers * effDisc.pct) / 100) : 0)
+    : 0;
 
   const total = afterOffers - codeDiscount + extraFee;
   const deposit = Math.round(total * depositPct / 100);
@@ -269,8 +317,9 @@ export default function AvailabilityCalendar({
           extraBed: hasExtra ? extraBed : undefined,
           childAges: children > 0 ? childAges.trim() : undefined,
           needCot,
-          discountCode: userDisc ? userDisc.code : undefined,
+          discountCode: effDisc ? effDisc.code : undefined,
           expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
+          marketingConsent: consent,
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
           email: form.email.trim(), phone: form.phone.trim(),
         }),
@@ -278,8 +327,9 @@ export default function AvailabilityCalendar({
       const json = await r.json();
       if (json && json.detail) console.warn("[rezervare] detaliu server:", json.detail);
       if (json && json.ok) {
-        // conversii pentru Ads: rezervare reală = purchase, dry-run = lead
-        track(json.dryRun ? "generate_lead" : "purchase", { label: villaName, value: json.price || total });
+        // conversii pentru Ads: pe fluxul plată-întâi purchase se trimite ABIA
+        // după plată (pagina de mulțumire) — aici doar begin_checkout
+        track(json.dryRun ? "generate_lead" : json.payFirst ? "begin_checkout" : "purchase", { label: villaName, value: json.price || total });
       }
       // rezervare reală cu Stripe configurat → direct la plata securizată a avansului;
       // mica întârziere lasă pixelii de conversie (purchase) să-și trimită cererile
@@ -307,8 +357,8 @@ export default function AvailabilityCalendar({
           {comboDiscount > 0 && comboOffer && (
             <div className="bk-row disc"><span>🏷 {comboOffer.title}</span><span>−{lei(comboDiscount)} {currency}</span></div>
           )}
-          {codeDiscount > 0 && userDisc && (
-            <div className="bk-row disc"><span>🏷 {t("code_row", { c: userDisc.code, p: userDisc.pct })}</span><span>−{lei(codeDiscount)} {currency}</span></div>
+          {codeDiscount > 0 && effDisc && (
+            <div className="bk-row disc"><span>🏷 {Number(effDisc.amountLei) > 0 ? t("code_row_fixed", { c: effDisc.code }) : t("code_row", { c: effDisc.code, p: effDisc.pct })}</span><span>−{lei(codeDiscount)} {currency}</span></div>
           )}
           {hasExtra && (
             <div className="bk-row muted"><span>{t("extra_guests_row", { a: extraAdults, c: extraChildren })}</span><span>+{lei(extraFee)} {currency}</span></div>
@@ -405,12 +455,31 @@ export default function AvailabilityCalendar({
         {step === "form" && (
           <div className="bk-form">
             <Recap />
+            {!logged && !userDisc && (
+              <button
+                type="button"
+                className="bk-acc300"
+                onClick={() => {
+                  setAcc((a) => ({ ...a, name: (form.firstName + " " + form.lastName).trim(), email: form.email.trim() }));
+                  setAccMode("register"); setAccErr(""); setAccOpen(true);
+                }}
+              >
+                🎁 {t("acc300_offer")}
+              </button>
+            )}
             <div className="bk-fields">
               <input className="bk-input" placeholder={t("first_name")} value={form.firstName} onChange={setF("firstName")} />
               <input className="bk-input" placeholder={t("last_name")} value={form.lastName} onChange={setF("lastName")} />
               <input className="bk-input" type="email" placeholder={t("email")} value={form.email} onChange={setF("email")} />
               <input className="bk-input" type="tel" placeholder={t("phone")} value={form.phone} onChange={setF("phone")} />
             </div>
+            {userDisc && !discApplies && (
+              <p className="bk-soon" style={{ color: "#c0392b" }}>{t("code_email_hint", { e: accEmail })}</p>
+            )}
+            <label className="bk-cot" style={{ marginTop: 10 }}>
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+              {t("bk_consent")}
+            </label>
             <div className="bk-actions">
               <button className="bk-back" onClick={() => setStep("select")}>{t("back")}</button>
               <button className="bk-cta grow" disabled={!formValid} onClick={submit}>{t("send_booking")}</button>
@@ -466,6 +535,43 @@ export default function AvailabilityCalendar({
           )
         )}
       </div>
+
+      {accOpen && (
+        <div className="bkacc-ovl" onClick={(e) => { if (e.target.classList.contains("bkacc-ovl")) setAccOpen(false); }}>
+          <style>{ACC300_CSS}</style>
+          <div className="bkacc-box" role="dialog" aria-modal="true" aria-labelledby="bkacc-t">
+            <button type="button" className="bkacc-x" aria-label="Închide" onClick={() => setAccOpen(false)}>×</button>
+            <h4 id="bkacc-t">{accMode === "register" ? t("acc300_title") : t("acc_login")}</h4>
+            {accMode === "register" && <p className="bkacc-sub">{t("acc300_sub")}</p>}
+            <form onSubmit={accSubmit}>
+              {accMode === "register" && (
+                <input className="bk-input" placeholder={t("acc_name")} value={acc.name} onChange={(e) => setAcc({ ...acc, name: e.target.value })} />
+              )}
+              <input className="bk-input" type="email" placeholder={t("email")} value={acc.email} onChange={(e) => setAcc({ ...acc, email: e.target.value })} />
+              <input className="bk-input" type="password" placeholder={t("acc_pass_min")} value={acc.password} onChange={(e) => setAcc({ ...acc, password: e.target.value })} />
+              {accErr && <p className="bkacc-err">{accErr}</p>}
+              <button className="bk-cta" style={{ width: "100%" }} disabled={accBusy}>
+                {accBusy ? "…" : accMode === "register" ? t("acc300_cta") : t("acc_login")}
+              </button>
+            </form>
+            <button type="button" className="bkacc-switch" onClick={() => { setAccMode(accMode === "register" ? "login" : "register"); setAccErr(""); }}>
+              {accMode === "register" ? t("acc_have") : t("acc_no_acc")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+/* stilurile ofertei „cont nou = −300 lei" (buton + modal) */
+const ACC300_CSS = `
+.bkacc-ovl{position:fixed;inset:0;z-index:9600;background:rgba(12,31,25,.55);backdrop-filter:blur(3px);display:grid;place-items:center;padding:20px}
+.bkacc-box{position:relative;background:#fff;border-radius:18px;max-width:400px;width:100%;padding:26px 24px;font-family:'Manrope',system-ui,sans-serif;box-shadow:0 24px 70px rgba(0,0,0,.3)}
+.bkacc-box h4{font-family:'Fraunces',serif;font-weight:500;font-size:21px;color:#122B22;margin:0 0 6px;padding-right:26px}
+.bkacc-sub{font-size:13.5px;color:#5A6A61;line-height:1.55;margin:0 0 14px}
+.bkacc-box form{display:flex;flex-direction:column;gap:10px}
+.bkacc-x{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(30,42,36,.14);background:none;font-size:17px;cursor:pointer;color:#5A6A61}
+.bkacc-err{color:#c0392b;font-size:13px;margin:0}
+.bkacc-switch{border:none;background:none;color:#5A6A61;font:600 12.5px 'Manrope',sans-serif;text-decoration:underline;cursor:pointer;margin-top:12px}
+`;
