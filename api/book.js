@@ -150,7 +150,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, error: "Server neconfigurat (credențiale Smoobu)." });
   }
 
-  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice, country, extraBed, childAges, needCot } = b;
+  const { apartmentId, arrivalDate, departureDate, adults = 2, children = 0, firstName, lastName, email, phone, notice, country, extraBed, childAges, needCot, hasPet } = b;
   // rezervare combinată: apartmentIds = mai multe vile rezervate împreună, aceeași perioadă
   // dedup: ID-uri duplicate ar dubla limitele de oaspeți și ar crea rezervări duble pe aceeași vilă
   const aptIds = [...new Set(
@@ -301,6 +301,7 @@ export default async function handler(req, res) {
       : "",
     childAges ? `Vârste copii: ${String(childAges).slice(0, 120)}.` : "",
     needCot ? "Solicită PĂTUȚ pentru bebeluș (gratuit)." : "",
+    hasPet ? "Vine cu ANIMAL DE COMPANIE." : "",
     offerDiscount > 0 && bestOffer ? `OFERTĂ: ${bestOffer.title} (−${offerDiscount} lei).` : "",
     comboDiscount > 0 && comboOffer ? `COMBO: ${comboOffer.title} (−${comboDiscount} lei).` : "",
     codeDiscount > 0 ? `COD REDUCERE: ${discountCode} ${codeAmount > 0 ? "" : "−" + codePct + "% "}(−${codeDiscount} lei).` : "",

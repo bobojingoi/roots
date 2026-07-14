@@ -141,6 +141,7 @@ export default function AvailabilityCalendar({
   const [extraBed, setExtraBed] = useState("pat"); // pat suplimentar | canapea (pentru oaspeții extra)
   const [childAges, setChildAges] = useState("");
   const [needCot, setNeedCot] = useState(false);
+  const [hasPet, setHasPet] = useState(false);
   const [step, setStep] = useState("select"); // select | form | sending | pay | done
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
   const [consent, setConsent] = useState(true); // acord promo — debifabil oricând
@@ -203,6 +204,23 @@ export default function AvailabilityCalendar({
         .catch(() => {});
     }
   }, [loadOffers]);
+
+  // popup-ul „cont nou = −300 lei" apare SINGUR la intrarea în pasul de date
+  // (o dată pe sesiune); rămâne și un link discret pentru redeschidere.
+  // Stă DUPĂ declarația lui userDisc — altfel TDZ la randare.
+  useEffect(() => {
+    if (step !== "form" || logged || userDisc || accOpen) return;
+    let seen = false;
+    try { seen = sessionStorage.getItem("roots300_seen") === "1"; } catch { /* privat */ }
+    if (seen) return;
+    const id = setTimeout(() => {
+      try { sessionStorage.setItem("roots300_seen", "1"); } catch { /* privat */ }
+      setAcc((a) => ({ ...a, name: (form.firstName + " " + form.lastName).trim(), email: form.email.trim() }));
+      setAccMode("register"); setAccErr(""); setAccOpen(true);
+    }, 500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, logged, userDisc]);
 
   const m2 = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
   const startDate = iso(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -295,6 +313,7 @@ export default function AvailabilityCalendar({
     (hasExtra ? `Oaspeți extra: ${extraAdults} adulți + ${extraChildren} copii (${extraBed === "pat" ? "pat suplimentar" : "canapea extensibilă"})\n` : "") +
     (children && childAges.trim() ? `Vârste copii: ${childAges.trim()}\n` : "") +
     (needCot ? "Avem nevoie de pătuț pentru bebeluș (gratuit)\n" : "") +
+    (hasPet ? "Venim cu animal de companie\n" : "") +
     (priceKnown ? `Total: ${lei(total)} ${currency}\nAvans (${depositPct}%): ${lei(deposit)} ${currency}` : "Preț: la cerere")
   );
   const waHref = `https://wa.me/${wa}?text=${waMsg}`;
@@ -317,6 +336,7 @@ export default function AvailabilityCalendar({
           extraBed: hasExtra ? extraBed : undefined,
           childAges: children > 0 ? childAges.trim() : undefined,
           needCot,
+          hasPet,
           discountCode: effDisc ? effDisc.code : undefined,
           expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
           marketingConsent: consent,
@@ -439,6 +459,10 @@ export default function AvailabilityCalendar({
                 </label>
               </div>
             )}
+            <label className="bk-cot" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={hasPet} onChange={(e) => setHasPet(e.target.checked)} />
+              {t("bk_pet")}
+            </label>
             {offers.some((o) => o.type === "perk") && (
               <div className="bk-perks">
                 {offers.filter((o) => o.type === "perk").map((o, i) => <span key={i}>🎁 {o.title}</span>)}
@@ -456,16 +480,18 @@ export default function AvailabilityCalendar({
           <div className="bk-form">
             <Recap />
             {!logged && !userDisc && (
-              <button
-                type="button"
-                className="bk-acc300"
-                onClick={() => {
-                  setAcc((a) => ({ ...a, name: (form.firstName + " " + form.lastName).trim(), email: form.email.trim() }));
-                  setAccMode("register"); setAccErr(""); setAccOpen(true);
-                }}
-              >
-                🎁 {t("acc300_offer")}
-              </button>
+              <p className="bk-soon" style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  style={{ border: "none", background: "none", color: "var(--ember)", font: "700 13px 'Manrope',sans-serif", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                  onClick={() => {
+                    setAcc((a) => ({ ...a, name: (form.firstName + " " + form.lastName).trim(), email: form.email.trim() }));
+                    setAccMode("register"); setAccErr(""); setAccOpen(true);
+                  }}
+                >
+                  🎁 {t("acc300_offer")}
+                </button>
+              </p>
             )}
             <div className="bk-fields">
               <input className="bk-input" placeholder={t("first_name")} value={form.firstName} onChange={setF("firstName")} />

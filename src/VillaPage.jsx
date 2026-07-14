@@ -23,7 +23,9 @@ import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 /* stiluri specifice paginii de vilă (peste design system-ul comun) */
 export const VILLA_CSS = `
 /* ---- villa hero: poza curată + gradient negru de jos în sus (fără efecte) ---- */
-.vhero{position:relative;min-height:74vh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
+/* svh = înălțime stabilă pe mobil: cu vh, ascunderea barei de adresă la scroll
+   mărea containerul și poza cover „făcea zoom" */
+.vhero{position:relative;min-height:74vh;min-height:74svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;
   background:linear-gradient(180deg,#16211C 0%,#0C1F19 100%)} /* fallback când lipsește poza */
 .vhero-photo{position:absolute;inset:0;background-size:cover;background-position:center}
 .vhero-veil{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.28) 34%,rgba(0,0,0,0) 62%)}

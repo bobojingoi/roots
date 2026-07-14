@@ -282,6 +282,7 @@ const D = {
                      fr: "La réduction du compte ne s'applique qu'avec l'e-mail du compte ({e}) — utilisez-le dans le formulaire pour la conserver." },
 
   /* fluxul plată-întâi: consimțământ + pagina de mulțumire */
+  bk_pet:       { ro: "Avem animal de companie 🐾", en: "We're bringing a pet 🐾", he: "אנחנו מגיעים עם חיית מחמד 🐾", fr: "Nous venons avec un animal de compagnie 🐾" },
   bk_consent:   { ro: "Vreau să primesc pe email oferte și noutăți ROOTS (mă pot dezabona oricând).",
                   en: "I'd like to receive ROOTS offers and news by email (I can unsubscribe anytime).",
                   he: "אשמח לקבל מבצעים וחדשות של ROOTS במייל (אפשר לבטל בכל עת).",

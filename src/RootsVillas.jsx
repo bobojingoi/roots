@@ -748,8 +748,8 @@ section{position:relative}
 @media(max-width:860px){.villa-grid{grid-template-columns:1fr}}
 .vcard{background:rgba(251,247,239,.05);border:1px solid rgba(251,247,239,.12);border-radius:var(--r);overflow:hidden;transition:transform .45s cubic-bezier(.2,.7,.2,1),box-shadow .45s,border-color .45s}
 .vcard:hover{transform:translateY(-8px);border-color:rgba(233,184,114,.4);box-shadow:0 30px 60px rgba(0,0,0,.35)}
-.vcard-media{height:340px;position:relative;overflow:hidden;background:linear-gradient(160deg,#1B4033,#0C1F19)}
-@media(max-width:760px){.vcard-media{height:260px}}
+.vcard-media{height:430px;position:relative;overflow:hidden;background:linear-gradient(160deg,#1B4033,#0C1F19)}
+@media(max-width:760px){.vcard-media{height:320px}}
 .vcard-media .ph{position:absolute;inset:0;background-size:cover;background-position:center;transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
 .vcard:hover .vcard-media .ph{transform:scale(1.06)}
 /* slider în cardul vilei */
@@ -1404,7 +1404,7 @@ function VCardSlider({ slides }) {
               </>
             );
           })()}
-          <div className="vs-dots" aria-hidden="true">{slides.map((_, i) => <span key={i} className={i === cur ? "on" : ""} />)}</div>
+          {/* punctele de slider scoase intenționat — săgețile rămân singura navigare vizibilă */}
         </>
       )}
       {EDIT_MODE && slides[cur] && (
@@ -1495,7 +1495,7 @@ function VillaCard({ villa, delay, contact, idx, page }) {
         <span className="vcard-tag">{t("villa_tag", { n: villa.id === "redwood" ? "01" : "02" })}</span>
         {!EDIT_MODE && (
           <button type="button" className="vcard-photos" onClick={() => setShowPhotos(true)}>
-            🖼 {t("see_all_photos")}
+            {t("see_all_photos")}
           </button>
         )}
         {EDIT_MODE && slides.length > 0 && (
