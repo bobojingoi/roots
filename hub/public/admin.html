@@ -111,8 +111,6 @@
   <div class="logo"><span class="dot">R</span><div>Roots Hub<small>ADMINISTRARE</small></div></div>
   <div class="acts">
     <span id="who"></span>
-    <button onclick="openSiteEditor()" style="background:var(--brand);border-color:var(--brand)">✏️ Editor pe site</button>
-    <button onclick="openAccount()">Setări cont</button>
     <button onclick="logout()">Deconectare</button>
   </div>
 </div>
@@ -444,7 +442,6 @@ function drawCleaning() {
     @media(max-width:560px){.clc{min-height:46px}.clb{font-size:9.5px;padding:0 4px}}
   </style>
     <h1>Calendar curățenie</h1>
-    <div class="lead">Alege vila și luna. Fiecare <b>bară colorată</b> = o rezervare (nume + persoane). <span style="color:#c0392b">●</span> roșu = check-out (curățenie). 📝 = cerințe. 🇮🇱 = grup evreiesc · 🌍 = grup străin.</div>
     ${alert}
     <div class="cl-bar">
       <div class="cl-vsel">${villaBtns}</div>
