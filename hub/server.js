@@ -1978,7 +1978,8 @@ app.get('/api/v1/admin/cleaning', requirePerm('curatenie'), async (_req, res) =>
        to_char(b.departure, 'YYYY-MM-DD') AS departure,
        b.guests_count AS guests,
        COALESCE(NULLIF(g.name, ''), b.raw->>'guest-name') AS name,
-       b.raw->>'notice' AS notice
+       b.raw->>'notice' AS notice,
+       b.raw->>'language' AS lang
      FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
      WHERE b.departure >= CURRENT_DATE - 3 AND b.status = 'confirmed'
      ORDER BY b.arrival ASC LIMIT 500`
@@ -2001,6 +2002,7 @@ app.get('/api/v1/admin/cleaning', requirePerm('curatenie'), async (_req, res) =>
     bookings: r.rows.map((b) => ({
       villa: b.villa, arrival: b.arrival, departure: b.departure,
       guests: b.guests, name: b.name || '', req: cleanReq(b.notice),
+      lang: (b.lang || '').toLowerCase(),
     })),
   });
 });
