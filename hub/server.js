@@ -1980,7 +1980,7 @@ app.get('/api/v1/admin/cleaning', requirePerm('curatenie'), async (_req, res) =>
        COALESCE(NULLIF(g.name, ''), b.raw->>'guest-name') AS name,
        b.raw->>'notice' AS notice
      FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
-     WHERE b.departure >= CURRENT_DATE - 3
+     WHERE b.departure >= CURRENT_DATE - 3 AND b.status = 'confirmed'
      ORDER BY b.arrival ASC LIMIT 500`
   );
   // „cerințe suplimentare": păstrăm doar notele reale, fără metadatele OTA
