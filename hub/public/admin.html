@@ -295,90 +295,127 @@ function renderNav() {
 function go(tab) { TAB = tab; renderNav(); renderMain(); }
 
 /* ============ Calendar curățenie (rol curatenie) ============ */
+let CL = null, CL_DATA = null;
 async function renderCleaning() {
-  const M = $('main');
-  M.innerHTML = `<h1>Calendar curățenie</h1>
-    <div class="lead">Când vin și când pleacă oaspeții la fiecare vilă. <b style="color:#2e7d55">Verde</b> = sosire (check-in), <b style="color:#c0392b">portocaliu</b> = plecare (se face curățenie după).</div>
-    <div class="card">Se încarcă…</div>`;
-  let bookings = [];
-  try { bookings = (await api('/api/v1/admin/cleaning')).bookings || []; }
-  catch (e) { M.innerHTML = '<div class="card">Nu am putut încărca rezervările.</div>'; return; }
+  if (!CL) { const n = new Date(); CL = { villa: 'Redwood', y: n.getFullYear(), m: n.getMonth() }; }
+  if (!CL_DATA) {
+    $('main').innerHTML = '<h1>Calendar curățenie</h1><div class="card">Se încarcă…</div>';
+    try { CL_DATA = (await api('/api/v1/admin/cleaning')).bookings || []; }
+    catch (e) { $('main').innerHTML = '<div class="card">Nu am putut încărca rezervările.</div>'; return; }
+  }
+  drawCleaning();
+}
+function clVilla(v) { CL.villa = v; drawCleaning(); }
+function clMonth(delta) { let m = CL.m + delta, y = CL.y; if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; } CL.m = m; CL.y = y; drawCleaning(); }
+function clToday() { const n = new Date(); CL.y = n.getFullYear(); CL.m = n.getMonth(); drawCleaning(); }
 
-  const MON = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  const DOWs = ['L', 'Ma', 'Mi', 'J', 'V', 'S', 'D'];
+function drawCleaning() {
+  const B = CL_DATA;
+  const MON = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
+  const MONs = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const DOWs = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
   const DOWf = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const todayStr = iso(new Date());
-  const fmt = (ds) => { const d = new Date(ds + 'T12:00:00'); return `${DOWf[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MON[d.getMonth()]}`; };
+  const fmt = (ds) => { const d = new Date(ds + 'T12:00:00'); return `${DOWf[(d.getDay() + 6) % 7]}, ${d.getDate()} ${MONs[d.getMonth()]}`; };
+  const first = (s) => (String(s || '').trim().split(' ')[0] || 'Oaspete');
+  const PAL = ['#e8722c', '#3a7d5d', '#5b7bd4', '#c0568f', '#d4a13a', '#7a8b52', '#4a9b8e', '#b5651d'];
+  const cur = B.filter((b) => b.villa === CL.villa).map((b, i) => ({ ...b, color: PAL[i % PAL.length] }));
 
-  function sets(villa) {
-    const occ = new Set(), ci = new Set(), co = new Set();
-    bookings.filter((b) => b.villa === villa).forEach((b) => {
-      ci.add(b.arrival); co.add(b.departure);
-      let d = new Date(b.arrival + 'T12:00:00'); const end = new Date(b.departure + 'T12:00:00');
-      while (d < end) { occ.add(iso(d)); d.setDate(d.getDate() + 1); }
-    });
-    return { occ, ci, co };
-  }
-  function monthGrid(y, m, S) {
-    const start = (new Date(y, m, 1).getDay() + 6) % 7;
-    const days = new Date(y, m + 1, 0).getDate();
-    let cells = '';
-    for (let i = 0; i < start; i++) cells += '<div class="cl-cd cl-empty"></div>';
-    for (let dd = 1; dd <= days; dd++) {
-      const ds = `${y}-${pad(m + 1)}-${pad(dd)}`;
-      let cls = 'cl-cd';
-      if (S.occ.has(ds)) cls += ' cl-occ';
-      if (S.ci.has(ds)) cls += ' cl-ci';
-      if (S.co.has(ds)) cls += ' cl-co';
-      if (ds === todayStr) cls += ' cl-today';
-      cells += `<div class="${cls}">${dd}</div>`;
+  const y = CL.y, m = CL.m;
+  const dayInfo = {};
+  cur.forEach((b) => {
+    let d = new Date(b.arrival + 'T12:00:00'); const end = new Date(b.departure + 'T12:00:00');
+    while (d < end) { const ds = iso(d); (dayInfo[ds] = dayInfo[ds] || {}).occ = b; d.setDate(d.getDate() + 1); }
+    (dayInfo[b.arrival] = dayInfo[b.arrival] || {}).ci = b;
+    (dayInfo[b.departure] = dayInfo[b.departure] || {}).co = b;
+  });
+
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7;
+  const days = new Date(y, m + 1, 0).getDate();
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += '<div class="clc clc-out"></div>';
+  for (let dd = 1; dd <= days; dd++) {
+    const ds = `${y}-${pad(m + 1)}-${pad(dd)}`;
+    const info = dayInfo[ds] || {};
+    let cls = 'clc', style = '';
+    if (info.occ) style = `background:${info.occ.color}1f`;
+    if (info.ci) cls += ' clc-ci';
+    if (info.co) cls += ' clc-co';
+    if (ds === todayStr) cls += ' clc-today';
+    let lbl = '';
+    if (info.ci) {
+      const b = info.ci;
+      lbl = `<div class="clc-lbl" style="background:${b.color}" title="${esc(b.name)} · ${b.guests || '?'} pers${b.req ? ' · ' + esc(b.req) : ''}">${esc(first(b.name))} ${b.guests ? '·' + b.guests : ''}${b.req ? ' 📝' : ''}</div>`;
     }
-    return `<div class="cl-mon"><div class="cl-mh">${MON[m]} ${y}</div><div class="cl-dow">${DOWs.map((x) => `<span>${x}</span>`).join('')}</div><div class="cl-grid">${cells}</div></div>`;
+    cells += `<div class="${cls}" style="${style}"><span class="clc-n">${dd}</span>${lbl}</div>`;
   }
 
-  const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
-  let html = `<style>
-    .cl-wrap{display:grid;gap:16px}
-    .cl-cal{display:flex;gap:22px;flex-wrap:wrap}
-    .cl-mon{flex:1;min-width:220px}
-    .cl-mh{font-weight:800;color:var(--brand-d);text-transform:capitalize;margin-bottom:8px}
-    .cl-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px}
+  const villaBtns = ['Redwood', 'Sequoia'].map((v) => `<button class="cl-vb ${CL.villa === v ? 'on' : ''}" onclick="clVilla('${v}')">Vila ${v}</button>`).join('');
+
+  const arrSorted = cur.slice().sort((a, b) => (a.arrival < b.arrival ? -1 : 1));
+  const up = cur.filter((b) => b.departure >= todayStr).sort((a, b) => (a.departure < b.departure ? -1 : 1)).slice(0, 14);
+  const listRows = up.map((b) => {
+    const next = arrSorted.find((x) => x.arrival >= b.departure);
+    const sameDay = next && next.arrival === b.departure;
+    const nextTxt = next
+      ? (sameDay ? '<span class="cl-warn">⚠️ grup nou chiar azi</span> · ' : 'următorul: ') + '<b>' + fmt(next.arrival) + '</b> → ' + fmt(next.departure) + ' · ' + esc(first(next.name)) + ' ' + (next.guests || '?') + 'p'
+      : 'liber după';
+    return `<div class="cl-row">
+      <div><span class="cl-co-d">🧹 ${fmt(b.departure)}</span> — pleacă <b>${esc(first(b.name))}</b> (${b.guests || '?'} pers)${b.req ? ' <span class="cl-req" title="' + esc(b.req) + '">📝 ' + esc(b.req.slice(0, 40)) + (b.req.length > 40 ? '…' : '') + '</span>' : ''}</div>
+      <div class="cl-next">${nextTxt}</div>
+    </div>`;
+  }).join('') || '<div class="hint">Nicio plecare programată.</div>';
+
+  const depSet = (v) => new Set(B.filter((b) => b.villa === v && b.departure >= todayStr).map((b) => b.departure));
+  const dR = depSet('Redwood'), dS = depSet('Sequoia');
+  const both = [...dR].filter((d) => dS.has(d)).sort();
+  const alert = both.length ? `<div class="cl-alert">⚠️ <b>Curățenie la AMBELE vile în aceeași zi:</b> ${both.map((d) => fmt(d)).join(' · ')}</div>` : '';
+
+  $('main').innerHTML = `<style>
+    .cl-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 14px}
+    .cl-vsel{display:flex;gap:8px}
+    .cl-vb{padding:8px 16px;border:1.5px solid var(--line);background:#fff;border-radius:100px;font:600 14px inherit;cursor:pointer;color:var(--muted)}
+    .cl-vb.on{background:var(--brand);border-color:var(--brand);color:#fff}
+    .cl-nav{display:flex;align-items:center;gap:8px}
+    .cl-nav button{width:36px;height:36px;border:1.5px solid var(--line);background:#fff;border-radius:9px;font-size:18px;cursor:pointer;color:var(--brand-d)}
+    .cl-nav .cl-today{width:auto;padding:0 14px;font-size:13px;font-weight:700}
+    .cl-mtitle{font-weight:800;color:var(--brand-d);min-width:150px;text-align:center}
+    .cl-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px}
     .cl-dow span{text-align:center;font-size:11px;font-weight:700;color:#9aa8a1}
-    .cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-    .cl-cd{aspect-ratio:1;display:grid;place-items:center;font-size:13px;border-radius:7px;color:#3a4a42}
-    .cl-empty{background:none}
-    .cl-occ{background:#f0e9dc}
-    .cl-ci{box-shadow:inset 3px 0 0 #2e7d55}
-    .cl-co{box-shadow:inset -3px 0 0 #c0392b}
-    .cl-ci.cl-co{box-shadow:inset 3px 0 0 #2e7d55, inset -3px 0 0 #c0392b}
-    .cl-today{outline:2px solid var(--brand)}
-    .cl-list .cl-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+    .cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+    .clc{min-height:58px;border:1px solid #eef1ef;border-radius:8px;padding:3px 4px;overflow:hidden}
+    .clc-out{border:none;background:none}
+    .clc-n{font-size:12px;font-weight:700;color:#5c6b64}
+    .clc-today{outline:2px solid var(--brand)}
+    .clc-ci{border-left:3px solid #2e7d55}
+    .clc-co{border-right:3px solid #c0392b}
+    .clc-lbl{margin-top:3px;color:#fff;font-size:10.5px;font-weight:700;padding:2px 5px;border-radius:5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cl-list .cl-row{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
     .cl-list .cl-row:last-child{border:none}
     .cl-co-d{font-weight:800;color:#c0392b}
-  </style><div class="cl-wrap">`;
-
-  ['Redwood', 'Sequoia'].forEach((villa) => {
-    const S = sets(villa);
-    const up = bookings.filter((b) => b.villa === villa && b.departure >= todayStr).sort((a, b) => (a.departure < b.departure ? -1 : a.departure > b.departure ? 1 : 0));
-    const arrivals = bookings.filter((b) => b.villa === villa).map((b) => b.arrival).sort();
-    const list = up.slice(0, 12).map((b) => {
-      const nextIn = arrivals.find((a) => a >= b.departure);
-      const sameDay = nextIn === b.departure;
-      return `<div class="cl-row">
-        <span><span class="cl-co-d">🧹 ${fmt(b.departure)}</span> — pleacă grupul</span>
-        <span style="text-align:right;color:#5c6b64;font-size:12.5px">${nextIn ? (sameDay ? '⚠️ vine grup nou în aceeași zi' : 'următorul check-in: ' + fmt(nextIn)) : 'liber după'}</span>
-      </div>`;
-    }).join('') || '<div class="hint">Nicio plecare programată.</div>';
-    html += `<div class="card">
-      <h2 style="margin:0 0 4px">Vila ${villa}</h2>
-      <div class="cl-cal">${monthGrid(y, mo, S)}${monthGrid(mo === 11 ? y + 1 : y, (mo + 1) % 12, S)}</div>
-      <div style="font-weight:800;color:var(--brand-d);margin:16px 0 4px">Următoarele plecări (curățenie)</div>
-      <div class="cl-list">${list}</div>
+    .cl-next{color:#5c6b64;font-size:13px;text-align:right}
+    .cl-warn{color:#c0392b;font-weight:700}
+    .cl-req{color:#8a6d1e;font-size:12.5px}
+    .cl-alert{background:#fdecea;border:1.5px solid #f5b7b1;color:#922b21;border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:12px}
+    @media(max-width:560px){.clc{min-height:50px}.clc-lbl{font-size:9.5px}}
+  </style>
+    <h1>Calendar curățenie</h1>
+    <div class="lead">Alege vila și luna. <b style="color:#2e7d55">Verde</b> = sosire (check-in), <b style="color:#c0392b">roșu</b> = plecare (curățenie). 📝 = cerințe speciale.</div>
+    ${alert}
+    <div class="cl-bar">
+      <div class="cl-vsel">${villaBtns}</div>
+      <div class="cl-nav"><button onclick="clMonth(-1)" title="luna trecută">‹</button><span class="cl-mtitle">${MON[m]} ${y}</span><button onclick="clMonth(1)" title="luna următoare">›</button><button class="cl-today" onclick="clToday()">Azi</button></div>
+    </div>
+    <div class="card">
+      <div class="cl-dow">${DOWs.map((x) => `<span>${x}</span>`).join('')}</div>
+      <div class="cl-grid">${cells}</div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;color:var(--brand-d);margin-bottom:4px">Următoarele plecări — Vila ${CL.villa}</div>
+      <div class="cl-list">${listRows}</div>
     </div>`;
-  });
-  M.innerHTML = html + '</div>';
 }
 
 /* ============ editor generic (recursiv) ============ */

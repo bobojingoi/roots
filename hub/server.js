@@ -1971,16 +1971,38 @@ app.get('/api/v1/admin/bookings', requirePerm('rezervari'), async (_req, res) =>
    GDPR: personalul de curățenie nu are nevoie de datele oaspeților). Datele vin
    ca string YYYY-MM-DD în fusul proprietății (Europe/Bucharest). */
 app.get('/api/v1/admin/cleaning', requirePerm('curatenie'), async (_req, res) => {
+  // arrival/departure sunt coloane DATE → to_char direct (fără fus).
   const r = await pool.query(
-    `SELECT villa,
-       to_char(arrival   AT TIME ZONE 'Europe/Bucharest', 'YYYY-MM-DD') AS arrival,
-       to_char(departure AT TIME ZONE 'Europe/Bucharest', 'YYYY-MM-DD') AS departure
-     FROM bookings
-     WHERE (departure AT TIME ZONE 'Europe/Bucharest')::date
-           >= (now() AT TIME ZONE 'Europe/Bucharest')::date - 3
-     ORDER BY arrival ASC LIMIT 400`
+    `SELECT b.villa,
+       to_char(b.arrival,   'YYYY-MM-DD') AS arrival,
+       to_char(b.departure, 'YYYY-MM-DD') AS departure,
+       b.guests_count AS guests,
+       COALESCE(NULLIF(g.name, ''), b.raw->>'guest-name') AS name,
+       b.raw->>'notice' AS notice
+     FROM bookings b LEFT JOIN guests g ON g.id = b.guest_id
+     WHERE b.departure >= CURRENT_DATE - 3
+     ORDER BY b.arrival ASC LIMIT 500`
   );
-  res.json({ bookings: r.rows });
+  // „cerințe suplimentare": păstrăm doar notele reale, fără metadatele OTA
+  // (nr. rezervare, prepayment, sume, adresă) — curățenia nu are nevoie de ele.
+  const cleanReq = (n) => {
+    if (!n) return '';
+    let t = String(n);
+    const gm = t.match(/Guest message:\s*([^\n]*)/i); // OTA: doar mesajul oaspetelui
+    if (gm) t = gm[1];
+    return t.split('\n').map((l) => l.trim())
+      .filter((l) => l
+        && !/rezervare de pe site|booking number|prepayment|payment charge|deposit|city.?tax|address|further information|reservation has been|pre-?paid|booker_is_genius|\bRON\b|\bEUR\b|€/i.test(l)
+        && !/^\d{3,}/.test(l)        // zip / telefon (linii care încep cu 3+ cifre)
+        && !/\b[A-Z]{2}\b$/.test(l)) // cod de țară la final (IL, AE, RO)
+      .join(' ').replace(/\s+/g, ' ').slice(0, 200);
+  };
+  res.json({
+    bookings: r.rows.map((b) => ({
+      villa: b.villa, arrival: b.arrival, departure: b.departure,
+      guests: b.guests, name: b.name || '', req: cleanReq(b.notice),
+    })),
+  });
 });
 /* Financiar: toate plățile online, cu comision/net/refund. La fiecare încărcare
    completăm comisioanele lipsă (max 10 — apel Stripe per plată, best-effort). */
