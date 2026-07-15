@@ -1666,6 +1666,14 @@ async function saveRoles(btn) {
 
 async function renderUsers() {
   const j = await api('/api/v1/admin/users');
+  // dropdown real de roluri: standard + orice rol custom deja folosit (fără owner)
+  const baseRoles = new Set(['turist', 'curatenie', 'admin']);
+  (j.users || []).forEach((u) => { if (u.role && u.role !== 'owner') baseRoles.add(u.role); });
+  const roleOpts = (sel) => {
+    const set = new Set(baseRoles);
+    if (sel) set.add(sel);
+    return [...set].map((r) => `<option value="${esc(r)}" ${r === sel ? 'selected' : ''}>${esc(r)}</option>`).join('');
+  };
   $('main').innerHTML = `
     <div class="sec-head"><div><h1>Utilizatori</h1><div class="lead">Owner/Admin: control total · Client (sau orice alt rol): editează conținutul.</div></div></div>
     <div class="card">
@@ -1674,15 +1682,14 @@ async function renderUsers() {
         <input class="f" id="nuEmail" placeholder="email" />
         <input class="f" id="nuName" placeholder="nume" />
         <input class="f" id="nuPass" placeholder="parolă" type="text" />
-        <input class="f" id="nuRole" placeholder="rol (admin / curatenie / turist / alt rol)" list="roleList" value="turist" />
-        <datalist id="roleList"><option value="admin"><option value="curatenie"><option value="turist"><option value="owner"></datalist>
+        <select class="f" id="nuRole" title="rol">${roleOpts('turist')}</select>
         <button class="btn p" onclick="createUser()">Creează</button>
       </div>
     </div>
     ${j.users.map((u) => `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap">
         <div><b>${esc(u.email)}</b><div class="hint" style="margin-top:2px">${esc(u.name || '')}${u.phone ? ' · ' + esc(u.phone) : ''}${u.source ? ' · 📣 ' + esc(u.source) : ''}</div></div>
-        <input class="f" style="max-width:150px" value="${esc(u.role)}" list="roleList" onchange="updUser('${u.id}',{role:this.value})" title="rol" />
+        <select class="f" style="max-width:150px" onchange="updUser('${u.id}',{role:this.value})" title="rol">${roleOpts(u.role)}</select>
         <input class="f" style="max-width:130px" value="${esc(u.access_code || '')}" placeholder="cod acces ușă" onchange="updUser('${u.id}',{access_code:this.value})" title="Codul universal de acces (Smart Roots) — gol = fără cod" />
         <div style="display:flex;gap:8px">
           <button class="btn s" onclick="resetUserPass('${u.id}')">Resetează parola</button>
