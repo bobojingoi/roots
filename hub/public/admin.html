@@ -329,6 +329,8 @@ function drawCleaning() {
     if (lang && lang !== 'ro') return { flag: '🌍', label: 'Străini', cls: 'or-f' };
     return null;
   };
+  const LANG_NAMES = { en: 'engleză', he: 'ebraică', fr: 'franceză', de: 'germană', es: 'spaniolă', it: 'italiană', ru: 'rusă', hu: 'maghiară', uk: 'ucraineană', ar: 'arabă', zh: 'chineză', ko: 'coreeană', sv: 'suedeză', ca: 'catalană', ro: 'română' };
+  const langName = (l) => LANG_NAMES[l] || l;
   const PAL = ['#e8722c', '#3a7d5d', '#5b7bd4', '#c0568f', '#d4a13a', '#7a8b52', '#4a9b8e', '#b5651d'];
   const cur = B.filter((b) => b.villa === CL.villa).map((b, i) => ({ ...b, color: PAL[i % PAL.length] }));
 
@@ -364,8 +366,8 @@ function drawCleaning() {
       if (startsHere) rad += 'border-top-left-radius:6px;border-bottom-left-radius:6px;';
       if (endsHere) rad += 'border-top-right-radius:6px;border-bottom-right-radius:6px;';
       const o = origin(b.lang), flag = o ? o.flag + ' ' : '';
-      const txt = startsHere ? `${flag}${esc(first(b.name))}${b.guests ? ' ·' + b.guests : ''}${b.req ? ' 📝' : ''}` : `‹ ${flag}${esc(first(b.name))}`;
-      bars += `<div class="clb" style="left:calc(100% * ${col} / 7 + 2px);width:calc(100% * ${span} / 7 - 4px);background:${b.color};${rad}" title="${esc(b.name)} · ${b.guests || '?'} pers${o ? ' · ' + o.label : ''} · ${fmt(b.arrival)} → ${fmt(b.departure)}${b.req ? ' · ' + esc(b.req) : ''}">${txt}</div>`;
+      const txt = startsHere ? `${flag}${esc(first(b.name))}${b.req ? ' 📝' : ''}` : `‹ ${flag}${esc(first(b.name))}`;
+      bars += `<div class="clb" style="left:calc(100% * ${col} / 7 + 2px);width:calc(100% * ${span} / 7 - 4px);background:${b.color};${rad}" title="${esc(b.name)}${o ? ' · ' + o.label : ''} · ${fmt(b.arrival)} → ${fmt(b.departure)}${b.req ? ' · ' + esc(b.req) : ''}">${txt}</div>`;
     });
     weeksHtml += `<div class="clw"><div class="clw-cells">${dcells}</div>${bars}</div>`;
   }
@@ -377,19 +379,24 @@ function drawCleaning() {
   const listRows = up.map((b) => {
     const next = arrSorted.find((x) => x.arrival >= b.departure);
     const sameDay = next && next.arrival === b.departure;
-    const reqChip = b.req ? ` <span class="cl-req" title="${esc(b.req)}">📝 ${esc(b.req.slice(0, 40))}${b.req.length > 40 ? '…' : ''}</span>` : '';
-    const o = origin(b.lang), orgChip = o ? ` <span class="cl-org ${o.cls}">${o.flag} ${o.label}</span>` : '';
-    const nextBlock = next
-      ? `<div class="cl-nextb">
-           <div class="${sameDay ? 'cl-warn' : 'cl-nextlbl'}">${sameDay ? '⚠️ grup nou chiar azi' : 'grup următor:'}</div>
-           <div class="cl-period"><b>${fmt(next.arrival)}</b> → <b>${fmt(next.departure)}</b> · ${esc(first(next.name))} (${next.guests || '?'} pers)</div>
-         </div>`
-      : `<div class="cl-nextb"><span class="hint">liber după — nicio rezervare următoare</span></div>`;
+    let nextBlock;
+    if (next) {
+      const o = origin(next.lang);
+      const orgTxt = o ? ' - ' + o.label.toLowerCase() : '';
+      const langTxt = (next.lang && next.lang !== 'ro') ? ' | Limba: ' + langName(next.lang) : '';
+      const reqTxt = next.req ? ' · 📝 ' + esc(next.req.slice(0, 60)) : '';
+      nextBlock = `<div class="cl-nextb">
+        <div class="${sameDay ? 'cl-warn' : 'cl-nextlbl'}">${sameDay ? 'Grup nou în aceeași zi' : 'Grup următor'}${orgTxt}${langTxt}${reqTxt}</div>
+        <div class="cl-period">${fmt(next.arrival)} - ${fmt(next.departure)}</div>
+      </div>`;
+    } else {
+      nextBlock = '<div class="cl-nextb"><span class="hint">liber după</span></div>';
+    }
     return `<div class="cl-row">
-      <div class="cl-dep"><span class="cl-co-d">🧹 ${fmt(b.departure)}</span> — pleacă <b>${esc(first(b.name))}</b> (${b.guests || '?'} pers)${orgChip}${reqChip}</div>
+      <div class="cl-dep">${fmt(b.departure)} - pleacă <b>${esc(first(b.name))}</b></div>
       ${nextBlock}
     </div>`;
-  }).join('') || '<div class="hint">Nicio plecare programată.</div>';
+  }).join('') || '<div class="hint">Nicio rezervare.</div>';
 
   // ALERTĂ: doar zilele în care AMBELE vile au check-in ȘI check-out în aceeași zi (turnover dublu)
   const turnovers = (v) => {
@@ -448,7 +455,7 @@ function drawCleaning() {
       ${weeksHtml}
     </div>
     <div class="card">
-      <div style="font-weight:800;color:var(--brand-d);margin-bottom:4px">Următoarele plecări — Vila ${CL.villa}</div>
+      <div style="font-weight:800;color:var(--brand-d);margin-bottom:4px">Activitate - Vila ${CL.villa}</div>
       <div class="cl-list">${listRows}</div>
     </div>`;
 }
