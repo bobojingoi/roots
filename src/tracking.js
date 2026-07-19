@@ -63,10 +63,17 @@ export function initTracking(cfg) {
   const metaPixel = (CFG.metaPixel || "").trim();
   const tiktokPixel = (CFG.tiktokPixel || "").trim();
   const clarityId = (CFG.clarity || "").trim();
-  if (!ga4 && !metaPixel && !tiktokPixel && !clarityId) return;
+  // Google Ads: șirul send_to al conversiei de achiziție „AW-XXXXXXXXX/ETICHETA"
+  const googleAds = (CFG.googleAds || "").trim();
+  const awId = (googleAds.split("/")[0] || "").trim(); // partea de cont „AW-XXXXXXXXX"
+  if (!ga4 && !metaPixel && !tiktokPixel && !clarityId && !googleAds) return;
   loaded = true;
 
-  if (ga4) {
+  // gtag deservește ȘI GA4 (G-) ȘI Google Ads (AW-). Îl pornim cu ORICARE ID
+  // valid — folosim preferențial AW-ul (contul de reclame) ca bootstrap, ca
+  // urmărirea conversiilor Google să meargă chiar dacă ID-ul GA4 e greșit.
+  const gtagLoader = awId || ga4;
+  if (gtagLoader) {
     window.dataLayer = window.dataLayer || [];
     window.gtag = function () { window.dataLayer.push(arguments); };
     /* Consent Mode v2 — fără semnalele ad_user_data/ad_personalization Google
@@ -76,8 +83,9 @@ export function initTracking(cfg) {
     window.gtag("consent", "default", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", analytics_storage: "denied" });
     window.gtag("consent", "update", { ad_storage: "granted", ad_user_data: "granted", ad_personalization: "granted", analytics_storage: "granted" });
     window.gtag("js", new Date());
-    window.gtag("config", ga4, { anonymize_ip: true });
-    inject("https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(ga4));
+    if (ga4) window.gtag("config", ga4, { anonymize_ip: true });
+    if (awId) window.gtag("config", awId); // înregistrează contul Google Ads pentru conversii
+    inject("https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(gtagLoader));
   }
 
   if (metaPixel) {
@@ -173,6 +181,13 @@ function send(name, params = {}) {
     if (window.fbq) window.fbq("track", META_EVENTS[name] || name, { value, currency, content_name: params.label }, eventId ? { eventID: eventId } : undefined);
     if (window.ttq) window.ttq.track(TIKTOK_EVENTS[name] || name, { value, currency, content_name: params.label, ...(eventId ? { event_id: eventId } : {}) });
     if (window.clarity) window.clarity("event", name); // marcaj și în înregistrări
+    // Google Ads: conversia de achiziție e o acțiune de conversie separată
+    // (send_to = „AW-XXXXXXXXX/ETICHETA"), declanșată DOAR la purchase. GA4
+    // event ≠ conversie Google Ads — de aceea o trimitem explicit.
+    const ga = (CFG && CFG.googleAds || "").trim();
+    if (window.gtag && name === "purchase" && ga.includes("/")) {
+      window.gtag("event", "conversion", { send_to: ga, value, currency, ...(eventId ? { transaction_id: eventId } : {}) });
+    }
   } catch { /* noop */ }
 }
 
