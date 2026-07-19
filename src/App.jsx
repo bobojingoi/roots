@@ -12,6 +12,10 @@ import CookieBar from "./CookieBar.jsx";
 import { initTracking, trackPageView } from "./tracking.js";
 import { captureAttribution, recordStep } from "./attribution.js";
 import { HUB_URL, EDIT_MODE, HM_MODE } from "./HubEditor.jsx";
+import { initHmMode } from "./hmMode.js";
+
+// în iframe-ul Heatmap (?hm=1): unitățile vh devin px + raportăm înălțimea
+initHmMode();
 
 /* Scroll sus la fiecare schimbare de rută */
 function ScrollToTop() {

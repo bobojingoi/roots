@@ -757,19 +757,22 @@ function hmFit() {
   size.style.height = Math.round(HM.H * s) + 'px';
 }
 window.addEventListener('resize', () => { if (TAB === 'heatmap') hmFit(); });
-async function loadHeatmap() {
-  const info = $('hmInfo');
-  info.textContent = 'Se încarcă…';
-  let j;
-  try { j = await api(`/api/v1/admin/heatmap?path=${encodeURIComponent(HM.path)}&device=${HM.device}&days=${HM.days}`); }
-  catch (e) { info.textContent = e.message; return; }
-  const W = HM.device === 'mobile' ? 390 : 1280;
-  const H = Math.max(1200, Math.min(20000, j.docH || 4000));
-  HM.W = W; HM.H = H;
+/* site-ul (în modul ?hm=1) ne trimite înălțimea REALĂ a documentului —
+   redimensionăm iframe-ul + canvas-ul și redesenăm punctele pe ea */
+window.addEventListener('message', (e) => {
+  if (TAB !== 'heatmap' || e.origin !== SITE) return;
+  const h = e.data && Number(e.data.rootsHmH);
+  if (!(h > 0)) return;
+  const H = Math.max(600, Math.min(30000, Math.round(h)));
+  if (Math.abs(H - HM.H) < 8) return; // nimic nou — nu redesenăm degeaba
+  HM.H = H;
+  hmApply();
+});
+function hmApply() {
   const frame = $('hmFrame'), cv = $('hmCanvas');
+  if (!frame || !cv || !HM.W) return;
+  const W = HM.W, H = HM.H;
   frame.style.width = W + 'px'; frame.style.height = H + 'px';
-  // ?hm=1 = site-ul știe că e în iframe-ul heatmap: fără popupuri, fără tracking
-  frame.src = SITE + HM.path + (HM.path.includes('?') ? '&' : '?') + 'hm=1';
   cv.width = W; cv.height = H; cv.style.width = W + 'px'; cv.style.height = H + 'px';
   hmFit();
   const ctx = cv.getContext('2d');
@@ -778,7 +781,7 @@ async function loadHeatmap() {
   ctx.fillStyle = 'rgba(10,16,13,.34)';
   ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = 'lighter';
-  for (const pt of j.points) {
+  for (const pt of HM.points || []) {
     const gx = pt.x * W;
     // y absolut din documentul vizitatorului, scalat la înălțimea afișată acum
     const gy = pt.doc_h > 0 ? (pt.y * H) / pt.doc_h : pt.y;
@@ -790,6 +793,22 @@ async function loadHeatmap() {
     ctx.fillRect(gx - 36, gy - 36, 72, 72);
   }
   ctx.globalCompositeOperation = 'source-over';
+}
+async function loadHeatmap() {
+  const info = $('hmInfo');
+  info.textContent = 'Se încarcă…';
+  let j;
+  try { j = await api(`/api/v1/admin/heatmap?path=${encodeURIComponent(HM.path)}&device=${HM.device}&days=${HM.days}`); }
+  catch (e) { info.textContent = e.message; return; }
+  HM.W = HM.device === 'mobile' ? 390 : 1280;
+  // pornim de la percentila înălțimilor înregistrate; site-ul trimite apoi
+  // prin postMessage înălțimea exactă și redesenăm pe ea
+  HM.H = Math.max(1200, Math.min(20000, j.docH || 4000));
+  HM.points = j.points || [];
+  // ?hm=1 = fără popupuri/tracking; hmvh = viewportul virtual pentru unitățile vh
+  const frame = $('hmFrame');
+  frame.src = SITE + HM.path + (HM.path.includes('?') ? '&' : '?') + 'hm=1&hmvh=' + (HM.device === 'mobile' ? 780 : 900);
+  hmApply();
   info.textContent = j.total
     ? `${j.total} click-uri (${HM.device}, ${HM.days} zile). Galben→roșu = tot mai multe click-uri.`
     : 'Niciun click înregistrat pe această pagină/dispozitiv în perioada aleasă.';
