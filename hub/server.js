@@ -865,42 +865,57 @@ function leadPage(title, heading, msg) {
 
 app.post('/api/v1/leads', async (req, res) => {
   try {
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-    const now = Date.now();
-    const hits = (leadHits.get(ip) || []).filter((t) => now - t < 3600e3);
-    if (hits.length >= 8) return res.status(429).json({ error: 'Prea multe cereri — reîncearcă mai târziu.' });
-    hits.push(now); leadHits.set(ip, hits);
-
     const b = req.body || {};
     if (b.website) return res.status(400).json({ error: 'Cerere invalidă.' }); // honeypot pentru boți
     const email = String(b.email || '').trim().toLowerCase();
     if (!/.+@.+\..+/.test(email) || email.length > 160) return res.status(400).json({ error: 'Adaugă un email valid.' });
+
+    // per-IP = primă barieră (dar pe serverless Map-ul e per-instanță și XFF e
+    // falsificabil, deci nu ne bazăm pe el pentru anti-abuz)
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const now = Date.now();
+    const hits = (leadHits.get(ip) || []).filter((t) => now - t < 3600e3);
+    if (hits.length >= 12) return res.status(429).json({ error: 'Prea multe cereri — reîncearcă mai târziu.' });
+    hits.push(now); leadHits.set(ip, hits);
+
+    // per-EMAIL în DB = bariera REALĂ anti email-bombing (emailul victimei e
+    // public, iar oricine putea trimite opt-in-uri la nesfârșit): max 3 rânduri /
+    // 24h per adresă + niciun opt-in nou dacă am trimis unul în ultimele 15 min
+    const rec = await pool.query(
+      "SELECT max(created_at) AS last, count(*)::int AS n FROM leads WHERE lower(email) = $1 AND created_at > now() - interval '24 hours'", [email]
+    );
+    const n24 = rec.rows[0].n || 0;
+    const lastAt = rec.rows[0].last ? new Date(rec.rows[0].last).getTime() : 0;
+    if (n24 >= 3) return res.json({ ok: true }); // idempotent (anti-enumerare: nu spunem că e cap)
+    const cooldown = lastAt && now - lastAt < 15 * 60e3;
+
     const source = b.source === 'calendar-notify' ? 'calendar-notify' : 'newsletter';
     const lang = leadLang(b.lang);
     const villa = source === 'calendar-notify' ? (String(b.villa || '').slice(0, 80) || null) : null;
     const dateOk = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? d : null);
-    const attribution = sanitizeAttribution(b.attribution);
+    // MINIMIZARE (GDPR): pe leaduri păstrăm doar sursa grosieră (source/label/
+    // campaign), NU click id-urile brute (fbclid/gclid) — niciun feature nu le
+    // folosește aici, iar abonatul de newsletter n-a consimțit la asta
+    const acq = acquisitionSummary(sanitizeAttribution(b.attribution));
 
-    // dacă emailul e deja confirmat (și nedezabonat), noul lead moștenește
-    // confirmarea — nu re-cerem opt-in de fiecare dată
-    const prev = await pool.query(
-      'SELECT confirmed, unsubscribed FROM leads WHERE lower(email) = $1 ORDER BY created_at DESC LIMIT 1', [email]
-    );
-    const already = prev.rows[0] && prev.rows[0].confirmed && !prev.rows[0].unsubscribed;
     const token = crypto.randomBytes(24).toString('base64url');
     await pool.query(
-      `INSERT INTO leads (email, name, phone, source, villa, arrival, departure, marketing_consent, ads_consent, consent_at, attribution, lang, token, confirmed, confirmed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, CASE WHEN $8 OR $9 THEN now() END, $10,$11,$12,$13, CASE WHEN $13 THEN now() END)`,
+      `INSERT INTO leads (email, name, phone, source, villa, arrival, departure, marketing_consent, ads_consent, consent_at, attribution, lang, token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, CASE WHEN $8 OR $9 THEN now() END, $10,$11,$12)`,
       [email, String(b.name || '').trim().slice(0, 120) || null, String(b.phone || '').trim().slice(0, 40) || null,
        source, villa, dateOk(b.arrival), dateOk(b.departure), !!b.marketingConsent, !!b.adsConsent,
-       attribution ? JSON.stringify(attribution) : null, lang, token, !!already]
+       acq ? JSON.stringify(acq) : null, lang, token]
     );
-    emit('LeadCaptured', { source, confirmed: !!already });
-    if (!already) {
+    emit('LeadCaptured', { source });
+    // DOUBLE OPT-IN mereu (confirmed rămâne false până la click): marketingul e
+    // permis DOAR după confirmarea pe email = dovada că adresa e a lui. Fără
+    // scurtătura „deja confirmat" — altfel oricine fabrica un consimțământ pentru
+    // emailul altcuiva, cu PII străin, fără ca victima să afle.
+    if (!cooldown) {
       const t = LEAD_TXT[lang];
       await hubSendMail({ to: [email], subject: t.sub, html: t.body(`${HUB_PUBLIC}/api/v1/leads/confirm?t=${encodeURIComponent(token)}`) });
     }
-    res.json({ ok: true, confirmed: !!already });
+    res.json({ ok: true });
   } catch (e) { console.error('[leads] create:', e.message); res.status(500).json({ error: 'Nu am putut înregistra cererea.' }); }
 });
 
@@ -908,8 +923,11 @@ app.get('/api/v1/leads/confirm', async (req, res) => {
   try {
     const token = String(req.query.t || '');
     if (!token) return res.status(400).send(leadPage('Link invalid', 'Link invalid', 'Linkul de confirmare nu e valid.'));
+    // NU resetăm unsubscribed: retragerea consimțământului e durabilă. Un
+    // scanner de email care re-vizitează un link vechi de confirm nu reabonează
+    // pe cineva care s-a dezabonat între timp.
     const r = await pool.query(
-      'UPDATE leads SET confirmed = true, confirmed_at = COALESCE(confirmed_at, now()), unsubscribed = false WHERE token = $1 RETURNING lang', [token]
+      'UPDATE leads SET confirmed = true, confirmed_at = COALESCE(confirmed_at, now()) WHERE token = $1 RETURNING lang', [token]
     );
     if (!r.rows.length) { const t = LEAD_TXT.ro; return res.status(404).send(leadPage(t.badT, t.badT, t.badB)); }
     const t = LEAD_TXT[leadLang(r.rows[0].lang)];
@@ -941,22 +959,29 @@ app.get('/api/v1/admin/leads', requirePerm('marketing'), async (req, res) => {
        FROM leads WHERE created_at > now() - ($1 || ' days')::interval ORDER BY created_at DESC LIMIT 500`, [days]
     );
     const maskEmail = (e) => { const [u, d] = String(e || '').split('@'); return u && d ? u.slice(0, 2) + '···@' + d : null; };
-    const leads = r.rows.map((row) => ({
-      id: row.id,
-      email: canPII ? row.email : maskEmail(row.email),
-      name: canPII ? row.name : (row.name ? String(row.name).split(' ')[0] : null),
-      source: row.source, villa: row.villa, arrival: row.arrival, departure: row.departure,
-      marketingConsent: row.marketing_consent, adsConsent: row.ads_consent,
-      confirmed: row.confirmed, unsubscribed: row.unsubscribed, lang: row.lang,
-      origin: leadSource(row.attribution), createdAt: row.created_at,
-    }));
-    const stats = {
-      total: leads.length,
-      confirmed: leads.filter((l) => l.confirmed && !l.unsubscribed).length,
-      notify: leads.filter((l) => l.source === 'calendar-notify').length,
-      newsletter: leads.filter((l) => l.source === 'newsletter').length,
-    };
-    res.json({ leads, stats, days });
+    const leads = r.rows.map((row) => {
+      // attribution stocat GROSIER pe leaduri: {source,label,campaign,firstAt}
+      const a = row.attribution;
+      return {
+        id: row.id,
+        email: canPII ? row.email : maskEmail(row.email),
+        name: canPII ? row.name : (row.name ? String(row.name).split(' ')[0] : null),
+        source: row.source, villa: row.villa, arrival: row.arrival, departure: row.departure,
+        marketingConsent: row.marketing_consent, adsConsent: row.ads_consent,
+        confirmed: row.confirmed, unsubscribed: row.unsubscribed, lang: row.lang,
+        origin: a && a.source ? { key: a.source, label: a.label || a.source, campaign: a.campaign || null } : null,
+        createdAt: row.created_at,
+      };
+    });
+    // statistici EXACTE (agregat pe tot intervalul, nu doar pe cele 500 afișate)
+    const st = await pool.query(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE confirmed AND NOT unsubscribed)::int AS confirmed,
+              count(*) FILTER (WHERE source = 'calendar-notify')::int AS notify,
+              count(*) FILTER (WHERE source = 'newsletter')::int AS newsletter
+       FROM leads WHERE created_at > now() - ($1 || ' days')::interval`, [days]
+    );
+    res.json({ leads, stats: st.rows[0], days });
   } catch (e) { console.error('[admin leads]', e.message); res.status(500).json({ error: 'Eroare la încărcarea leadurilor.' }); }
 });
 
@@ -2076,6 +2101,17 @@ app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
       purged = del.rowCount || 0;
       if (purged) emit('PendingBookingsPurged', { purged });
     } catch (e) { console.error('[retenție] pending_bookings:', e.message); }
+    // retenție leaduri (GDPR): abonații care nu au confirmat niciodată (double
+    // opt-in incomplet) se șterg după 30 zile; cei dezabonați, la 30 zile după
+    // dezabonare. Abonații CONFIRMAȚI și activi rămân (au consimțit).
+    try {
+      const del = await pool.query(
+        `DELETE FROM leads
+         WHERE (confirmed = false AND created_at < now() - interval '30 days')
+            OR (unsubscribed = true AND unsubscribed_at < now() - interval '30 days')`
+      );
+      if (del.rowCount) emit('LeadsPurged', { purged: del.rowCount });
+    } catch (e) { console.error('[retenție] leads:', e.message); }
     res.json({ ok: true, ...out, membership: stays, purged });
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
