@@ -384,6 +384,7 @@ export default async function handler(req, res) {
           },
           email: String(email || "").trim().toLowerCase() || null,
           total, deposit: depositPF, marketingConsent: !!b.marketingConsent,
+          adsConsent: !!b.adsConsent, // scop separat (audiențe ads) — EDPB granularitate
         }),
       });
       const pj = await pr.json().catch(() => ({}));

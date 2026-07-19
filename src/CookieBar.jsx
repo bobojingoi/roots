@@ -29,7 +29,7 @@ const CK_CSS = `
 
 export default function CookieBar({ cfg }) {
   const [choice, setChoice] = useState(() => getConsent());
-  const any = cfg && ((cfg.ga4 || "").trim() || (cfg.metaPixel || "").trim() || (cfg.tiktokPixel || "").trim());
+  const any = cfg && ((cfg.ga4 || "").trim() || (cfg.metaPixel || "").trim() || (cfg.tiktokPixel || "").trim() || (cfg.clarity || "").trim());
   if (choice || !any) return null;
   return (
     <div className="ckbar" role="dialog" aria-label="Cookies">

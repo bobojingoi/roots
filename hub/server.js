@@ -221,9 +221,9 @@ app.post('/api/v1/bookings/pending', async (req, res) => {
       return res.status(400).json({ error: 'Payload incomplet.' });
     }
     const r = await pool.query(
-      `INSERT INTO pending_bookings (payload, email, total, deposit, marketing_consent)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [JSON.stringify(p), b.email || null, b.total || null, b.deposit || null, !!b.marketingConsent]
+      `INSERT INTO pending_bookings (payload, email, total, deposit, marketing_consent, ads_consent)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [JSON.stringify(p), b.email || null, b.total || null, b.deposit || null, !!b.marketingConsent, !!b.adsConsent]
     );
     res.json({ ok: true, id: r.rows[0].id });
   } catch (e) {
@@ -298,13 +298,16 @@ async function processPendingBooking(pendingId, session) {
   // e posibil să existe o rezervare creată dar nepersistată — fără refund automat
   const prev = await pool.query('SELECT status FROM pending_bookings WHERE id = $1', [pendingId]);
   if (!prev.rows.length) return;
-  const wasClean = ['pending'].includes(prev.rows[0].status);
+  const wasClean = ['pending', 'cancelled'].includes(prev.rows[0].status);
 
   // CLAIM ATOMIC: exact o invocare câștigă rândul; livrările duble/concurente ies aici.
-  // 'paid' vechi de 15+ min = procesare moartă în zbor → recuperare (ca failed, fără refund automat)
+  // 'paid' vechi de 15+ min = procesare moartă în zbor → recuperare (ca failed, fără refund automat).
+  // 'cancelled' se acceptă și el: clientul poate anula în tab-ul site-ului dar plăti apoi din
+  // tab-ul Stripe rămas deschis (sesiunea ține ~23h) — plata încasată bate anularea; fără asta,
+  // banii rămâneau luați fără rezervare, fără refund și fără nicio alertă
   const { rows } = await pool.query(
     `UPDATE pending_bookings SET status = 'paid', session_id = COALESCE($2, session_id), updated_at = now()
-     WHERE id = $1 AND (status IN ('pending', 'failed') OR (status = 'paid' AND updated_at < now() - interval '15 minutes'))
+     WHERE id = $1 AND (status IN ('pending', 'cancelled', 'failed') OR (status = 'paid' AND updated_at < now() - interval '15 minutes'))
      RETURNING *`,
     [pendingId, (session && session.id) || null]
   );
@@ -370,23 +373,40 @@ async function processPendingBooking(pendingId, session) {
     await pool.query('UPDATE payments SET ref = $2 WHERE session_id = $1', [session.id, ref]);
   }
 
-  // 3) consimțământul de marketing pe profilul de client (GDPR: sursă + moment)
+  // 3) consimțământul de marketing + sursa de achiziție pe profilul de client
+  //    (acquisition se scrie NECONDIȚIONAT de consimțământ — e analiza noastră
+  //    internă a rezervării, nu marketing; first-touch write-once + touches[])
   try {
     if (pb.email) {
       const g = await pool.query('SELECT id FROM guests WHERE lower(email) = lower($1) LIMIT 1', [pb.email]);
       const gname = [((p.guest || {}).firstName || ''), ((p.guest || {}).lastName || '')].join(' ').trim() || null;
+      const acq = acquisitionSummary(p.attribution || null);
+      const touch = acq ? [{ at: new Date().toISOString(), source: acq.source, campaign: acq.campaign }] : [];
       if (g.rows.length) {
+        if (acq) {
+          await pool.query(
+            `UPDATE guests SET acquisition = jsonb_set(COALESCE(acquisition, $2::jsonb), '{touches}',
+               COALESCE(acquisition->'touches', '[]'::jsonb) || $3::jsonb), updated_at = now() WHERE id = $1`,
+            [g.rows[0].id, JSON.stringify({ ...acq, touches: [] }), JSON.stringify(touch)]
+          );
+        }
         if (pb.marketing_consent) {
           await pool.query(
             "UPDATE guests SET marketing_consent = true, consent_source = 'rezervare site', consent_at = now(), updated_at = now() WHERE id = $1",
             [g.rows[0].id]
           );
         }
+        if (pb.ads_consent) {
+          await pool.query(
+            'UPDATE guests SET ads_consent = true, ads_consent_at = now(), updated_at = now() WHERE id = $1',
+            [g.rows[0].id]
+          );
+        }
       } else {
         await pool.query(
-          `INSERT INTO guests (name, email, phone, marketing_consent, consent_source, consent_at)
-           VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN 'rezervare site' ELSE NULL END, CASE WHEN $4 THEN now() ELSE NULL END)`,
-          [gname, pb.email, (p.guest || {}).phone || null, pb.marketing_consent]
+          `INSERT INTO guests (name, email, phone, marketing_consent, consent_source, consent_at, acquisition, ads_consent, ads_consent_at)
+           VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN 'rezervare site' ELSE NULL END, CASE WHEN $4 THEN now() ELSE NULL END, $5, $6, CASE WHEN $6 THEN now() ELSE NULL END)`,
+          [gname, pb.email, (p.guest || {}).phone || null, pb.marketing_consent, acq ? JSON.stringify({ ...acq, touches: touch }) : null, !!pb.ads_consent]
         );
       }
     }
@@ -753,10 +773,13 @@ app.post('/api/v1/site-register', async (req, res) => {
   const dup = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1', [mail]);
   if (dup.rows.length) return res.status(409).json({ error: 'Există deja un cont cu acest email — autentifică-te.' });
 
+  // sursa de achiziție a contului (Roots Leads): cine intră din ads și își face
+  // cont e un lead — fără asta ar dispărea din atribuire dacă nu rezervă imediat
+  const acqUser = acquisitionSummary(sanitizeAttribution((req.body || {}).attribution));
   const r = await pool.query(
-    `INSERT INTO users (email, password_hash, name, role, phone, source)
-     VALUES ($1, $2, $3, 'turist', $4, $5) RETURNING id, email, name, role`,
-    [mail, await hashPassword(password), String(name).trim().slice(0, 120), String(phone || '').trim().slice(0, 40) || null, String(source || '').trim().slice(0, 120) || null]
+    `INSERT INTO users (email, password_hash, name, role, phone, source, acquisition)
+     VALUES ($1, $2, $3, 'turist', $4, $5, $6) RETURNING id, email, name, role`,
+    [mail, await hashPassword(password), String(name).trim().slice(0, 120), String(phone || '').trim().slice(0, 40) || null, String(source || '').trim().slice(0, 120) || null, acqUser ? JSON.stringify(acqUser) : null]
   );
   const user = r.rows[0];
 
@@ -1914,7 +1937,22 @@ app.get('/api/v1/cron/sync-smoobu', async (req, res) => {
     const out = await runSmoobuSync(1, 8);
     let stays = null;
     try { stays = await membership.awardStayPoints(pool); } catch (e) { console.error('[membership] award-stays în cron:', e); stays = { error: e.message }; }
-    res.json({ ok: true, ...out, membership: stays });
+    // retenție GDPR: checkout-urile neplătite (nume/email/telefon/parcurs ale
+    // unor NON-clienți) se șterg după 60 de zile; stările terminale cu bani
+    // implicați ('conflict_refunded' = refund emis, 'failed' = rezolvat manual)
+    // se păstrează 1 an (peste orizontul de chargeback), apoi se șterg și ele.
+    // Rezervările reale ('created') rămân.
+    let purged = 0;
+    try {
+      const del = await pool.query(
+        `DELETE FROM pending_bookings
+         WHERE (status IN ('pending', 'cancelled') AND created_at < now() - interval '60 days')
+            OR (status IN ('conflict_refunded', 'failed') AND updated_at < now() - interval '1 year')`
+      );
+      purged = del.rowCount || 0;
+      if (purged) emit('PendingBookingsPurged', { purged });
+    } catch (e) { console.error('[retenție] pending_bookings:', e.message); }
+    res.json({ ok: true, ...out, membership: stays, purged });
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
@@ -2213,28 +2251,9 @@ app.post('/api/v1/admin/marketing/campaign/:id/budget', requirePerm('marketing')
 /* ---- Roots Leads: rezervările de pe site + parcursul first-party ----
    Sursa NU vine de la Meta (Graph API dă doar agregate) — site-ul capturează
    UTM/fbclid/referrer + paginile vizitate și le atașează payload-ului pending
-   la trimiterea rezervării (src/attribution.js pe site). */
-function leadSource(a) {
-  if (!a) return null; // fără atribuire (rezervare veche / localStorage blocat) = sursă necunoscută, NU „direct"
-  const t = a.last || a.first || {};
-  const src = String(t.source || '').toLowerCase();
-  const med = String(t.medium || '').toLowerCase();
-  const ref = String(t.referrer || '').toLowerCase();
-  if (['facebook', 'instagram', 'meta', 'fb', 'ig'].includes(src)) return { key: 'meta', label: 'Meta Ads', campaign: t.campaign || null };
-  if (t.gclid || (src === 'google' && ['cpc', 'paid', 'ppc'].includes(med))) return { key: 'google-ads', label: 'Google Ads', campaign: t.campaign || null };
-  if (t.ttclid || src.includes('tiktok')) return { key: 'tiktok', label: 'TikTok Ads', campaign: t.campaign || null };
-  if (src) return { key: 'campaign', label: src + (med ? ' / ' + med : ''), campaign: t.campaign || null };
-  // fbclid FĂRĂ utm: Facebook îl pune pe TOATE click-urile (și share-uri organice),
-  // deci nu putem ști dacă a fost reclamă — de aceea UTM-urile primează mai sus
-  if (t.fbclid) return { key: 'meta-click', label: 'Facebook/Instagram (click)', campaign: t.campaign || null };
-  if (ref.includes('google.')) return { key: 'google', label: 'Google organic', campaign: null };
-  if (ref.includes('facebook.') || ref.includes('instagram.') || ref.includes('fb.')) return { key: 'meta-organic', label: 'Facebook/Instagram organic', campaign: null };
-  if (t.referrer) {
-    try { return { key: 'referral', label: new URL(t.referrer).hostname, campaign: null }; }
-    catch { return { key: 'referral', label: 'alt site', campaign: null }; }
-  }
-  return { key: 'direct', label: 'direct', campaign: null };
-}
+   la trimiterea rezervării (src/attribution.js pe site).
+   Clasificarea e în attribution-utils.js (partajată cu scripturile de backfill). */
+const { leadSource, acquisitionSummary, sanitizeAttribution } = require('./attribution-utils');
 
 /* verificare de zonă suplimentară ÎN handler (nu ca middleware) — pentru
    endpoint-uri care amestecă zone: marketing + date de clienți/financiare */

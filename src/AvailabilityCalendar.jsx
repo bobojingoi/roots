@@ -145,7 +145,10 @@ export default function AvailabilityCalendar({
   const [hasPet, setHasPet] = useState(false);
   const [step, setStep] = useState("select"); // select | form | sending | pay | done
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
-  const [consent, setConsent] = useState(true); // acord promo — debifabil oricând
+  // NEBIFATE implicit — GDPR (CJUE Planet49): o căsuță pre-bifată nu e consimțământ
+  // valid; două scopuri SEPARATE (EDPB): email marketing vs audiențe pe platforme
+  const [consent, setConsent] = useState(false);
+  const [consentAds, setConsentAds] = useState(false);
   // oferta „cont nou = −300 lei": modal de înregistrare direct în fluxul de rezervare
   const [logged, setLogged] = useState(() => { try { return !!localStorage.getItem("roots_auth"); } catch { return false; } });
   const [accOpen, setAccOpen] = useState(false);
@@ -161,7 +164,7 @@ export default function AvailabilityCalendar({
     try {
       const path = accMode === "register" ? "/api/v1/site-register" : "/api/v1/site-login";
       const body = accMode === "register"
-        ? { name: acc.name.trim(), email: acc.email.trim(), password: acc.password, source: "rezervare-300" }
+        ? { name: acc.name.trim(), email: acc.email.trim(), password: acc.password, source: "rezervare-300", attribution: getAttribution() }
         : { email: acc.email.trim(), password: acc.password };
       const r = await fetch(HUB_URL + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
@@ -342,6 +345,7 @@ export default function AvailabilityCalendar({
           discountCode: effDisc ? effDisc.code : undefined,
           expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
           marketingConsent: consent,
+          adsConsent: consentAds, // scop separat: audiențe pe platformele de ads
           attribution: getAttribution(), // sursă + parcurs (Roots Leads în Hub)
           lang: LANG, // limba activă pe site → email de confirmare în aceeași limbă
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),
@@ -352,8 +356,9 @@ export default function AvailabilityCalendar({
       if (json && json.detail) console.warn("[rezervare] detaliu server:", json.detail);
       if (json && json.ok) {
         // conversii pentru Ads: pe fluxul plată-întâi purchase se trimite ABIA
-        // după plată (pagina de mulțumire) — aici doar begin_checkout
-        track(json.dryRun ? "generate_lead" : json.payFirst ? "begin_checkout" : "purchase", { label: villaName, value: json.price || total });
+        // după plată (pagina de mulțumire) — aici add_payment_info (begin_checkout
+        // a plecat deja la deschiderea formularului; dublarea lui strica funnel-ul)
+        track(json.dryRun ? "generate_lead" : json.payFirst ? "add_payment_info" : "purchase", { label: villaName, value: json.price || total, eventId: json.pendingId || undefined });
       }
       // rezervare reală cu Stripe configurat → direct la plata securizată a avansului;
       // mica întârziere lasă pixelii de conversie (purchase) să-și trimită cererile
@@ -481,7 +486,8 @@ export default function AvailabilityCalendar({
         )}
 
         {step === "form" && (
-          <div className="bk-form">
+          /* data-clarity-mask: numele/emailul/telefonul nu apar în înregistrările Clarity */
+          <div className="bk-form" data-clarity-mask="true">
             <Recap />
             {!logged && !userDisc && (
               <p className="bk-soon" style={{ marginTop: 10 }}>
@@ -506,9 +512,13 @@ export default function AvailabilityCalendar({
             {userDisc && !discApplies && (
               <p className="bk-soon" style={{ color: "#c0392b" }}>{t("code_email_hint", { e: accEmail })}</p>
             )}
-            <label className="bk-cot" style={{ marginTop: 16, marginBottom: 20 }}>
+            <label className="bk-cot" style={{ marginTop: 16 }}>
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               {t("bk_consent")}
+            </label>
+            <label className="bk-cot" style={{ marginTop: 8, marginBottom: 20 }}>
+              <input type="checkbox" checked={consentAds} onChange={(e) => setConsentAds(e.target.checked)} />
+              {t("bk_consent_ads")}
             </label>
             <div className="bk-actions">
               <button className="bk-back" onClick={() => setStep("select")}>{t("back")}</button>
