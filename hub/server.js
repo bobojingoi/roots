@@ -2491,11 +2491,19 @@ app.get('/api/v1/admin/seo-audit', requirePerm('seo'), async (req, res) => {
 });
 
 /* ============ pagini ============ */
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+// no-cache pe HTML: adminul e o singură pagină mare — o versiune veche ținută
+// în cache-ul browserului publica secțiuni vechi peste cele curente (bug real:
+// owner-ul a publicat de 3 ori câmpuri goale dintr-un admin.html stale)
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  setHeaders: (res, p) => { if (p.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache, must-revalidate'); },
+}));
 
-app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+const noCache = (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+app.get('/login', (_req, res) => { noCache(res); res.sendFile(path.join(__dirname, 'public', 'login.html')); });
 app.get('/admin', (req, res) => {
   if (!req.user) return res.redirect('/login');
+  noCache(res);
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 app.get('/', (req, res) => res.redirect(req.user ? '/admin' : '/login'));
