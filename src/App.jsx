@@ -10,6 +10,7 @@ import AccountPage from "./AccountPage.jsx";
 import SmartPage from "./SmartPage.jsx";
 import CookieBar from "./CookieBar.jsx";
 import { initTracking, trackPageView } from "./tracking.js";
+import { captureAttribution, recordStep } from "./attribution.js";
 import { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
@@ -51,6 +52,20 @@ function ClickTracker() {
   return null;
 }
 
+/* Roots Leads: sursa vizitei (UTM/fbclid/referrer) + parcursul paginilor,
+   first-party în localStorage — se atașează doar cererii de rezervare.
+   Detalii și considerente GDPR în src/attribution.js. */
+function JourneyTracker() {
+  const { pathname } = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (EDIT_MODE) return;
+    if (first.current) { first.current = false; captureAttribution(); return; } // aterizarea o notează captura
+    recordStep(pathname);
+  }, [pathname]);
+  return null;
+}
+
 /* Marketing: GA4 + Meta Pixel + TikTok Pixel — ID-urile din Hub (secțiunea
    `tracking`), încărcate doar după consimțământ. Page view la fiecare rută. */
 function MarketingTracking() {
@@ -81,6 +96,7 @@ export default function App() {
     <>
       <ScrollToTop />
       <ClickTracker />
+      <JourneyTracker />
       <MarketingTracking />
       <Routes>
         <Route path="/" element={<RootsVillas />} />

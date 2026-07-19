@@ -2210,6 +2210,96 @@ app.post('/api/v1/admin/marketing/campaign/:id/budget', requirePerm('marketing')
   } catch (e) { res.status(502).json({ error: metaWriteError(e) }); }
 });
 
+/* ---- Roots Leads: rezervările de pe site + parcursul first-party ----
+   Sursa NU vine de la Meta (Graph API dă doar agregate) — site-ul capturează
+   UTM/fbclid/referrer + paginile vizitate și le atașează payload-ului pending
+   la trimiterea rezervării (src/attribution.js pe site). */
+function leadSource(a) {
+  if (!a) return null; // fără atribuire (rezervare veche / localStorage blocat) = sursă necunoscută, NU „direct"
+  const t = a.last || a.first || {};
+  const src = String(t.source || '').toLowerCase();
+  const med = String(t.medium || '').toLowerCase();
+  const ref = String(t.referrer || '').toLowerCase();
+  if (['facebook', 'instagram', 'meta', 'fb', 'ig'].includes(src)) return { key: 'meta', label: 'Meta Ads', campaign: t.campaign || null };
+  if (t.gclid || (src === 'google' && ['cpc', 'paid', 'ppc'].includes(med))) return { key: 'google-ads', label: 'Google Ads', campaign: t.campaign || null };
+  if (t.ttclid || src.includes('tiktok')) return { key: 'tiktok', label: 'TikTok Ads', campaign: t.campaign || null };
+  if (src) return { key: 'campaign', label: src + (med ? ' / ' + med : ''), campaign: t.campaign || null };
+  // fbclid FĂRĂ utm: Facebook îl pune pe TOATE click-urile (și share-uri organice),
+  // deci nu putem ști dacă a fost reclamă — de aceea UTM-urile primează mai sus
+  if (t.fbclid) return { key: 'meta-click', label: 'Facebook/Instagram (click)', campaign: t.campaign || null };
+  if (ref.includes('google.')) return { key: 'google', label: 'Google organic', campaign: null };
+  if (ref.includes('facebook.') || ref.includes('instagram.') || ref.includes('fb.')) return { key: 'meta-organic', label: 'Facebook/Instagram organic', campaign: null };
+  if (t.referrer) {
+    try { return { key: 'referral', label: new URL(t.referrer).hostname, campaign: null }; }
+    catch { return { key: 'referral', label: 'alt site', campaign: null }; }
+  }
+  return { key: 'direct', label: 'direct', campaign: null };
+}
+
+/* verificare de zonă suplimentară ÎN handler (nu ca middleware) — pentru
+   endpoint-uri care amestecă zone: marketing + date de clienți/financiare */
+async function userHasPerm(user, area) {
+  if (!user) return false;
+  if (user.role === 'owner') return true;
+  const perms = await getRolePerms();
+  return (perms[user.role] || []).includes(area);
+}
+
+app.get('/api/v1/admin/marketing/leads', requirePerm('marketing'), async (req, res) => {
+  try {
+    // PII-ul oaspeților ține de zona „clienti", sumele de „financiar" — un rol
+    // doar-marketing (ex. agenție de ads) vede sursa & parcursul, nu datele private
+    const [canPII, canMoney] = await Promise.all([userHasPerm(req.user, 'clienti'), userHasPerm(req.user, 'financiar')]);
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 28));
+    const r = await pool.query(
+      `SELECT id, status, created_at, email, total, deposit, reservation_ref, payload
+       FROM pending_bookings
+       WHERE created_at > now() - ($1 || ' days')::interval
+       ORDER BY created_at DESC LIMIT 200`,
+      [days]
+    );
+    const maskEmail = (e) => {
+      const [u, d] = String(e || '').split('@');
+      return u && d ? u.slice(0, 2) + '···@' + d : null;
+    };
+    // click id-urile rămân în DB (pentru viitorul Conversions API), dar spre
+    // browser trimitem doar PREZENȚA lor — valoarea brută nu are ce căuta în UI
+    const slimTouch = (t) => (t && typeof t === 'object' ? {
+      source: t.source, medium: t.medium, campaign: t.campaign, content: t.content, term: t.term,
+      fbclid: t.fbclid ? true : undefined, gclid: t.gclid ? true : undefined,
+      ttclid: t.ttclid ? true : undefined, msclkid: t.msclkid ? true : undefined,
+      referrer: t.referrer, landing: t.landing, at: t.at,
+    } : undefined);
+    const leads = r.rows.map((row) => {
+      const p = row.payload || {};
+      const g = p.guest || {};
+      const a = p.attribution || null;
+      return {
+        id: row.id, status: row.status, createdAt: row.created_at,
+        email: canPII ? row.email : maskEmail(row.email),
+        total: canMoney && row.total != null ? Number(row.total) : null,
+        deposit: canMoney && row.deposit != null ? Number(row.deposit) : null,
+        ref: row.reservation_ref || null,
+        villa: p.villaName || '', arrival: p.arrivalDate || null, departure: p.departureDate || null,
+        nights: Number(p.nights) || null,
+        guests: (Number(p.adults) || 0) + (Number(p.children) || 0) || null,
+        name: canPII ? ([g.firstName || '', g.lastName || ''].join(' ').trim() || null) : (g.firstName || null),
+        phone: canPII ? (g.phone || null) : null,
+        lang: p.lang || 'ro',
+        discountCode: p.discountCode || null,
+        source: leadSource(a),
+        attribution: a ? { first: slimTouch(a.first), last: slimTouch(a.last), journey: Array.isArray(a.journey) ? a.journey : [], device: a.device } : null,
+      };
+    });
+    res.json({ leads, days });
+  } catch (e) {
+    // fără try/catch, un blip de DB ar fi unhandled rejection = proces mort pe
+    // Node 20 (vezi nota de la GET /bookings/pending/:id) — adică și webhook-ul Stripe
+    console.error('[leads]', e.message);
+    res.status(500).json({ error: 'Eroare la încărcarea lead-urilor.' });
+  }
+});
+
 // duplicare — copia pornește pe PAUZĂ ca să poată fi editată înainte de lansare
 app.post('/api/v1/admin/marketing/campaign/:id/duplicate', requirePerm('marketing'), async (req, res) => {
   const cfg = await metaAdsConfig();

@@ -28,6 +28,33 @@ const addDay = (s) => {
   return d.toISOString().slice(0, 10);
 };
 
+/* Atribuirea first-party (Roots Leads) vine din client — o RE-VALIDĂM aici
+   (tipuri + lungimi plafonate) înainte s-o persistăm în payload-ul pending:
+   un client ostil nu poate umfla baza sau strecura structuri arbitrare. */
+function cleanAttribution(a) {
+  if (!a || typeof a !== "object") return undefined;
+  const s = (v, n) => (typeof v === "string" && v.trim() ? v.slice(0, n || 200) : undefined);
+  const touch = (t) =>
+    t && typeof t === "object"
+      ? {
+          source: s(t.source), medium: s(t.medium), campaign: s(t.campaign),
+          content: s(t.content), term: s(t.term),
+          fbclid: s(t.fbclid, 500), gclid: s(t.gclid, 500), ttclid: s(t.ttclid, 500), msclkid: s(t.msclkid, 500),
+          referrer: s(t.referrer, 300), landing: s(t.landing, 200), at: s(t.at, 40),
+        }
+      : undefined;
+  const journey = Array.isArray(a.journey)
+    ? a.journey.slice(-80).map((x) =>
+        x && typeof x === "object" && Number.isFinite(Number(x.t))
+          ? { t: Number(x.t), p: s(x.p, 160) || "/", ...(s(x.e, 40) ? { e: s(x.e, 40) } : {}) }
+          : null
+      ).filter(Boolean)
+    : [];
+  const first = touch(a.first), last = touch(a.last);
+  if (!first && !last && !journey.length) return undefined;
+  return { first, last, journey, device: a.device === "mobile" ? "mobile" : "desktop" };
+}
+
 /* ============================================================
    Stripe Checkout pentru avansul rezervării (fără SDK — REST cu
    form-encoding, în stilul integrării Resend). Suma în bani (RON×100).
@@ -353,6 +380,7 @@ export default async function handler(req, res) {
             villaName: villaNamePF, nights, discountCode: discountCode || null,
             guest: { firstName: firstName || "", lastName: lastName || "", email: email || "", phone: phone || "" },
             reservations, lang,
+            attribution: cleanAttribution(b.attribution), // Roots Leads: sursă + parcurs
           },
           email: String(email || "").trim().toLowerCase() || null,
           total, deposit: depositPF, marketingConsent: !!b.marketingConsent,

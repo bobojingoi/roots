@@ -997,6 +997,108 @@ async function mkDuplicate(id) {
   try { await api('/api/v1/admin/marketing/campaign/' + id + '/duplicate', { method: 'POST' }); toast('Duplicat ✓ — copia e pe pauză'); renderMarketing(true); }
   catch (e) { alert(e.message); }
 }
+/* ---- Roots Leads: rezervările de pe site + parcursul first-party ----
+   Datele NU vin de la Meta (Graph API dă doar agregate) — site-ul capturează
+   sursa (UTM/fbclid/referrer) și paginile vizitate, apoi le atașează
+   rezervării la trimitere. Aici doar le afișăm, per rezervare. */
+const MK_PAGES = {
+  '/': 'Acasă', '/vila-redwood': 'Vila Redwood', '/vila-sequoia': 'Vila Sequoia',
+  '/rezervare': 'Rezervare', '/blog': 'Blog', '/despre-noi': 'Despre noi', '/cont': 'Cont',
+  '/politica-de-confidentialitate': 'Confidențialitate', '/politica-cookies': 'Cookies',
+  '/termeni-si-conditii': 'Termeni', '/welcome-redwood': 'Welcome Redwood', '/welcome-sequoia': 'Welcome Sequoia',
+};
+const mkPage = (p) => MK_PAGES[p] || (String(p || '').startsWith('/blog/') ? 'Blog: ' + String(p).slice(6) : String(p || ''));
+const mkAgo = (ms) => {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'sub 1 min';
+  if (m < 60) return m + ' min';
+  const h = Math.round(m / 60);
+  if (h < 48) return h + ' ore';
+  return Math.round(h / 24) + ' zile';
+};
+function mkLeadStatus(s) {
+  if (s === 'created') return '<span class="badge pub">rezervat ✓</span>';
+  if (s === 'paid') return '<span class="badge mod">plată în procesare</span>';
+  if (s === 'pending') return '<span class="badge mod">checkout neterminat</span>';
+  if (s === 'cancelled') return '<span class="badge mod">plată anulată</span>';
+  if (s === 'conflict_refunded') return '<span class="badge del">conflict — refund</span>';
+  return `<span class="badge del">${esc(s)}</span>`;
+}
+function mkSourceBadge(src) {
+  if (!src) return '<span class="badge mod" title="Rezervare dinainte de activarea urmăririi first-party (sau vizitator cu stocarea blocată)">sursă necunoscută</span>';
+  const paid = ['meta', 'google-ads', 'tiktok', 'campaign'].includes(src.key);
+  return `<span class="badge ${paid ? 'pub' : 'mod'}"${src.key === 'meta-click' ? ' title="Click din Facebook/Instagram (fbclid) — fără UTM-uri nu se poate ști dacă a fost reclamă sau postare organică"' : ''}>${src.key === 'meta' ? '📣 ' : ''}${esc(src.label)}</span>` +
+    (src.campaign ? ` <span class="badge mod" title="utm_campaign">${esc(src.campaign)}</span>` : '');
+}
+function mkJourneyHtml(a) {
+  if (!a || !Array.isArray(a.journey) || !a.journey.length) {
+    return '<div class="hint">Fără parcurs înregistrat — rezervare făcută înainte de activarea urmăririi first-party (sau vizitatorul avea localStorage golit).</div>';
+  }
+  const f = a.first || {}, l = a.last || {};
+  const srcLine = (t, label) => {
+    if (!t) return null;
+    const bits = [
+      t.source ? 'utm ' + t.source + (t.medium ? '/' + t.medium : '') : null,
+      t.campaign ? 'campania „' + t.campaign + '"' : null,
+      t.fbclid ? 'click din Facebook/Instagram (fbclid)' : null,
+      t.gclid ? 'click Google Ads' : null,
+      t.ttclid ? 'click TikTok' : null,
+      t.referrer ? 'de pe ' + t.referrer : null,
+      t.landing ? 'aterizare: ' + mkPage(t.landing) : null,
+    ].filter(Boolean);
+    return bits.length ? `<div class="hint"><b>${label}:</b> ${esc(bits.join(' · '))}${t.at ? ' · ' + new Date(t.at).toLocaleString('ro-RO') : ''}</div>` : null;
+  };
+  const head = [srcLine(f, 'Prima vizită')];
+  if (l && JSON.stringify(l) !== JSON.stringify(f)) head.push(srcLine(l, 'Ultima sursă'));
+  const rows = [];
+  let prev = 0;
+  for (const s of a.journey) {
+    if (prev && s.t - prev > 30 * 60e3) rows.push(`<div class="hint" style="padding:3px 0 3px 10px;color:#9aa8a1">— revenire după ${mkAgo(s.t - prev)} —</div>`);
+    const tm = new Date(s.t).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+    rows.push(s.e === 'trimite_rezervarea'
+      ? `<div style="padding:3px 0 3px 10px;font-size:13px"><b>${tm} · ✉ A trimis rezervarea → plată</b></div>`
+      : `<div style="padding:3px 0 3px 10px;font-size:13px">${tm} · ${esc(mkPage(s.p))}</div>`);
+    prev = s.t;
+  }
+  const span = a.journey[a.journey.length - 1].t - a.journey[0].t;
+  return head.filter(Boolean).join('') +
+    `<div style="border-left:2px solid var(--brand-soft);margin:8px 0 0 4px">${rows.join('')}</div>` +
+    `<div class="hint" style="margin-top:6px">${a.journey.length} pași · de la prima pagină la trimitere: ${mkAgo(span)}${a.device ? ' · ' + esc(a.device) : ''}</div>`;
+}
+function mkLeadCard(l) {
+  const a = l.attribution;
+  const steps = a && Array.isArray(a.journey) ? a.journey.length : 0;
+  const lei = (v) => Number(v).toLocaleString('ro-RO');
+  return `<div class="card" style="padding:14px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <div style="min-width:0"><b>${esc(l.name || l.email || 'Fără nume')}</b> ${mkLeadStatus(l.status)} ${mkSourceBadge(l.source)}</div>
+      <div style="white-space:nowrap">${l.total != null ? `<b>${lei(l.total)} lei</b>` : ''}${l.deposit != null ? ` <span class="hint">avans ${lei(l.deposit)}</span>` : ''}</div>
+    </div>
+    <div class="hint" style="margin-top:6px">${esc(l.villa)}${l.arrival ? ' · ' + dt(l.arrival) + ' → ' + dt(l.departure) : ''}${l.nights ? ' · ' + l.nights + ' nopți' : ''}${l.guests ? ' · ' + l.guests + ' pers' : ''}${l.ref ? ' · Smoobu #' + esc(l.ref) : ''}${l.discountCode ? ' · cod ' + esc(l.discountCode) : ''} · ${new Date(l.createdAt).toLocaleString('ro-RO')}</div>
+    ${l.email ? `<div class="hint">${esc(l.email)}${l.phone ? ' · ' + esc(l.phone) : ''}${l.lang && l.lang !== 'ro' ? ' · limba: ' + esc(l.lang) : ''}</div>` : ''}
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Parcursul vizitatorului${steps ? ` (${steps} pași)` : ''}</summary>
+      <div style="margin-top:8px">${mkJourneyHtml(a)}</div></details>
+  </div>`;
+}
+async function loadMkLeads() {
+  const box = document.getElementById('mkLeads');
+  if (!box) return;
+  try {
+    const j = await api('/api/v1/admin/marketing/leads?days=' + MK_DAYS);
+    const leads = j.leads || [];
+    const nMeta = leads.filter((x) => x.source && x.source.key === 'meta').length;
+    const nMetaClick = leads.filter((x) => x.source && x.source.key === 'meta-click').length;
+    box.innerHTML = `
+      <div class="sec-head" style="margin-top:28px"><div><h1 style="font-size:20px">Rezervări de pe site — cine & pe unde a intrat</h1>
+        <div class="lead">Atribuire first-party (UTM/fbclid + parcursul paginilor, capturate de site) · ${leads.length} lead-uri în perioadă${nMeta ? `, ${nMeta} din Meta Ads` : ''}${nMetaClick ? `, ${nMetaClick} din click-uri Facebook/Instagram (reclamă sau organic — vezi sfatul de mai jos)` : ''}. Cifrele pot diferi de cele Meta (care numără și view-through).</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${leads.map(mkLeadCard).join('') || '<div class="card"><div class="hint" style="padding:12px 0">Nimic în perioada aleasă. Parcursul apare pentru rezervările făcute după activarea urmăririi first-party pe site.</div></div>'}
+      </div>
+      <div class="hint" style="margin-top:10px">Sfat: fbclid-ul apare la <b>orice</b> click din Facebook/Instagram (și share-uri organice), deci singur nu dovedește reclama. Ca sursa să fie certă „Meta Ads" + <b>numele campaniei</b>, pune în Ads Manager (Ad → Tracking → URL parameters): <code>utm_source=facebook&amp;utm_medium=paid&amp;utm_campaign={{campaign.name}}</code>.</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="hint" style="margin-top:24px">Lead-urile nu s-au încărcat: ${esc(e.message)}</div>`;
+  }
+}
 async function renderMarketing(refresh) {
   $('main').innerHTML = `<div class="sec-head"><div><h1>Campanii</h1><div class="lead">Se încarcă datele din Meta…</div></div></div>`;
   let j;
@@ -1006,7 +1108,9 @@ async function renderMarketing(refresh) {
     $('main').innerHTML = `<div class="sec-head"><div><h1>Campanii</h1></div></div>
       <div class="card"><b>Meta nu a răspuns</b><div class="hint">${esc(e.message)}</div>
       <div style="margin-top:12px"><button class="btn p" onclick="renderMarketing()">Reîncearcă</button>
-      ${ME && ME.role === 'owner' ? '<button class="btn" style="margin-left:8px" onclick="renderMarketingSetup()">Configurare</button>' : ''}</div></div>`;
+      ${ME && ME.role === 'owner' ? '<button class="btn" style="margin-left:8px" onclick="renderMarketingSetup()">Configurare</button>' : ''}</div></div>
+      <div id="mkLeads"></div>`;
+    loadMkLeads(); // lead-urile sunt first-party — se văd și când Meta nu răspunde
     return;
   }
   if (!j.configured) { renderMarketingSetup(); return; }
@@ -1015,7 +1119,7 @@ async function renderMarketing(refresh) {
   const card = (label, val, hint) => `<div class="card" style="padding:16px 18px"><div class="hint">${label}</div>
     <div style="font-size:22px;font-weight:800;margin-top:4px">${val}</div>${hint ? `<div class="hint" style="margin-top:4px">${hint}</div>` : ''}</div>`;
   $('main').innerHTML = `
-    <div class="sec-head"><div><h1>Campanii</h1><div class="lead">Meta Ads — ${esc(j.accountName || '')} · date live din Graph API (cache 30 min). Urmează: legarea cu profilurile clienților (Roots Leads).</div></div>
+    <div class="sec-head"><div><h1>Campanii</h1><div class="lead">Meta Ads — ${esc(j.accountName || '')} · date live din Graph API (cache 30 min). Mai jos: rezervările de pe site, cu sursa și parcursul fiecăreia (Roots Leads).</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         <select class="f" style="max-width:150px" onchange="mkDays(this.value)">
           ${[7, 28, 90].map((d) => `<option value="${d}" ${d === MK_DAYS ? 'selected' : ''}>Ultimele ${d} zile</option>`).join('')}</select>
@@ -1049,7 +1153,9 @@ async function renderMarketing(refresh) {
         </div>`;
       }).join('') || '<div class="card"><div class="hint" style="padding:12px 0">Nicio campanie încă. Prima o creezi din Ads Manager; aici o gestionezi.</div></div>'}
     </div>
-    <div class="hint" style="margin-top:10px">Actualizat: ${new Date(j.generatedAt).toLocaleString('ro-RO')} · acțiunile de optimizare cer un token cu ads_management (Configurare).</div>`;
+    <div class="hint" style="margin-top:10px">Actualizat: ${new Date(j.generatedAt).toLocaleString('ro-RO')} · acțiunile de optimizare cer un token cu ads_management (Configurare).</div>
+    <div id="mkLeads"></div>`;
+  loadMkLeads(); // secțiunea Roots Leads se încarcă separat (nu ține de cache-ul Meta)
 }
 async function renderMarketingSetup() {
   let cfg = { configured: false, accountId: '', tokenHint: '' };
@@ -1065,7 +1171,9 @@ async function renderMarketingSetup() {
       <div style="display:flex;gap:10px;margin-top:14px">
         <button class="btn p" onclick="saveMarketingCfg()">Salvează & testează</button>
         <button class="btn" onclick="renderMarketing()">Înapoi</button>
-      </div></div>`;
+      </div></div>
+    <div id="mkLeads"></div>`;
+  loadMkLeads(); // lead-urile sunt first-party — există și fără contul Meta conectat
 }
 async function saveMarketingCfg() {
   const accountId = $('mkAcc').value.trim();
