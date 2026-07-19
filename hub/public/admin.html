@@ -112,7 +112,7 @@
   <div class="acts">
     <!-- marcaj de versiune: dacă un browser rulează un admin vechi din cache,
          se vede imediat aici (bug-ul „publică gol" venea dintr-un admin stale) -->
-    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v19.07.3</span>
+    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v19.07.4</span>
     <span id="who"></span>
     <button onclick="logout()">Deconectare</button>
   </div>
@@ -269,23 +269,24 @@ function renderNav() {
   if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
   if (can('curatenie')) h += `<div class="nav-cap">Curățenie</div><button class="nav-i ${TAB === 'cleaning' ? 'on' : ''}" onclick="go('cleaning')">${ICONS.cal} Calendar curățenie</button>`;
-  if (can('marketing') || can('continut')) {
+  // un SINGUR grup Marketing (campanii + pixeli + oferte + membership)
+  if (can('marketing') || can('continut') || can('oferte') || can('membership')) {
     h += `<div class="nav-cap">Marketing</div>`;
     if (can('marketing')) h += `<button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
     // ID-urile GA4/Meta/TikTok/Clarity — editarea cere permisiunea „continut" (server-side)
     if (can('continut')) h += `<button class="nav-i ${TAB === 'sec:tracking' ? 'on' : ''}" onclick="go('sec:tracking')">${ICONS.seo} Marketing & Tracking</button>`;
+    if (can('oferte')) {
+      h += `<button class="nav-i ${TAB === 'offers' ? 'on' : ''}" onclick="go('offers')">${ICONS.star} Oferte</button>`;
+      h += `<button class="nav-i ${TAB === 'discounts' ? 'on' : ''}" onclick="go('discounts')">${ICONS.doc} Reduceri (coduri)</button>`;
+    }
+    if (can('membership')) h += `<button class="nav-i ${TAB === 'membership' ? 'on' : ''}" onclick="go('membership')">${ICONS.users} Membership</button>`;
   }
   if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
   if (can('seo')) h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
   if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
   if (can('blog')) h += `<div class="nav-cap">Blog</div><button class="nav-i ${TAB === 'blog' ? 'on' : ''}" onclick="go('blog')">${ICONS.pen} Articole</button>`;
   if (can('media')) h += `<div class="nav-cap">Bibliotecă</div><button class="nav-i ${TAB === 'media' ? 'on' : ''}" onclick="go('media')">${ICONS.media} Galerie media</button>`;
-  if (can('oferte') || can('membership')) h += `<div class="nav-cap">Marketing</div>`;
-  if (can('oferte')) {
-    h += `<button class="nav-i ${TAB === 'offers' ? 'on' : ''}" onclick="go('offers')">${ICONS.star} Oferte</button>`;
-    h += `<button class="nav-i ${TAB === 'discounts' ? 'on' : ''}" onclick="go('discounts')">${ICONS.doc} Reduceri (coduri)</button>`;
-  }
-  if (can('membership')) h += `<button class="nav-i ${TAB === 'membership' ? 'on' : ''}" onclick="go('membership')">${ICONS.users} Membership</button>`;
+  // (Oferte / Reduceri / Membership s-au mutat sus, în grupul Marketing unificat)
   if (can('smart')) h += `<div class="nav-cap">Smart</div><button class="nav-i ${TAB === 'smart' ? 'on' : ''}" onclick="go('smart')">${ICONS.home} Smart Roots</button>`;
   if (can('sistem')) {
     h += `<div class="nav-cap">Sistem</div>`;
