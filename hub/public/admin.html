@@ -112,7 +112,7 @@
   <div class="acts">
     <!-- marcaj de versiune: dacă un browser rulează un admin vechi din cache,
          se vede imediat aici (bug-ul „publică gol" venea dintr-un admin stale) -->
-    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v19.07.2</span>
+    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v19.07.3</span>
     <span id="who"></span>
     <button onclick="logout()">Deconectare</button>
   </div>
@@ -173,7 +173,7 @@ const PAGES_NAV = [
   { cap: 'Home page', keys: ['seo', 'hero', 'about', 'villas', 'editorial', 'common', 'rules', 'testimonials', 'extra_reviews', 'video', 'faq', 'location', 'contact'] },
   { cap: 'Vile & instrucțiuni', keys: ['villa_redwood', 'villa_sequoia', 'welcome_redwood', 'welcome_sequoia'] },
   { cap: 'Pagini text', keys: ['about_page', 'legal_privacy', 'legal_cookies', 'legal_terms'] },
-  { cap: 'Setări site', keys: ['brand', 'tracking'] },
+  { cap: 'Setări site', keys: ['brand'] }, // `tracking` s-a mutat în grupul Marketing
 ];
 
 const SV = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -269,8 +269,12 @@ function renderNav() {
   if (can('clienti')) h += `<button class="nav-i ${TAB === 'guests' ? 'on' : ''}" onclick="go('guests')">${ICONS.users} Clienți</button>`;
   if (can('recenzii')) h += `<button class="nav-i ${TAB === 'greviews' ? 'on' : ''}" onclick="go('greviews')">${ICONS.star} Recenzii</button>`;
   if (can('curatenie')) h += `<div class="nav-cap">Curățenie</div><button class="nav-i ${TAB === 'cleaning' ? 'on' : ''}" onclick="go('cleaning')">${ICONS.cal} Calendar curățenie</button>`;
-  if (can('marketing')) h += `<div class="nav-cap">Marketing</div>
-    <button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
+  if (can('marketing') || can('continut')) {
+    h += `<div class="nav-cap">Marketing</div>`;
+    if (can('marketing')) h += `<button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
+    // ID-urile GA4/Meta/TikTok/Clarity — editarea cere permisiunea „continut" (server-side)
+    if (can('continut')) h += `<button class="nav-i ${TAB === 'sec:tracking' ? 'on' : ''}" onclick="go('sec:tracking')">${ICONS.seo} Marketing & Tracking</button>`;
+  }
   if (can('seo') || can('heatmap')) h += `<div class="nav-cap">Analiză</div>`;
   if (can('seo')) h += `<button class="nav-i ${TAB === 'seo' ? 'on' : ''}" onclick="go('seo')">${ICONS.seo} Audit SEO</button>`;
   if (can('heatmap')) h += `<button class="nav-i ${TAB === 'heatmap' ? 'on' : ''}" onclick="go('heatmap')">${ICONS.heat} Heatmap</button>`;
