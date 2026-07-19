@@ -556,6 +556,15 @@ async function renderMain() {
   if (TAB === 'activity') { renderActivity(); return; }
   if (TAB.startsWith('sec:')) {
     const key = TAB.slice(4);
+    // REÎMPROSPĂTARE la fiecare deschidere: lista de secțiuni se încarcă o
+    // singură dată la boot — un tab de admin ținut deschis ar edita (și ar
+    // PUBLICA) o versiune veche, suprascriind modificările făcute între timp
+    // din alt tab/dispozitiv sau câmpurile adăugate prin migrări (ex. clarity)
+    try {
+      const fresh = await api('/api/v1/sections');
+      const order = Object.keys(SECTION_META);
+      SECTIONS = fresh.sections.sort((a, b) => order.indexOf(a.section_key) - order.indexOf(b.section_key));
+    } catch (e) { /* offline scurt — mergem pe ce avem în memorie */ }
     CUR = SECTIONS.find((s) => s.section_key === key);
     const [label, sub] = SECTION_META[key] || [key, ''];
     const modified = JSON.stringify(CUR.draft) !== JSON.stringify(CUR.published);
