@@ -447,9 +447,21 @@ export async function loadHubRaw() {
       }
     } catch (e) { /* cadem pe published */ }
   }
-  const r = await fetch(HUB_URL + "/api/v1/site-content");
-  const j = await r.json();
-  return mergeLang(j.content || {});
+  // retry cu backoff: hub-ul e funcție serverless (Vercel) și la „cold start"
+  // primul request poate răspunde lent/eronat. Fără retry, un singur eșec lăsa
+  // TOT tracking-ul neinițializat pentru acel vizitator (conversii pierdute) și
+  // conținutul pe fallback-ul DEFAULT_CONTENT.
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((res) => setTimeout(res, 500 * attempt));
+    try {
+      const r = await fetch(HUB_URL + "/api/v1/site-content");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      return mergeLang(j.content || {});
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
 }
 
 /* pentru limbile non-RO, secțiunea tradusă acoperă originalul CÂMP CU CÂMP:
