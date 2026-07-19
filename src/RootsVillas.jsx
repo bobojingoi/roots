@@ -448,14 +448,17 @@ export async function loadHubRaw() {
     } catch (e) { /* cadem pe published */ }
   }
   // retry cu backoff: hub-ul e funcție serverless (Vercel) și la „cold start"
-  // primul request poate răspunde lent/eronat. Fără retry, un singur eșec lăsa
-  // TOT tracking-ul neinițializat pentru acel vizitator (conversii pierdute) și
-  // conținutul pe fallback-ul DEFAULT_CONTENT.
+  // primul request poate răspunde lent/eronat (2–5s). Fără retry suficient, un
+  // eșec lăsa TOT tracking-ul neinițializat pentru acel vizitator (conversii
+  // pierdute) și conținutul pe fallback-ul DEFAULT_CONTENT. 6 încercări pe o
+  // fereastră de ~15s acoperă un cold-start; fiecare fetch cu timeout propriu
+  // ca un răspuns blocat să nu țină toată fereastra.
   let lastErr;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await new Promise((res) => setTimeout(res, 500 * attempt));
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt) await new Promise((res) => setTimeout(res, Math.min(700 * attempt, 3000)));
     try {
-      const r = await fetch(HUB_URL + "/api/v1/site-content");
+      const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined;
+      const r = await fetch(HUB_URL + "/api/v1/site-content", signal ? { signal } : undefined);
       if (!r.ok) throw new Error("HTTP " + r.status);
       const j = await r.json();
       return mergeLang(j.content || {});
