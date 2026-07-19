@@ -160,6 +160,15 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 -- conturi create de pe site: telefon + „de unde știi de noi"
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS source TEXT;
+-- sursa de achiziție (Roots Leads): {source,label,campaign,firstAt} la înregistrare
+ALTER TABLE users ADD COLUMN IF NOT EXISTS acquisition JSONB;
+-- pe guests: + touches[] (istoricul surselor, câte una per rezervare directă)
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS acquisition JSONB;
+-- consimțământ SEPARAT pentru audiențe pe platformele de ads (EDPB: granular);
+-- marketing_consent rămâne doar pentru email
+ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS ads_consent BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS ads_consent BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS ads_consent_at TIMESTAMPTZ;
 
 -- setări generice (ex. role_permissions: ce zone din admin vede fiecare rol)
 CREATE TABLE IF NOT EXISTS settings (

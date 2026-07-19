@@ -5,6 +5,7 @@ import HubEditor, { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
 import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
 import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
 import { track } from "./tracking.js";
+import { setConsent as setCookieConsent } from "./consent.js";
 import WelcomeModal from "./WelcomeModal.jsx";
 
 /* ============================================================
@@ -2071,6 +2072,9 @@ export function Footer({ contact, logo }) {
             <Link to="/despre-noi">{t("foot_about")}</Link>
             <Link to="/politica-de-confidentialitate">{t("foot_privacy")}</Link>
             <Link to="/politica-cookies">{t("foot_cookies")}</Link>
+            {/* politica de cookies promite modificarea preferințelor „oricând" —
+                resetăm alegerea și bannerul reapare la reîncărcare */}
+            <a href="#cookie" onClick={(e) => { e.preventDefault(); setCookieConsent(null); window.location.reload(); }}>{t("foot_cookie_settings")}</a>
             <Link to="/termeni-si-conditii">{t("foot_terms")}</Link>
             <a href="https://anpc.ro" target="_blank" rel="noreferrer">{t("foot_anpc")}</a>
             <a href="https://anpc.ro/ce-este-sal/" target="_blank" rel="noreferrer">{t("foot_sal")}</a>

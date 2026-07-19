@@ -12,7 +12,7 @@
    prindem tokenuri) și niciodată pagina /smart.
    ============================================================ */
 
-import { getConsent } from "./tracking.js";
+import { getConsent } from "./consent.js";
 
 const ATTR_KEY = "roots_attr_v1";
 const JOURNEY_KEY = "roots_journey_v1";

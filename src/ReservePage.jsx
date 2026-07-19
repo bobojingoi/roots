@@ -5,7 +5,7 @@ import { t } from "./i18n.js";
 import { VILLA_CSS } from "./VillaPage.jsx";
 import AvailabilityCalendar from "./AvailabilityCalendar.jsx";
 import { HUB_URL } from "./HubEditor.jsx";
-import { track } from "./tracking.js";
+import { track, isLoaded } from "./tracking.js";
 
 /* Pagina de rezervare — alegi vila, vezi disponibilitatea și trimiți rezervarea. */
 
@@ -61,8 +61,13 @@ function PaymentResult({ pb }) {
           try {
             const k = "pb_purchase_" + pb;
             if (!sessionStorage.getItem(k)) {
-              sessionStorage.setItem(k, "1");
-              track("purchase", { label: j.villaName || "rezervare", value: j.total || undefined });
+              // eventId = id-ul rezervării: cheia de deduplicare cu viitorul
+              // Conversions API (același event_id pe pixel și server-side)
+              track("purchase", { label: j.villaName || "rezervare", value: j.total || undefined, eventId: pb });
+              // flag-ul „trimis" DOAR când pixelii chiar sunt încărcați — dacă
+              // evenimentul a intrat doar în coadă și pagina moare, un reload îl
+              // retrimite; platformele dedup-uiesc oricum pe eventId
+              if (isLoaded()) sessionStorage.setItem(k, "1");
             }
           } catch { /* privat */ }
         }

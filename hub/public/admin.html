@@ -162,7 +162,7 @@ const SECTION_META = {
   legal_terms:     ['Termeni și condiții', 'Pagina legală T&C'],
   extra_reviews:   ['Recenzii manuale', 'Recenzii adăugate de tine, afișate lângă cele Google (max ~5 de la API). country (originea clientului): ro / il / es / it / us / fr / de'],
   brand:           ['Logo & Brand', 'Logo (URL imagine; gol = textul R ROOTS) + overlay-ul pozei din hero: heroOverlayFrom (jos/sus/colturi/plin), heroOverlayHeight și heroOverlayOpacity (0–100), heroOverlayColor (hex)'],
-  tracking:        ['Marketing & Tracking', 'ID-uri Google Analytics 4 (G-XXXX), Meta Pixel, TikTok Pixel — se încarcă doar cu consimțământ cookie'],
+  tracking:        ['Marketing & Tracking', 'ID-uri Google Analytics 4 (G-XXXX), Meta Pixel, TikTok Pixel, Microsoft Clarity (clarity) — se încarcă doar cu consimțământ cookie'],
 };
 
 /* meniul e organizat pe PAGINI — fiecare pagină se configurează separat */
@@ -1299,26 +1299,42 @@ function renderFinanceList() {
       </div>`).join('') || '<div class="hint" style="padding:12px 0">Nicio plată online încă.</div>'}`;
 }
 
-let GUESTS = [], GS_Y = '';
+let GUESTS = [], GS_Y = '', GS_SRC = '';
 function gsFilter(v) { GS_Y = v; renderGuestsList(); }
+function gsSrcFilter(v) { GS_SRC = v; renderGuestsList(); }
+/* badge-ul sursei de achiziție (Roots Leads) pe profilul de client */
+function gsAcqBadge(g) {
+  const a = g.acquisition;
+  if (!a || !a.source) return '';
+  const paid = ['meta', 'google-ads', 'tiktok', 'campaign'].includes(a.source);
+  return ` <span class="badge ${paid ? 'pub' : 'mod'}" title="Sursa primei rezervări directe${(a.touches || []).length > 1 ? ' · ' + a.touches.length + ' rezervări cu sursă' : ''}">${a.source === 'meta' ? '📣 ' : ''}${esc(a.label || a.source)}</span>` +
+    (a.campaign ? ` <span class="badge mod" title="utm_campaign">${esc(a.campaign)}</span>` : '');
+}
 async function renderGuests() {
   const j = await api('/api/v1/admin/guests');
   GUESTS = j.guests;
   const years = [...new Set(GUESTS.flatMap((g) => g.years || []))].sort((a, b) => b - a);
+  const sources = [...new Set(GUESTS.map((g) => g.acquisition && g.acquisition.source).filter(Boolean))].sort();
   $('main').innerHTML = `
     <div class="sec-head"><div><h1>Clienți</h1><div class="lead">Profiluri create automat din rezervări. Consimțământul de marketing se bifează doar cu acordul clientului (GDPR).</div></div>
       <button class="btn p" onclick="syncSmoobu(this)">Sincronizează din Smoobu</button></div>
-    <div style="margin-bottom:12px"><select class="f" style="max-width:190px" onchange="gsFilter(this.value)">
-      <option value="">Toți anii (după sejururi)</option>${years.map((y) => `<option ${String(y) === GS_Y ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
+    <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap"><select class="f" style="max-width:190px" onchange="gsFilter(this.value)">
+      <option value="">Toți anii (după sejururi)</option>${years.map((y) => `<option ${String(y) === GS_Y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+      <select class="f" style="max-width:220px" onchange="gsSrcFilter(this.value)">
+        <option value="">Toate sursele (achiziție)</option>
+        ${sources.map((s) => `<option value="${esc(s)}" ${s === GS_SRC ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+        <option value="-" ${GS_SRC === '-' ? 'selected' : ''}>fără sursă (istoric/alte canale)</option>
+      </select></div>
     <div id="gsList"></div>`;
   renderGuestsList();
 }
 function renderGuestsList() {
-  const rows = GUESTS.filter((g) => !GS_Y || (g.years || []).map(String).includes(GS_Y));
+  const rows = GUESTS.filter((g) => !GS_Y || (g.years || []).map(String).includes(GS_Y))
+    .filter((g) => !GS_SRC || (GS_SRC === '-' ? !(g.acquisition && g.acquisition.source) : (g.acquisition && g.acquisition.source === GS_SRC)));
   $('gsList').innerHTML = rows.map((g) => `
       <div class="card" style="padding:16px 20px">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
-          <div><b>${esc(g.name || 'Fără nume')}</b>
+          <div><b>${esc(g.name || 'Fără nume')}</b>${gsAcqBadge(g)}
             <div class="hint" style="margin-top:2px">${esc(g.email || '')}${g.phone ? ' · ' + esc(g.phone) : ''}</div></div>
           <div style="text-align:right"><b>${g.stays}</b> sejururi · ${Number(g.total_value).toLocaleString('ro-RO')} lei
             <div class="hint">ultimul: ${dt(g.last_departure)}${(g.channels || []).length ? ' · ' + g.channels.map(esc).join(', ') : ''}</div></div>

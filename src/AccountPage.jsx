@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { CSS, Brand, Footer, Fabs, useHubContent, ThemeStyle, LangSwitcher } from "./RootsVillas.jsx";
 import { HUB_URL } from "./HubEditor.jsx";
 import { t } from "./i18n.js";
+import { getAttribution } from "./attribution.js";
 
 /* Contul clientului: login cu contul din Roots Hub (Bearer token în localStorage). */
 
@@ -166,7 +167,7 @@ export default function AccountPage() {
       const r = await fetch(HUB_URL + "/api/v1/site-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email, password: pass, phone: phone.trim(), source: src, referralCode: refCode.trim() || undefined }),
+        body: JSON.stringify({ name: name.trim(), email, password: pass, phone: phone.trim(), source: src, referralCode: refCode.trim() || undefined, attribution: getAttribution() }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Eroare la crearea contului");
