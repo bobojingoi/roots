@@ -716,11 +716,11 @@ async function runSeoAll(btn) {
 }
 
 /* ============ Heatmap ============ */
-let HM = { path: '/', device: 'desktop' };
+let HM = { path: '/', device: 'desktop', days: 90 };
 async function renderHeatmap() {
   $('main').innerHTML = `
     <h1>Heatmap</h1>
-    <div class="lead">Unde dau click vizitatorii — colectat anonim de pe site (ultimele 90 de zile).</div>
+    <div class="lead">Unde dau click vizitatorii — colectat anonim de pe site.</div>
     <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
       <select class="f" style="width:auto" onchange="HM.path=this.value;loadHeatmap()">
         ${SEO_PAGES.map(([p, n]) => `<option value="${p}" ${HM.path === p ? 'selected' : ''}>${n}</option>`).join('')}
@@ -729,42 +729,70 @@ async function renderHeatmap() {
         <option value="desktop" ${HM.device === 'desktop' ? 'selected' : ''}>Desktop</option>
         <option value="mobile" ${HM.device === 'mobile' ? 'selected' : ''}>Mobil</option>
       </select>
+      <select class="f" style="width:auto" onchange="HM.days=Number(this.value);loadHeatmap()">
+        ${[7, 30, 90].map((d) => `<option value="${d}" ${HM.days === d ? 'selected' : ''}>Ultimele ${d} zile</option>`).join('')}
+      </select>
       <span class="hint" id="hmInfo"></span>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
-      <div id="hmWrap" style="position:relative;height:70vh;overflow:auto;background:#fff">
-        <iframe id="hmFrame" style="border:0;display:block;pointer-events:none" scrolling="no"></iframe>
-        <canvas id="hmCanvas" style="position:absolute;left:0;top:0;pointer-events:none"></canvas>
+      <div id="hmWrap" style="position:relative;height:72vh;overflow-y:auto;overflow-x:hidden;background:#f2f4f3">
+        <div id="hmSize" style="position:relative">
+          <div id="hmScale" style="position:absolute;left:0;top:0;transform-origin:0 0">
+            <iframe id="hmFrame" style="border:0;display:block;pointer-events:none;background:#fff" scrolling="no"></iframe>
+            <canvas id="hmCanvas" style="position:absolute;left:0;top:0;pointer-events:none"></canvas>
+          </div>
+        </div>
       </div>
     </div>`;
   loadHeatmap();
 }
+/* pagina se randează la lățimea ei reală (1280/390) și se SCALEAZĂ să încapă
+   în container — fără scroll orizontal; pe mobil o centrăm */
+function hmFit() {
+  const wrap = $('hmWrap'), scale = $('hmScale'), size = $('hmSize');
+  if (!wrap || !scale || !HM.W) return;
+  const s = Math.min(1, wrap.clientWidth / HM.W);
+  scale.style.transform = `scale(${s})`;
+  scale.style.left = Math.max(0, (wrap.clientWidth - HM.W * s) / 2) + 'px';
+  size.style.height = Math.round(HM.H * s) + 'px';
+}
+window.addEventListener('resize', () => { if (TAB === 'heatmap') hmFit(); });
 async function loadHeatmap() {
   const info = $('hmInfo');
   info.textContent = 'Se încarcă…';
   let j;
-  try { j = await api(`/api/v1/admin/heatmap?path=${encodeURIComponent(HM.path)}&device=${HM.device}`); }
+  try { j = await api(`/api/v1/admin/heatmap?path=${encodeURIComponent(HM.path)}&device=${HM.device}&days=${HM.days}`); }
   catch (e) { info.textContent = e.message; return; }
   const W = HM.device === 'mobile' ? 390 : 1280;
   const H = Math.max(1200, Math.min(20000, j.docH || 4000));
+  HM.W = W; HM.H = H;
   const frame = $('hmFrame'), cv = $('hmCanvas');
-  frame.width = W; frame.style.width = W + 'px'; frame.style.height = H + 'px';
-  frame.src = SITE + HM.path;
+  frame.style.width = W + 'px'; frame.style.height = H + 'px';
+  // ?hm=1 = site-ul știe că e în iframe-ul heatmap: fără popupuri, fără tracking
+  frame.src = SITE + HM.path + (HM.path.includes('?') ? '&' : '?') + 'hm=1';
   cv.width = W; cv.height = H; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  hmFit();
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, W, H);
+  // văl ușor peste pagină + puncte ADITIVE deasupra — contrast pe orice fundal
+  ctx.fillStyle = 'rgba(10,16,13,.34)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'lighter';
   for (const pt of j.points) {
-    const gx = pt.x * W, gy = pt.y;
-    const g = ctx.createRadialGradient(gx, gy, 2, gx, gy, 34);
-    g.addColorStop(0, 'rgba(255,60,30,.35)');
-    g.addColorStop(.5, 'rgba(255,140,0,.16)');
+    const gx = pt.x * W;
+    // y absolut din documentul vizitatorului, scalat la înălțimea afișată acum
+    const gy = pt.doc_h > 0 ? (pt.y * H) / pt.doc_h : pt.y;
+    const g = ctx.createRadialGradient(gx, gy, 2, gx, gy, 36);
+    g.addColorStop(0, 'rgba(255,80,30,.4)');
+    g.addColorStop(.45, 'rgba(255,150,20,.15)');
     g.addColorStop(1, 'rgba(255,200,0,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(gx - 34, gy - 34, 68, 68);
+    ctx.fillRect(gx - 36, gy - 36, 72, 72);
   }
+  ctx.globalCompositeOperation = 'source-over';
   info.textContent = j.total
-    ? `${j.total} click-uri înregistrate (${HM.device}). Roșu intens = multe click-uri.`
-    : 'Niciun click înregistrat încă pe această pagină/dispozitiv — datele apar după ce vizitatorii folosesc site-ul.';
+    ? `${j.total} click-uri (${HM.device}, ${HM.days} zile). Galben→roșu = tot mai multe click-uri.`
+    : 'Niciun click înregistrat pe această pagină/dispozitiv în perioada aleasă.';
 }
 
 /* ============ dashboard statistici ============ */

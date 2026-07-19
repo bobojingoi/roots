@@ -11,7 +11,7 @@ import SmartPage from "./SmartPage.jsx";
 import CookieBar from "./CookieBar.jsx";
 import { initTracking, trackPageView } from "./tracking.js";
 import { captureAttribution, recordStep } from "./attribution.js";
-import { HUB_URL, EDIT_MODE } from "./HubEditor.jsx";
+import { HUB_URL, EDIT_MODE, HM_MODE } from "./HubEditor.jsx";
 
 /* Scroll sus la fiecare schimbare de rută */
 function ScrollToTop() {
@@ -26,7 +26,7 @@ function ScrollToTop() {
 function ClickTracker() {
   const { pathname } = useLocation();
   useEffect(() => {
-    if (EDIT_MODE) return;
+    if (EDIT_MODE || HM_MODE) return; // în iframe-ul Heatmap nu ne auto-numărăm click-urile
     let last = 0;
     const onClick = (e) => {
       const now = Date.now();
@@ -59,7 +59,7 @@ function JourneyTracker() {
   const { pathname } = useLocation();
   const first = useRef(true);
   useEffect(() => {
-    if (EDIT_MODE) return;
+    if (EDIT_MODE || HM_MODE) return;
     if (first.current) { first.current = false; captureAttribution(); return; } // aterizarea o notează captura
     recordStep(pathname);
   }, [pathname]);
@@ -73,7 +73,7 @@ function MarketingTracking() {
   const [cfg, setCfg] = useState(null);
   const first = useRef(true);
   useEffect(() => {
-    if (EDIT_MODE) return; // în editor nu urmărim nimic
+    if (EDIT_MODE || HM_MODE) return; // în editor / iframe-ul Heatmap nu urmărim nimic
     loadHubRaw()
       .then((raw) => {
         const c = (raw && raw.tracking) || null;
@@ -87,7 +87,7 @@ function MarketingTracking() {
     trackPageView(pathname);
   }, [pathname]);
   // pe pagina magic-link (/smart) nu urmărim nimic — nici bannerul nu are sens acolo
-  if (EDIT_MODE || !cfg || pathname.startsWith("/smart")) return null;
+  if (EDIT_MODE || HM_MODE || !cfg || pathname.startsWith("/smart")) return null;
   return <CookieBar cfg={cfg} />;
 }
 

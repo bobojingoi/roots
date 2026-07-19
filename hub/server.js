@@ -2364,8 +2364,10 @@ app.get('/api/v1/admin/heatmap', requirePerm('heatmap'), async (req, res) => {
   const p = String(req.query.path || '/');
   const device = req.query.device === 'mobile' ? 'mobile' : 'desktop';
   const days = Math.min(365, parseInt(req.query.days, 10) || 90);
+  // doc_h per punct: clientul scalează y la înălțimea curentă a paginii —
+  // altfel click-urile vechi (pagina avea altă înălțime) apar decalate vertical
   const pts = await pool.query(
-    `SELECT x, y FROM page_events
+    `SELECT x, y, doc_h FROM page_events
      WHERE path = $1 AND device = $2 AND created_at > now() - ($3 || ' days')::interval
      ORDER BY created_at DESC LIMIT 20000`,
     [p, device, days]

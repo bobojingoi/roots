@@ -16,6 +16,10 @@ const hubParam = qs.get("hub");
 export const HUB_URL = ALLOWED_HUBS.includes(hubParam) ? hubParam : "https://roots-hub-dun.vercel.app";
 const TOKEN = (window.location.hash.match(/hubtok=([^&]+)/) || [])[1] || "";
 export const EDIT_MODE = qs.has("edit") && Boolean(TOKEN);
+/* ?hm=1 = pagina e randată în iframe-ul Heatmap din admin: fără popupuri
+   (WelcomeModal/CookieBar) și fără tracking — altfel fiecare vizualizare
+   ar polua GA/Meta/parcursurile cu „vizite" ale adminului */
+export const HM_MODE = qs.has("hm");
 
 const EDIT_CSS = `
 body.hub-edit [data-edit]{outline:1.5px dashed rgba(232,114,44,.55);outline-offset:3px;cursor:text;border-radius:2px}

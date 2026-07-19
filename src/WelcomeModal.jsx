@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { t } from "./i18n.js";
-import { EDIT_MODE } from "./HubEditor.jsx";
+import { EDIT_MODE, HM_MODE } from "./HubEditor.jsx";
 
 /* ============================================================
    Modal de întâmpinare (doar pagina principală):
@@ -63,8 +63,9 @@ export default function WelcomeModal() {
   const picked = sel != null; // orice selecție arată info-ul despre închirierea integrală
 
   // se deschide o dată pe sesiune, puțin după încărcare; nu și în editor
+  // sau în iframe-ul Heatmap (acolo ar acoperi permanent pagina)
   useEffect(() => {
-    if (EDIT_MODE || seen()) return;
+    if (EDIT_MODE || HM_MODE || seen()) return;
     const id = setTimeout(() => {
       lastFocus.current = document.activeElement;
       markSeen();
