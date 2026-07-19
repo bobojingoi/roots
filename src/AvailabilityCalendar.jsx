@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { t, LANG } from "./i18n.js";
 import { track } from "./tracking.js";
 import { getAttribution, recordStep } from "./attribution.js";
+import { submitLead } from "./leads.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
 /* ============================================================
@@ -482,6 +483,8 @@ export default function AvailabilityCalendar({
               {hasRange ? t("continue_book") : t("choose_period")}
             </button>
             {hasRange && <p className="bk-soon">Sau <a href={waHref} target="_blank" rel="noreferrer" onClick={() => track("contact", { label: villaName })}>scrie-ne pe WhatsApp</a>.</p>}
+            {/* captarea celor care nu găsesc date libere (Faza 2) — prefill cu selecția curentă */}
+            <NotifyMe villaName={villaName} arrival={checkIn} departure={checkOut} />
           </>
         )}
 
@@ -605,6 +608,59 @@ export default function AvailabilityCalendar({
 }
 
 /* stilurile ofertei „cont nou = −300 lei" (buton + modal) */
+/* „anunță-mă când se eliberează" (Faza 2) — sub calendar */
+const NOTIFY_CSS = `
+.notify{margin-top:14px}
+.notify-cta{width:100%;background:none;border:1px dashed rgba(18,43,34,.28);border-radius:12px;padding:12px 14px;color:var(--ink-soft,#5A6A61);font:600 13.5px 'Manrope',sans-serif;cursor:pointer;transition:border-color .2s,color .2s}
+.notify-cta:hover{border-color:var(--ember,#E8722C);color:var(--ember,#E8722C)}
+.notify-form{border:1px solid var(--line,#e7e0d4);border-radius:14px;padding:16px}
+.notify-title{font:600 14px 'Manrope',sans-serif;color:var(--pine,#122B22);margin-bottom:12px}
+.notify-row{display:flex;gap:8px;flex-wrap:wrap}
+.notify-input{flex:1;min-width:170px;padding:12px 14px;border:1px solid var(--line,#e7e0d4);border-radius:10px;font:inherit;font-size:15px;background:var(--ivory,#FBF7EF);color:var(--ink,#2b2b2b)}
+.notify-input:focus{outline:none;border-color:var(--ember,#E8722C)}
+.notify-btn{padding:12px 22px;border:none;border-radius:10px;background:var(--ember,#E8722C);color:#fff;font:700 14px 'Manrope',sans-serif;cursor:pointer;white-space:nowrap}
+.notify-btn:disabled{opacity:.55;cursor:default}
+.notify-consent{display:flex;gap:8px;align-items:flex-start;margin-top:11px;color:var(--ink-soft,#5A6A61);font-size:12px;line-height:1.5;cursor:pointer}
+.notify-consent input{margin-top:2px;flex-shrink:0}
+.notify-ok{margin-top:14px;padding:13px 15px;background:rgba(21,122,85,.1);border-radius:12px;color:#157a55;font-size:14px;line-height:1.5;text-align:center}
+`;
+function NotifyMe({ villaName, arrival, departure }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [hp, setHp] = useState(""); // honeypot
+  const [state, setState] = useState("idle");
+  const valid = /.+@.+\..+/.test(email) && consent;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!valid || state === "sending") return;
+    setState("sending");
+    const r = await submitLead({ source: "calendar-notify", email: email.trim(), villa: villaName, arrival, departure, marketingConsent: true, website: hp });
+    setState(r && r.ok ? "ok" : "err");
+  };
+  return (
+    <div className="notify">
+      <style>{NOTIFY_CSS}</style>
+      {state === "ok" ? (
+        <div className="notify-ok">{t("notify_ok")}</div>
+      ) : !open ? (
+        <button type="button" className="notify-cta" onClick={() => setOpen(true)}>{t("notify_cta")}</button>
+      ) : (
+        <form className="notify-form" onSubmit={submit} noValidate>
+          <div className="notify-title">{t("notify_title")}{arrival && departure ? ` · ${arrival} → ${departure}` : ""}</div>
+          <div className="notify-row">
+            <input className="notify-input" type="email" placeholder={t("nl_email")} value={email} onChange={(e) => setEmail(e.target.value)} aria-label={t("nl_email")} />
+            <input className="nl-hp" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} aria-hidden="true" />
+            <button className="notify-btn" type="submit" disabled={!valid || state === "sending"}>{state === "sending" ? t("nl_sending") : t("nl_submit")}</button>
+          </div>
+          <label className="notify-consent"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />{t("nl_consent")}</label>
+          {state === "err" && <div className="notify-ok" style={{ background: "rgba(192,57,43,.1)", color: "#c0392b" }}>{t("nl_err")}</div>}
+        </form>
+      )}
+    </div>
+  );
+}
+
 const ACC300_CSS = `
 .bkacc-ovl{position:fixed;inset:0;z-index:9600;background:rgba(12,31,25,.55);backdrop-filter:blur(3px);display:grid;place-items:center;padding:20px}
 .bkacc-box{position:relative;background:#fff;border-radius:18px;max-width:400px;width:100%;padding:26px 24px;font-family:'Manrope',system-ui,sans-serif;box-shadow:0 24px 70px rgba(0,0,0,.3)}

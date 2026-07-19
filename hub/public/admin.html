@@ -112,7 +112,7 @@
   <div class="acts">
     <!-- marcaj de versiune: dacă un browser rulează un admin vechi din cache,
          se vede imediat aici (bug-ul „publică gol" venea dintr-un admin stale) -->
-    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v19.07.4</span>
+    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v20.07.1</span>
     <span id="who"></span>
     <button onclick="logout()">Deconectare</button>
   </div>
@@ -273,6 +273,7 @@ function renderNav() {
   if (can('marketing') || can('continut') || can('oferte') || can('membership')) {
     h += `<div class="nav-cap">Marketing</div>`;
     if (can('marketing')) h += `<button class="nav-i ${TAB === 'marketing' ? 'on' : ''}" onclick="go('marketing')">${ICONS.mkt} Campanii</button>`;
+    if (can('marketing')) h += `<button class="nav-i ${TAB === 'leads' ? 'on' : ''}" onclick="go('leads')">${ICONS.users} Leads (abonați)</button>`;
     // ID-urile GA4/Meta/TikTok/Clarity — editarea cere permisiunea „continut" (server-side)
     if (can('continut')) h += `<button class="nav-i ${TAB === 'sec:tracking' ? 'on' : ''}" onclick="go('sec:tracking')">${ICONS.seo} Marketing & Tracking</button>`;
     if (can('oferte')) {
@@ -549,6 +550,7 @@ async function renderMain() {
   if (TAB === 'cleaning') { renderCleaning(); return; }
   if (TAB === 'finance') { renderFinance(); return; }
   if (TAB === 'marketing') { renderMarketing(); return; }
+  if (TAB === 'leads') { renderLeads(); return; }
   if (TAB === 'guests') { renderGuests(); return; }
   if (TAB === 'themes') { renderThemes(); return; }
   if (TAB === 'users') { renderUsers(); return; }
@@ -1248,6 +1250,58 @@ async function saveMarketingCfg() {
     toast('Salvat ✓');
     renderMarketing(true);
   } catch (e) { toast('Eroare: ' + e.message); }
+}
+
+/* ============ Leads (Faza 2): abonați newsletter + „anunță-mă când se eliberează" ============ */
+let LEADS = [], LD_SRC = '', LD_DAYS = 90;
+function ldFilter(k, v) { if (k === 'src') LD_SRC = v; if (k === 'days') { LD_DAYS = Number(v); renderLeads(); return; } renderLeadsList(); }
+function ldSrcBadge(l) {
+  if (l.source === 'calendar-notify') return '<span class="badge mod">📅 anunță-mă</span>';
+  return '<span class="badge mod">✉ newsletter</span>';
+}
+function ldStatus(l) {
+  if (l.unsubscribed) return '<span class="badge del">dezabonat</span>';
+  if (l.confirmed) return '<span class="badge pub">confirmat ✓</span>';
+  return '<span class="badge mod" title="A cerut, dar nu a confirmat încă emailul (double opt-in)">neconfirmat</span>';
+}
+async function renderLeads() {
+  $('main').innerHTML = `<div class="sec-head"><div><h1>Leads (abonați)</h1><div class="lead">Se încarcă…</div></div></div>`;
+  let j;
+  try { j = await api('/api/v1/admin/leads?days=' + LD_DAYS); }
+  catch (e) { $('main').innerHTML = `<div class="sec-head"><div><h1>Leads</h1></div></div><div class="card"><div class="hint">${esc(e.message)}</div></div>`; return; }
+  LEADS = j.leads || [];
+  const s = j.stats || {};
+  const card = (label, val) => `<div class="card" style="padding:14px 18px"><div class="hint">${label}</div><div style="font-size:22px;font-weight:800;margin-top:2px">${val}</div></div>`;
+  $('main').innerHTML = `
+    <div class="sec-head"><div><h1>Leads (abonați)</h1><div class="lead">Vizitatori care ți-au lăsat emailul fără să rezerve — din newsletter și din „anunță-mă când se eliberează". Confirmat = a validat emailul (double opt-in, GDPR) → poate fi folosit pentru marketing.</div></div>
+      <select class="f" style="max-width:150px" onchange="ldFilter('days', this.value)">
+        ${[30, 90, 365, 730].map((d) => `<option value="${d}" ${d === LD_DAYS ? 'selected' : ''}>Ultimele ${d} zile</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+      ${card('Total leads', s.total || 0)}
+      ${card('Confirmate', s.confirmed || 0)}
+      ${card('Anunță-mă', s.notify || 0)}
+      ${card('Newsletter', s.newsletter || 0)}
+    </div>
+    <div style="margin-bottom:12px"><select class="f" style="max-width:220px" onchange="ldFilter('src', this.value)">
+      <option value="">Toate sursele</option>
+      <option value="calendar-notify" ${LD_SRC === 'calendar-notify' ? 'selected' : ''}>Anunță-mă când se eliberează</option>
+      <option value="newsletter" ${LD_SRC === 'newsletter' ? 'selected' : ''}>Newsletter</option>
+    </select></div>
+    <div id="ldList"></div>
+    <div class="hint" style="margin-top:10px">Sfat GDPR: doar leadurile <b>confirmate</b> pot primi emailuri de marketing. Cele neconfirmate au cerut, dar n-au dat click pe linkul de confirmare din email.</div>`;
+  renderLeadsList();
+}
+function renderLeadsList() {
+  const rows = LEADS.filter((l) => !LD_SRC || l.source === LD_SRC);
+  $('ldList').innerHTML = rows.map((l) => `
+    <div class="card" style="padding:13px 18px">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+        <div style="min-width:0"><b>${esc(l.email || '—')}</b> ${ldSrcBadge(l)} ${ldStatus(l)}
+          ${l.origin && l.origin.key === 'meta' ? '<span class="badge pub">📣 Meta</span>' : (l.origin && ['google-ads', 'tiktok', 'campaign'].includes(l.origin.key) ? `<span class="badge pub">${esc(l.origin.label)}</span>` : '')}</div>
+        <div class="hint" style="white-space:nowrap">${new Date(l.createdAt).toLocaleDateString('ro-RO')}</div>
+      </div>
+      <div class="hint" style="margin-top:4px">${l.name ? esc(l.name) + ' · ' : ''}${l.source === 'calendar-notify' && l.villa ? esc(l.villa) : ''}${l.arrival ? ' · ' + dt(l.arrival) + (l.departure ? ' → ' + dt(l.departure) : '') : ''}${l.origin && l.origin.label ? ' · sursă: ' + esc(l.origin.label) : ''}${l.lang && l.lang !== 'ro' ? ' · ' + esc(l.lang) : ''}</div>
+    </div>`).join('') || '<div class="card"><div class="hint" style="padding:12px 0">Niciun lead pe filtrele alese.</div></div>';
 }
 
 /* ============ Financiar: plăți online (Stripe) ============ */

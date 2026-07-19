@@ -6,6 +6,7 @@ import { CSS_AURORA, CSS_AURORA_LIGHT, applyTheme } from "./theme2030.js";
 import { LANG, LANGS, setLang, applyLangDir, t } from "./i18n.js";
 import { track } from "./tracking.js";
 import { setConsent as setCookieConsent } from "./consent.js";
+import { submitLead } from "./leads.js";
 import WelcomeModal from "./WelcomeModal.jsx";
 
 /* ============================================================
@@ -986,6 +987,22 @@ body.t-al .testi-more a{color:var(--gold)}
 .foot a:hover{color:var(--gold)}
 .foot .logo{color:#fff;margin-bottom:18px}
 .foot-bottom{margin-top:56px;padding-top:26px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:rgba(255,255,255,.4)}
+/* newsletter (Faza 2) */
+.nl{margin-top:40px;padding-top:34px;border-top:1px solid rgba(255,255,255,.1);display:grid;grid-template-columns:1.1fr 1fr;gap:34px;align-items:start}
+@media(max-width:760px){.nl{grid-template-columns:1fr;gap:22px}}
+.nl h4{font-family:'Fraunces',serif;font-weight:500;font-size:22px;color:#fff;margin:0 0 8px}
+.nl-sub{color:rgba(255,255,255,.6);font-size:14px;line-height:1.6;max-width:42ch}
+.nl-row{display:flex;gap:10px;flex-wrap:wrap}
+.nl-input{flex:1;min-width:190px;padding:13px 16px;border-radius:100px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:15px}
+.nl-input::placeholder{color:rgba(255,255,255,.4)}
+.nl-input:focus{outline:none;border-color:var(--ember)}
+.nl-btn{padding:13px 26px;border:none;border-radius:100px;background:var(--ember);color:#fff;font:700 15px 'Manrope',sans-serif;cursor:pointer;transition:transform .2s,box-shadow .2s;white-space:nowrap}
+.nl-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 24px rgba(232,114,44,.35)}
+.nl-btn:disabled{opacity:.6;cursor:default}
+.nl-consent{display:flex;gap:9px;align-items:flex-start;margin-top:12px;color:rgba(255,255,255,.6);font-size:12.5px;line-height:1.5;cursor:pointer}
+.nl-consent input{margin-top:2px;flex-shrink:0}
+.nl-ok{color:var(--gold);font-size:14.5px;line-height:1.6}
+.nl-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 
 /* floating actions */
 .fabs{position:fixed;right:20px;bottom:20px;z-index:70;display:flex;flex-direction:column;gap:12px}
@@ -2063,10 +2080,49 @@ function FinalCta({ contact }) {
   );
 }
 
+/* Newsletter (Faza 2) — captează vizitatorii care nu rezervă. Double opt-in
+   pe hub; atribuirea first-party se atașează automat în submitLead. */
+export function NewsletterForm() {
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [hp, setHp] = useState(""); // honeypot
+  const [state, setState] = useState("idle"); // idle | sending | ok | err
+  const valid = /.+@.+\..+/.test(email) && consent;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!valid || state === "sending") return;
+    setState("sending");
+    const r = await submitLead({ source: "newsletter", email: email.trim(), marketingConsent: true, website: hp });
+    setState(r && r.ok ? "ok" : "err");
+  };
+  if (state === "ok") return <div className="nl-ok">{t("nl_ok")}</div>;
+  return (
+    <form className="nl-form" onSubmit={submit} noValidate>
+      <div className="nl-row">
+        <input className="nl-input" type="email" placeholder={t("nl_email")} value={email} onChange={(e) => setEmail(e.target.value)} aria-label={t("nl_email")} />
+        <input className="nl-hp" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} aria-hidden="true" />
+        <button className="nl-btn" type="submit" disabled={!valid || state === "sending"}>{state === "sending" ? t("nl_sending") : t("nl_submit")}</button>
+      </div>
+      <label className="nl-consent">
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        {t("nl_consent")}
+      </label>
+      {state === "err" && <div className="nl-ok" style={{ color: "#e8722c" }}>{t("nl_err")}</div>}
+    </form>
+  );
+}
+
 export function Footer({ contact, logo }) {
   return (
     <footer className="foot">
       <div className="wrap">
+        <div className="nl">
+          <div>
+            <h4>{t("nl_title")}</h4>
+            <p className="nl-sub">{t("nl_sub")}</p>
+          </div>
+          <NewsletterForm />
+        </div>
         <div className="foot-grid">
           <div>
             <Link to="/" className="logo"><Brand logo={logo} /></Link>

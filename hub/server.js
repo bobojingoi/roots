@@ -836,6 +836,130 @@ app.post('/api/v1/site-register', async (req, res) => {
   });
 });
 
+/* ============ FAZA 2: LEADS (captarea non-rezervanților) ============
+   Două surse: „anunță-mă când se eliberează" (calendar, cu interval dorit) și
+   newsletter (footer). DOUBLE OPT-IN: marketing DOAR după confirmarea pe email
+   (GDPR). attribution = sursa first-party (Roots Leads), ca la rezervări. */
+const leadHits = new Map(); // anti-abuz per instanță: max 8 leaduri/oră/IP
+const LEADS_SITE = (process.env.SITE_URL || 'https://rootsvillas.ro').replace(/\/$/, '');
+const HUB_PUBLIC = (process.env.HUB_PUBLIC_URL || 'https://roots-hub-dun.vercel.app').replace(/\/$/, '');
+
+const LEAD_TXT = {
+  ro: { confT: 'Adresă confirmată ✓', confB: 'Gata! Te anunțăm pe email când apar disponibilități sau oferte ROOTS.', unsT: 'Dezabonat', unsB: 'Nu vei mai primi emailuri de la ROOTS. Ne pare rău să te vedem plecând!', badT: 'Link invalid', badB: 'Linkul nu mai e valid — poate ai confirmat deja.', sub: 'Confirmă-ți adresa — ROOTS Villas',
+        body: (u) => `<p>Bună!</p><p>Ai cerut noutăți / disponibilități de la <b>ROOTS Villas</b>. Confirmă adresa cu un click:</p><p style="margin:26px 0"><a href="${u}" style="background:#E8722C;color:#fff;padding:13px 28px;border-radius:100px;text-decoration:none;font-weight:700;display:inline-block">Confirmă adresa</a></p><p style="color:#8a8a8a;font-size:13px">Dacă nu ai cerut tu asta, ignoră acest email.</p>` },
+  en: { confT: 'Email confirmed ✓', confB: "Done! We'll email you when dates open up or ROOTS has offers.", unsT: 'Unsubscribed', unsB: "You won't receive emails from ROOTS anymore. Sorry to see you go!", badT: 'Invalid link', badB: 'This link is no longer valid — maybe you already confirmed.', sub: 'Confirm your email — ROOTS Villas',
+        body: (u) => `<p>Hi!</p><p>You asked for news / availability from <b>ROOTS Villas</b>. Please confirm your email:</p><p style="margin:26px 0"><a href="${u}" style="background:#E8722C;color:#fff;padding:13px 28px;border-radius:100px;text-decoration:none;font-weight:700;display:inline-block">Confirm email</a></p><p style="color:#8a8a8a;font-size:13px">If this wasn't you, just ignore this email.</p>` },
+  he: { confT: 'האימייל אושר ✓', confB: 'מצוין! נעדכן אותך במייל כשיתפנו תאריכים או כשיהיו מבצעים של ROOTS.', unsT: 'הוסרת מהרשימה', unsB: 'לא תקבל/י יותר מיילים מ-ROOTS.', badT: 'קישור לא תקין', badB: 'הקישור אינו תקף עוד — ייתכן שכבר אישרת.', sub: 'אשרו את כתובת המייל — ROOTS Villas',
+        body: (u) => `<div dir="rtl"><p>שלום!</p><p>ביקשת עדכונים / זמינות מ-<b>ROOTS Villas</b>. אנא אשר/י את כתובת המייל:</p><p style="margin:26px 0"><a href="${u}" style="background:#E8722C;color:#fff;padding:13px 28px;border-radius:100px;text-decoration:none;font-weight:700;display:inline-block">אישור המייל</a></p><p style="color:#8a8a8a;font-size:13px">אם לא ביקשת זאת, התעלם/י מהמייל.</p></div>` },
+  fr: { confT: 'Adresse confirmée ✓', confB: 'Parfait ! Nous vous écrirons dès que des dates se libèrent ou que ROOTS propose des offres.', unsT: 'Désabonné', unsB: "Vous ne recevrez plus d'emails de ROOTS. À bientôt !", badT: 'Lien invalide', badB: "Ce lien n'est plus valide — vous avez peut-être déjà confirmé.", sub: 'Confirmez votre adresse — ROOTS Villas',
+        body: (u) => `<p>Bonjour !</p><p>Vous avez demandé des nouveautés / disponibilités de <b>ROOTS Villas</b>. Confirmez votre adresse :</p><p style="margin:26px 0"><a href="${u}" style="background:#E8722C;color:#fff;padding:13px 28px;border-radius:100px;text-decoration:none;font-weight:700;display:inline-block">Confirmer l'adresse</a></p><p style="color:#8a8a8a;font-size:13px">Si ce n'était pas vous, ignorez cet email.</p>` },
+};
+const leadLang = (l) => (['ro', 'en', 'he', 'fr'].includes(l) ? l : 'ro');
+function leadPage(title, heading, msg) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} · ROOTS Villas</title>
+  <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#122B22;color:#FBF7EF;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:24px}
+  .c{max-width:460px;text-align:center;background:rgba(251,247,239,.05);border:1px solid rgba(251,247,239,.14);border-radius:20px;padding:40px 30px}
+  h1{font-weight:600;font-size:25px;margin:0 0 12px;color:#E9B872}p{line-height:1.6;color:rgba(251,247,239,.85);margin:0}a{color:#E8722C;font-weight:700;text-decoration:none}</style></head>
+  <body><div class="c"><h1>${heading}</h1><p>${msg}</p><p style="margin-top:20px"><a href="${LEADS_SITE}">← ROOTS Villas</a></p></div></body></html>`;
+}
+
+app.post('/api/v1/leads', async (req, res) => {
+  try {
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const now = Date.now();
+    const hits = (leadHits.get(ip) || []).filter((t) => now - t < 3600e3);
+    if (hits.length >= 8) return res.status(429).json({ error: 'Prea multe cereri — reîncearcă mai târziu.' });
+    hits.push(now); leadHits.set(ip, hits);
+
+    const b = req.body || {};
+    if (b.website) return res.status(400).json({ error: 'Cerere invalidă.' }); // honeypot pentru boți
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!/.+@.+\..+/.test(email) || email.length > 160) return res.status(400).json({ error: 'Adaugă un email valid.' });
+    const source = b.source === 'calendar-notify' ? 'calendar-notify' : 'newsletter';
+    const lang = leadLang(b.lang);
+    const villa = source === 'calendar-notify' ? (String(b.villa || '').slice(0, 80) || null) : null;
+    const dateOk = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? d : null);
+    const attribution = sanitizeAttribution(b.attribution);
+
+    // dacă emailul e deja confirmat (și nedezabonat), noul lead moștenește
+    // confirmarea — nu re-cerem opt-in de fiecare dată
+    const prev = await pool.query(
+      'SELECT confirmed, unsubscribed FROM leads WHERE lower(email) = $1 ORDER BY created_at DESC LIMIT 1', [email]
+    );
+    const already = prev.rows[0] && prev.rows[0].confirmed && !prev.rows[0].unsubscribed;
+    const token = crypto.randomBytes(24).toString('base64url');
+    await pool.query(
+      `INSERT INTO leads (email, name, phone, source, villa, arrival, departure, marketing_consent, ads_consent, consent_at, attribution, lang, token, confirmed, confirmed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, CASE WHEN $8 OR $9 THEN now() END, $10,$11,$12,$13, CASE WHEN $13 THEN now() END)`,
+      [email, String(b.name || '').trim().slice(0, 120) || null, String(b.phone || '').trim().slice(0, 40) || null,
+       source, villa, dateOk(b.arrival), dateOk(b.departure), !!b.marketingConsent, !!b.adsConsent,
+       attribution ? JSON.stringify(attribution) : null, lang, token, !!already]
+    );
+    emit('LeadCaptured', { source, confirmed: !!already });
+    if (!already) {
+      const t = LEAD_TXT[lang];
+      await hubSendMail({ to: [email], subject: t.sub, html: t.body(`${HUB_PUBLIC}/api/v1/leads/confirm?t=${encodeURIComponent(token)}`) });
+    }
+    res.json({ ok: true, confirmed: !!already });
+  } catch (e) { console.error('[leads] create:', e.message); res.status(500).json({ error: 'Nu am putut înregistra cererea.' }); }
+});
+
+app.get('/api/v1/leads/confirm', async (req, res) => {
+  try {
+    const token = String(req.query.t || '');
+    if (!token) return res.status(400).send(leadPage('Link invalid', 'Link invalid', 'Linkul de confirmare nu e valid.'));
+    const r = await pool.query(
+      'UPDATE leads SET confirmed = true, confirmed_at = COALESCE(confirmed_at, now()), unsubscribed = false WHERE token = $1 RETURNING lang', [token]
+    );
+    if (!r.rows.length) { const t = LEAD_TXT.ro; return res.status(404).send(leadPage(t.badT, t.badT, t.badB)); }
+    const t = LEAD_TXT[leadLang(r.rows[0].lang)];
+    emit('LeadConfirmed', {});
+    res.send(leadPage(t.confT, t.confT, t.confB));
+  } catch (e) { console.error('[leads] confirm:', e.message); res.status(500).send(leadPage('Eroare', 'Eroare', 'Încearcă din nou mai târziu.')); }
+});
+
+app.get('/api/v1/leads/unsubscribe', async (req, res) => {
+  try {
+    const token = String(req.query.t || '');
+    const r = await pool.query(
+      'UPDATE leads SET unsubscribed = true, unsubscribed_at = now() WHERE token = $1 RETURNING lang', [token]
+    );
+    const t = LEAD_TXT[leadLang(r.rows[0] && r.rows[0].lang)];
+    if (r.rows.length) emit('LeadUnsubscribed', {});
+    res.send(leadPage(t.unsT, t.unsT, t.unsB));
+  } catch (e) { console.error('[leads] unsub:', e.message); res.status(500).send(leadPage('Eroare', 'Eroare', '')); }
+});
+
+// admin: lista de leaduri (zona marketing; PII doar cu zona „clienti", ca la Roots Leads)
+app.get('/api/v1/admin/leads', requirePerm('marketing'), async (req, res) => {
+  try {
+    const canPII = await userHasPerm(req.user, 'clienti');
+    const days = Math.min(730, Math.max(1, parseInt(req.query.days, 10) || 90));
+    const r = await pool.query(
+      `SELECT id, email, name, source, villa, arrival, departure, marketing_consent, ads_consent,
+              confirmed, unsubscribed, lang, attribution, created_at
+       FROM leads WHERE created_at > now() - ($1 || ' days')::interval ORDER BY created_at DESC LIMIT 500`, [days]
+    );
+    const maskEmail = (e) => { const [u, d] = String(e || '').split('@'); return u && d ? u.slice(0, 2) + '···@' + d : null; };
+    const leads = r.rows.map((row) => ({
+      id: row.id,
+      email: canPII ? row.email : maskEmail(row.email),
+      name: canPII ? row.name : (row.name ? String(row.name).split(' ')[0] : null),
+      source: row.source, villa: row.villa, arrival: row.arrival, departure: row.departure,
+      marketingConsent: row.marketing_consent, adsConsent: row.ads_consent,
+      confirmed: row.confirmed, unsubscribed: row.unsubscribed, lang: row.lang,
+      origin: leadSource(row.attribution), createdAt: row.created_at,
+    }));
+    const stats = {
+      total: leads.length,
+      confirmed: leads.filter((l) => l.confirmed && !l.unsubscribed).length,
+      notify: leads.filter((l) => l.source === 'calendar-notify').length,
+      newsletter: leads.filter((l) => l.source === 'newsletter').length,
+    };
+    res.json({ leads, stats, days });
+  } catch (e) { console.error('[admin leads]', e.message); res.status(500).json({ error: 'Eroare la încărcarea leadurilor.' }); }
+});
+
 /* ============ OFERTE & CODURI DE REDUCERE ============ */
 // public: ofertele active — site-ul le aplică la calculul prețului
 app.get('/api/v1/offers', async (_req, res) => {

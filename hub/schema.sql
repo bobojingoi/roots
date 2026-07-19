@@ -170,6 +170,35 @@ ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS ads_consent BOOLEAN NOT NU
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS ads_consent BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS ads_consent_at TIMESTAMPTZ;
 
+-- Faza 2: captarea vizitatorilor care NU rezervă (majoritatea traficului din ads).
+-- Două surse: „anunță-mă când se eliberează" (din calendar, cu interval dorit) și
+-- newsletter (footer). Double opt-in (confirmed) — marketing DOAR după confirmarea
+-- pe email. attribution = sursa first-party (Roots Leads), ca și la rezervări.
+CREATE TABLE IF NOT EXISTS leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  name TEXT,
+  phone TEXT,
+  source TEXT,                       -- 'calendar-notify' | 'newsletter'
+  villa TEXT,                        -- vila dorită (pentru calendar-notify)
+  arrival DATE, departure DATE,      -- intervalul dorit (pentru calendar-notify)
+  marketing_consent BOOLEAN NOT NULL DEFAULT false,
+  ads_consent BOOLEAN NOT NULL DEFAULT false,
+  consent_at TIMESTAMPTZ,
+  attribution JSONB,                 -- first/last touch (Roots Leads)
+  lang TEXT DEFAULT 'ro',
+  token TEXT UNIQUE,                 -- double opt-in + unsubscribe (un singur secret per lead)
+  confirmed BOOLEAN NOT NULL DEFAULT false,
+  confirmed_at TIMESTAMPTZ,
+  notified_at TIMESTAMPTZ,           -- când i-am trimis „s-a eliberat" (evită dublarea)
+  unsubscribed BOOLEAN NOT NULL DEFAULT false,
+  unsubscribed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(lower(email));
+CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_token ON leads(token);
+
 -- setări generice (ex. role_permissions: ce zone din admin vede fiecare rol)
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
