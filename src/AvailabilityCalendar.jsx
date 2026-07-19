@@ -3,6 +3,7 @@ import { t, LANG } from "./i18n.js";
 import { track } from "./tracking.js";
 import { getAttribution, recordStep } from "./attribution.js";
 import { submitLead } from "./leads.js";
+import { getConsent } from "./consent.js";
 import { HUB_URL } from "./HubEditor.jsx";
 
 /* ============================================================
@@ -347,6 +348,9 @@ export default function AvailabilityCalendar({
           expectedTotal: priceKnown ? total : undefined, // guard: serverul refuză dacă prețul diferă
           marketingConsent: consent,
           adsConsent: consentAds, // scop separat: audiențe pe platformele de ads
+          // starea consimțământului de COOKIES călătorește cu rezervarea:
+          // serverul trimite Conversions API (Meta) DOAR dacă e "yes"
+          trackingConsent: getConsent() === "yes",
           attribution: getAttribution(), // sursă + parcurs (Roots Leads în Hub)
           lang: LANG, // limba activă pe site → email de confirmare în aceeași limbă
           firstName: form.firstName.trim(), lastName: form.lastName.trim(),

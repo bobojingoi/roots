@@ -381,6 +381,13 @@ export default async function handler(req, res) {
             guest: { firstName: firstName || "", lastName: lastName || "", email: email || "", phone: phone || "" },
             reservations, lang,
             attribution: cleanAttribution(b.attribution), // Roots Leads: sursă + parcurs
+            // pentru Conversions API (Meta), pe hub: consimțământul de cookies +
+            // IP/UA ale VIZITATORULUI (hub-ul vede doar IP-ul funcției serverless)
+            trackingConsent: b.trackingConsent === true,
+            client: {
+              ip: String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || null,
+              ua: String(req.headers["user-agent"] || "").slice(0, 300) || null,
+            },
           },
           email: String(email || "").trim().toLowerCase() || null,
           total, deposit: depositPF, marketingConsent: !!b.marketingConsent,

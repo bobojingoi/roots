@@ -289,6 +289,67 @@ app.post('/api/v1/discount/consume', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Eroare.' }); }
 });
 
+/* ---- Faza 3: normalizare + hash pentru Conversions API și export audiențe ----
+   Platformele cer normalizare ÎNAINTE de SHA-256 (email lowercase/trim, telefon
+   E.164 doar cifre cu prefix de țară) — altfel match rate-ul e praf. */
+const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+function e164Digits(phone) {
+  let d = String(phone || '').replace(/\D+/g, '');
+  if (!d) return null;
+  if (d.startsWith('00')) d = d.slice(2);
+  else if (d.startsWith('0') && d.length === 10) d = '4' + d; // 07xx… → 407xx… (RO)
+  return d.length >= 8 && d.length <= 15 ? d : null;
+}
+
+/* Meta Conversions API: Purchase trimis server-side la confirmarea plății, cu
+   ACELAȘI event_id ca pixelul din browser (id-ul pending-ului, vezi ReservePage)
+   → Meta deduplichează; serverul prinde conversiile pe care browserul le pierde
+   (iOS/adblock/tab închis). Dormant fără META_CAPI_TOKEN (Events Manager →
+   Settings → Conversions API → Generate access token). GDPR: trimitem DOAR dacă
+   oaspetele a acceptat cookie-urile (payload.trackingConsent, adus de site). */
+async function sendMetaCapiPurchase(pb, p) {
+  const token = (process.env.META_CAPI_TOKEN || '').trim();
+  if (!token) return;
+  if (p.trackingConsent !== true) return; // refuz cookies = nimic către Meta
+  let pixelId = null;
+  try {
+    const r = await pool.query("SELECT published->>'metaPixel' AS px FROM site_content WHERE section_key = 'tracking'");
+    pixelId = ((r.rows[0] && r.rows[0].px) || '').trim() || null;
+  } catch { /* fără pixel nu trimitem */ }
+  if (!pixelId) return;
+  const email = String(pb.email || '').trim().toLowerCase();
+  const phone = e164Digits((p.guest || {}).phone);
+  const attr = p.attribution || {};
+  const fbclid = (attr.last && attr.last.fbclid) || (attr.first && attr.first.fbclid) || null;
+  const client = p.client || {};
+  const user_data = {
+    ...(email ? { em: [sha256hex(email)] } : {}),
+    ...(phone ? { ph: [sha256hex(phone)] } : {}),
+    ...(client.ip ? { client_ip_address: client.ip } : {}),
+    ...(client.ua ? { client_user_agent: client.ua } : {}),
+    ...(fbclid ? { fbc: `fb.1.${Date.now()}.${fbclid}` } : {}),
+  };
+  if (!user_data.em && !user_data.fbc) return; // fără chei de potrivire nu are sens
+  const body = {
+    data: [{
+      event_name: 'Purchase',
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: String(pb.id), // = eventID-ul pixelului → deduplicare
+      action_source: 'website',
+      event_source_url: 'https://rootsvillas.ro/rezervare',
+      user_data,
+      custom_data: { currency: 'RON', value: pb.total != null ? Number(pb.total) : 0 },
+    }],
+  };
+  const r = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(pixelId)}/events?access_token=${encodeURIComponent(token)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('CAPI ' + r.status + ': ' + JSON.stringify(j.error && j.error.message ? j.error.message : j).slice(0, 200));
+  emit('MetaCapiPurchaseSent', { pendingId: pb.id, received: j.events_received || 0 });
+}
+
 /* după plată: re-verifică disponibilitatea, creează rezervările Smoobu, notează
    consimțământul, consumă codul single-use, trimite emailurile. Idempotent —
    Stripe poate livra evenimentul de mai multe ori. Aruncă la erori TEHNICE
@@ -372,6 +433,10 @@ async function processPendingBooking(pendingId, session) {
   if (ref && session && session.id) {
     await pool.query('UPDATE payments SET ref = $2 WHERE session_id = $1', [session.id, ref]);
   }
+
+  // Conversions API (Meta) — best-effort: o eroare aici NU aruncă (altfel
+  // webhook-ul Stripe ar da 500 și ar reîncerca degeaba o rezervare creată)
+  try { await sendMetaCapiPurchase(pb, p); } catch (e) { console.error('[capi]', e.message); }
 
   // 3) consimțământul de marketing + sursa de achiziție pe profilul de client
   //    (acquisition se scrie NECONDIȚIONAT de consimțământ — e analiza noastră
@@ -983,6 +1048,60 @@ app.get('/api/v1/admin/leads', requirePerm('marketing'), async (req, res) => {
     );
     res.json({ leads, stats: st.rows[0], days });
   } catch (e) { console.error('[admin leads]', e.message); res.status(500).json({ error: 'Eroare la încărcarea leadurilor.' }); }
+});
+
+/* ---- Faza 3: export audiențe first-party pentru Custom Audiences ----
+   DOAR persoane cu ads_consent = scopul separat „audiențe pe platforme" bifat
+   (marketing_consent NU e suficient — e alt temei). Hash SHA-256 după
+   normalizare; CSV „email,phone" e acceptat de Meta Custom Audiences și
+   Google Customer Match. IMPORTANT (retragere consimțământ): pe platformă
+   încarcă lista ca REPLACE, nu append — dezabonații trebuie să iasă. */
+app.get('/api/v1/admin/audience-export', requirePerm('marketing'), async (req, res) => {
+  try {
+    // hash-urile sunt tot date personale — cerem și zona „clienti"
+    if (!(await userHasPerm(req.user, 'clienti'))) return res.status(403).json({ error: 'Exportul cere și zona „Clienți".' });
+    const segment = ['ads-all', 'ads-cumparatori', 'ads-winback'].includes(req.query.segment) ? req.query.segment : 'ads-all';
+    let rows;
+    if (segment === 'ads-cumparatori') {
+      // cumpărători reali — tipic pentru EXCLUDERE din campaniile de achiziție
+      rows = (await pool.query(
+        `SELECT DISTINCT g.email, g.phone FROM guests g
+         JOIN bookings b ON b.guest_id = g.id AND b.status = 'confirmed'
+         WHERE g.ads_consent AND g.email IS NOT NULL`
+      )).rows;
+    } else if (segment === 'ads-winback') {
+      // au stat anul trecut, nimic anul acesta — țintă de re-activare
+      rows = (await pool.query(
+        `SELECT DISTINCT g.email, g.phone FROM guests g
+         JOIN bookings b ON b.guest_id = g.id AND b.status = 'confirmed'
+              AND extract(year from b.arrival) = extract(year from now()) - 1
+         WHERE g.ads_consent AND g.email IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM bookings b2 WHERE b2.guest_id = g.id
+                             AND extract(year from b2.arrival) = extract(year from now()))`
+      )).rows;
+    } else {
+      rows = (await pool.query(
+        `SELECT email, phone FROM guests WHERE ads_consent AND email IS NOT NULL
+         UNION
+         SELECT email, phone FROM leads WHERE ads_consent AND confirmed AND NOT unsubscribed AND email IS NOT NULL`
+      )).rows;
+    }
+    const seen = new Set();
+    const lines = ['email,phone'];
+    let skipped = 0;
+    for (const row of rows) {
+      const em = String(row.email || '').trim().toLowerCase();
+      if (!/.+@.+\..+/.test(em) || seen.has(em)) { skipped++; continue; }
+      seen.add(em);
+      const ph = e164Digits(row.phone);
+      lines.push(sha256hex(em) + ',' + (ph ? sha256hex(ph) : ''));
+    }
+    // audit: cine, ce segment, câte rânduri (cerință firească pt. date personale)
+    emit('AudienceExported', { segment, count: lines.length - 1, skipped, by: req.user.email });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="roots-audienta-${segment}.csv"`);
+    res.send(lines.join('\n'));
+  } catch (e) { console.error('[audience-export]', e.message); res.status(500).json({ error: 'Exportul a eșuat.' }); }
 });
 
 /* ============ OFERTE & CODURI DE REDUCERE ============ */
