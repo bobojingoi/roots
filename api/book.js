@@ -382,12 +382,14 @@ export default async function handler(req, res) {
             reservations, lang,
             attribution: cleanAttribution(b.attribution), // Roots Leads: sursă + parcurs
             // pentru Conversions API (Meta), pe hub: consimțământul de cookies +
-            // IP/UA ale VIZITATORULUI (hub-ul vede doar IP-ul funcției serverless)
+            // IP/UA ale VIZITATORULUI (hub-ul vede doar IP-ul funcției serverless).
+            // Minimizare: IP/UA se COLECTEAZĂ doar dacă există consimțământul —
+            // singurul lor scop e CAPI, care fără consimțământ oricum nu trimite
             trackingConsent: b.trackingConsent === true,
-            client: {
+            client: b.trackingConsent === true ? {
               ip: String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || null,
               ua: String(req.headers["user-agent"] || "").slice(0, 300) || null,
-            },
+            } : undefined,
           },
           email: String(email || "").trim().toLowerCase() || null,
           total, deposit: depositPF, marketingConsent: !!b.marketingConsent,

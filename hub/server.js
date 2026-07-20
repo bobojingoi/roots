@@ -293,11 +293,15 @@ app.post('/api/v1/discount/consume', async (req, res) => {
    Platformele cer normalizare ÎNAINTE de SHA-256 (email lowercase/trim, telefon
    E.164 doar cifre cu prefix de țară) — altfel match rate-ul e praf. */
 const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
-function e164Digits(phone) {
+// prefixul de țară pentru numerele scrise LOCAL (cu 0 în față) — ghicit după
+// limba în care a rezervat oaspetele (E.164: 0-ul inițial CADE, prefixul intră).
+// Fără asta, numerele israeliene 05x… deveneau „405…" inexistente înainte de hash.
+const PHONE_CC = { ro: '40', he: '972', fr: '33', en: '40' };
+function e164Digits(phone, lang) {
   let d = String(phone || '').replace(/\D+/g, '');
   if (!d) return null;
   if (d.startsWith('00')) d = d.slice(2);
-  else if (d.startsWith('0') && d.length === 10) d = '4' + d; // 07xx… → 407xx… (RO)
+  else if (d.startsWith('0')) d = (PHONE_CC[lang] || '40') + d.slice(1);
   return d.length >= 8 && d.length <= 15 ? d : null;
 }
 
@@ -305,8 +309,10 @@ function e164Digits(phone) {
    ACELAȘI event_id ca pixelul din browser (id-ul pending-ului, vezi ReservePage)
    → Meta deduplichează; serverul prinde conversiile pe care browserul le pierde
    (iOS/adblock/tab închis). Dormant fără META_CAPI_TOKEN (Events Manager →
-   Settings → Conversions API → Generate access token). GDPR: trimitem DOAR dacă
-   oaspetele a acceptat cookie-urile (payload.trackingConsent, adus de site). */
+   Settings → Conversions API → Generate access token). GDPR pe DOUĂ niveluri:
+   fără acceptul de cookies (payload.trackingConsent) nu se trimite NIMIC; cu
+   cookies dar fără căsuța de audiențe (pb.ads_consent) se trimite doar evenimentul
+   anonim (fbc/IP/UA); email+telefon hash-uite pleacă DOAR cu ads_consent. */
 async function sendMetaCapiPurchase(pb, p) {
   const token = (process.env.META_CAPI_TOKEN || '').trim();
   if (!token) return;
@@ -317,8 +323,12 @@ async function sendMetaCapiPurchase(pb, p) {
     pixelId = ((r.rows[0] && r.rows[0].px) || '').trim() || null;
   } catch { /* fără pixel nu trimitem */ }
   if (!pixelId) return;
-  const email = String(pb.email || '').trim().toLowerCase();
-  const phone = e164Digits((p.guest || {}).phone);
+  // email/telefon (chiar hash-uite) pleacă DOAR cu consimțământul dedicat de
+  // audiențe (căsuța a doua) — acceptul de cookies acoperă doar identificatorii
+  // de click/sesiune (fbc, IP, UA). Fără ads_consent trimitem evenimentul anonim.
+  const withPII = pb.ads_consent === true;
+  const email = withPII ? String(pb.email || '').trim().toLowerCase() : '';
+  const phone = withPII ? e164Digits((p.guest || {}).phone, p.lang) : null;
   const attr = p.attribution || {};
   const fbclid = (attr.last && attr.last.fbclid) || (attr.first && attr.first.fbclid) || null;
   const client = p.client || {};
@@ -434,10 +444,6 @@ async function processPendingBooking(pendingId, session) {
     await pool.query('UPDATE payments SET ref = $2 WHERE session_id = $1', [session.id, ref]);
   }
 
-  // Conversions API (Meta) — best-effort: o eroare aici NU aruncă (altfel
-  // webhook-ul Stripe ar da 500 și ar reîncerca degeaba o rezervare creată)
-  try { await sendMetaCapiPurchase(pb, p); } catch (e) { console.error('[capi]', e.message); }
-
   // 3) consimțământul de marketing + sursa de achiziție pe profilul de client
   //    (acquisition se scrie NECONDIȚIONAT de consimțământ — e analiza noastră
   //    internă a rezervării, nu marketing; first-touch write-once + touches[])
@@ -513,6 +519,26 @@ async function processPendingBooking(pendingId, session) {
     subject: bookingConfirmSubject(p.lang, p.villaName),
     html: bookingConfirmHtml(emailData, p.lang),
   });
+
+  // 6) Conversions API (Meta) — DUPĂ emailuri (nu întârziem confirmarea către
+  //    oaspete pentru un apel de marketing); best-effort: o eroare NU aruncă
+  //    (webhook-ul Stripe nu trebuie să reîncerce o rezervare deja creată)
+  try { await sendMetaCapiPurchase(pb, p); } catch (e) { console.error('[capi]', e.message); }
+
+  // 7) minimizare: după CAPI, datele tehnice colectate pentru el nu mai au scop —
+  //    ștergem IP/UA + valorile brute ale click id-urilor din payload (rămâne doar
+  //    prezența lor, suficientă pentru afișarea sursei în Roots Leads).
+  //    Rezervările reușite ('created') altfel le-ar păstra pe termen nelimitat.
+  try {
+    const cleaned = JSON.parse(JSON.stringify(p));
+    delete cleaned.client;
+    for (const touch of [cleaned.attribution && cleaned.attribution.first, cleaned.attribution && cleaned.attribution.last]) {
+      if (!touch) continue;
+      for (const k of ['fbclid', 'gclid', 'ttclid', 'msclkid']) if (touch[k]) touch[k] = true;
+    }
+    await pool.query('UPDATE pending_bookings SET payload = $2, updated_at = now() WHERE id = $1', [pb.id, JSON.stringify(cleaned)]);
+  } catch (e) { console.error('[pending] minimizare payload:', e.message); }
+
   emit('BookingCreatedAfterPayment', { pendingId: pb.id, ref, emailed, consent: pb.marketing_consent });
 }
 
@@ -968,7 +994,10 @@ app.post('/api/v1/leads', async (req, res) => {
       `INSERT INTO leads (email, name, phone, source, villa, arrival, departure, marketing_consent, ads_consent, consent_at, attribution, lang, token)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, CASE WHEN $8 OR $9 THEN now() END, $10,$11,$12)`,
       [email, String(b.name || '').trim().slice(0, 120) || null, String(b.phone || '').trim().slice(0, 40) || null,
-       source, villa, dateOk(b.arrival), dateOk(b.departure), !!b.marketingConsent, !!b.adsConsent,
+       // ads_consent = FALSE forțat: niciun formular public de lead nu are (încă)
+       // căsuța de audiențe — un `adsConsent:true` venit pe endpointul public ar
+       // fi consimțământ fabricat (endpoint deschis, nu-l putem crede pe cuvânt)
+       source, villa, dateOk(b.arrival), dateOk(b.departure), !!b.marketingConsent, false,
        acq ? JSON.stringify(acq) : null, lang, token]
     );
     emit('LeadCaptured', { source });
@@ -1060,6 +1089,15 @@ app.get('/api/v1/admin/audience-export', requirePerm('marketing'), async (req, r
   try {
     // hash-urile sunt tot date personale — cerem și zona „clienti"
     if (!(await userHasPerm(req.user, 'clienti'))) return res.status(403).json({ error: 'Exportul cere și zona „Clienți".' });
+    // anti-CSRF: GET autentificat cu cookie — refuzăm declanșarea de pe alt site
+    // (sec-fetch-site: cross-site) sau cu referer străin; lipsa ambelor = permis
+    // (click direct / bară de adrese)
+    const sfs = String(req.headers['sec-fetch-site'] || '');
+    if (sfs && !['same-origin', 'same-site', 'none'].includes(sfs)) return res.status(403).json({ error: 'Cerere cross-site refuzată.' });
+    try {
+      const ref = req.headers.referer ? new URL(req.headers.referer) : null;
+      if (ref && ref.host !== req.headers.host) return res.status(403).json({ error: 'Cerere cross-site refuzată.' });
+    } catch { /* referer neparsabil — îl ignorăm */ }
     const segment = ['ads-all', 'ads-cumparatori', 'ads-winback'].includes(req.query.segment) ? req.query.segment : 'ads-all';
     let rows;
     if (segment === 'ads-cumparatori') {
@@ -1077,6 +1115,7 @@ app.get('/api/v1/admin/audience-export', requirePerm('marketing'), async (req, r
               AND extract(year from b.arrival) = extract(year from now()) - 1
          WHERE g.ads_consent AND g.email IS NOT NULL
            AND NOT EXISTS (SELECT 1 FROM bookings b2 WHERE b2.guest_id = g.id
+                             AND b2.status = 'confirmed' -- o anulare anul acesta NU te scoate din win-back
                              AND extract(year from b2.arrival) = extract(year from now()))`
       )).rows;
     } else {
@@ -1086,18 +1125,22 @@ app.get('/api/v1/admin/audience-export', requirePerm('marketing'), async (req, r
          SELECT email, phone FROM leads WHERE ads_consent AND confirmed AND NOT unsubscribed AND email IS NOT NULL`
       )).rows;
     }
-    const seen = new Set();
-    const lines = ['email,phone'];
+    // dedup pe email care PĂSTREAZĂ telefonul: același email poate apărea cu
+    // telefoane diferite (UNION) — luăm primul telefon valid, nu primul rând
+    const byEmail = new Map();
     let skipped = 0;
     for (const row of rows) {
       const em = String(row.email || '').trim().toLowerCase();
-      if (!/.+@.+\..+/.test(em) || seen.has(em)) { skipped++; continue; }
-      seen.add(em);
+      if (!/.+@.+\..+/.test(em)) { skipped++; continue; }
       const ph = e164Digits(row.phone);
-      lines.push(sha256hex(em) + ',' + (ph ? sha256hex(ph) : ''));
+      if (!byEmail.has(em)) byEmail.set(em, ph);
+      else if (!byEmail.get(em) && ph) byEmail.set(em, ph);
     }
-    // audit: cine, ce segment, câte rânduri (cerință firească pt. date personale)
-    emit('AudienceExported', { segment, count: lines.length - 1, skipped, by: req.user.email });
+    const lines = ['email,phone'];
+    for (const [em, ph] of byEmail) lines.push(sha256hex(em) + ',' + (ph ? sha256hex(ph) : ''));
+    // audit ÎNAINTE de răspuns (pe serverless, ce rămâne „în zbor" după send se
+    // poate pierde) — cine, ce segment, câte rânduri
+    await emit('AudienceExported', { segment, count: lines.length - 1, skipped, by: req.user.email });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="roots-audienta-${segment}.csv"`);
     res.send(lines.join('\n'));
@@ -2624,15 +2667,21 @@ app.get('/api/v1/admin/guests', requirePerm('clienti'), async (_req, res) => {
   res.json({ guests: r.rows });
 });
 app.patch('/api/v1/admin/guests/:id', requirePerm('clienti'), async (req, res) => {
-  const { notes, marketing_consent } = req.body || {};
+  const { notes, marketing_consent, ads_consent } = req.body || {};
   const r = await pool.query(
     `UPDATE guests SET notes = COALESCE($2, notes),
        marketing_consent = COALESCE($3, marketing_consent),
        consent_source = CASE WHEN $3 IS NOT NULL THEN 'admin' ELSE consent_source END,
        consent_at = CASE WHEN $3 IS NOT NULL THEN now() ELSE consent_at END,
+       ads_consent = COALESCE($4, ads_consent),
+       ads_consent_at = CASE WHEN $4 IS NOT NULL THEN now() ELSE ads_consent_at END,
        updated_at = now()
      WHERE id = $1 RETURNING *`,
-    [req.params.id, notes ?? null, typeof marketing_consent === 'boolean' ? marketing_consent : null]
+    [req.params.id, notes ?? null,
+     typeof marketing_consent === 'boolean' ? marketing_consent : null,
+     // retragerea consimțământului de audiențe TREBUIE să fie posibilă — altfel
+     // cine se răzgândește ar rămâne pe veci în exporturile către platforme
+     typeof ads_consent === 'boolean' ? ads_consent : null]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Client inexistent' });
   emit('GuestUpdated', { id: req.params.id, by: req.user.email });

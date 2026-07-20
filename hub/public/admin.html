@@ -112,7 +112,7 @@
   <div class="acts">
     <!-- marcaj de versiune: dacă un browser rulează un admin vechi din cache,
          se vede imediat aici (bug-ul „publică gol" venea dintr-un admin stale) -->
-    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v20.07.1</span>
+    <span style="font-size:11px;color:#9aa8a1" title="Versiunea interfeței de admin">v20.07.2</span>
     <span id="who"></span>
     <button onclick="logout()">Deconectare</button>
   </div>
@@ -1289,15 +1289,15 @@ async function renderLeads() {
     </select></div>
     <div id="ldList"></div>
     <div class="hint" style="margin-top:10px">Sfat GDPR: doar leadurile <b>confirmate</b> pot primi emailuri de marketing. Cele neconfirmate au cerut, dar n-au dat click pe linkul de confirmare din email.</div>
-    <div class="card" style="margin-top:14px;padding:15px 18px">
+    ${can('clienti') ? `<div class="card" style="margin-top:14px;padding:15px 18px">
       <b>Export audiențe pentru platformele de ads (Custom Audiences)</b>
-      <div class="hint" style="margin-top:4px">Doar persoane cu consimțământul <b>„audiențe"</b> bifat (căsuța a doua de la rezervare) — nu cel de email. Emailuri/telefoane normalizate + pseudonimizate SHA-256, formatul acceptat de Meta Custom Audiences și Google Customer Match. ⚠️ Pe platformă încarcă lista ca <b>REPLACE</b> (înlocuire), nu adăugare — așa ies automat cei care s-au răzgândit. Fiecare export se loghează în Activitate.</div>
+      <div class="hint" style="margin-top:4px">Doar persoane cu consimțământul <b>„audiențe"</b> bifat (căsuța a doua de la rezervare) — nu cel de email. Emailuri/telefoane normalizate + pseudonimizate SHA-256. Emailurile merg și la Meta, și la Google Customer Match; telefoanele sunt în formatul Meta (Google cere prefix „+" — folosește doar coloana de email acolo). ⚠️ Pe platformă încarcă lista ca <b>REPLACE</b> (înlocuire), nu adăugare — așa ies automat cei care s-au răzgândit (debifează „consimțământ audiențe" în Clienți la cerere). Fiecare export se loghează în Activitate.</div>
       <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
         <a class="btn" href="/api/v1/admin/audience-export?segment=ads-all">⬇ Toți (cu consimțământ ads)</a>
         <a class="btn" href="/api/v1/admin/audience-export?segment=ads-cumparatori" title="Pentru EXCLUDERE din campaniile de achiziție">⬇ Cumpărători (excludere)</a>
-        <a class="btn" href="/api/v1/admin/audience-export?segment=ads-winback" title="Au stat anul trecut, nimic anul acesta">⬇ Win-back</a>
+        <a class="btn" href="/api/v1/admin/audience-export?segment=ads-winback" title="Au stat anul trecut (rezervare confirmată), nimic anul acesta">⬇ Win-back</a>
       </div>
-    </div>`;
+    </div>` : ''}`;
   renderLeadsList();
 }
 function renderLeadsList() {
@@ -1422,7 +1422,9 @@ function renderGuestsList() {
         <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
           <input class="f" style="flex:1;min-width:200px" placeholder="notițe" value="${esc(g.notes || '')}" onchange="updGuest('${g.id}',{notes:this.value})" />
           <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#5c6b64;white-space:nowrap">
-            <input type="checkbox" ${g.marketing_consent ? 'checked' : ''} onchange="updGuest('${g.id}',{marketing_consent:this.checked})" /> consimțământ marketing</label>
+            <input type="checkbox" ${g.marketing_consent ? 'checked' : ''} onchange="updGuest('${g.id}',{marketing_consent:this.checked})" /> consimțământ email</label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#5c6b64;white-space:nowrap" title="Audiențe pe platformele de ads (Meta/Google/TikTok). Debifează la cererea clientului — iese din exporturi la următorul REPLACE.">
+            <input type="checkbox" ${g.ads_consent ? 'checked' : ''} onchange="updGuest('${g.id}',{ads_consent:this.checked})" /> consimțământ audiențe</label>
         </div>
       </div>`).join('') || '<div class="card">Niciun client pe filtrul ales.</div>';
 }
